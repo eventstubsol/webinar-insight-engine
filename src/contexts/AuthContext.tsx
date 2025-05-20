@@ -1,44 +1,16 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+
+import React, { createContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
 import { initializeStorage } from '@/integrations/supabase/storage';
+import { AuthContextType, UserProfile, UserRole } from '@/types/auth';
+import { cleanupAuthState, fetchUserProfile, fetchUserRoles, updateUserProfile } from '@/utils/authUtils';
 
-export type UserRole = 'admin' | 'host' | 'viewer';
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export interface UserProfile {
-  id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-}
-
-export interface AuthContextType {
-  session: Session | null;
-  user: User | null;
-  profile: UserProfile | null;
-  roles: UserRole[];
-  isLoading: boolean;
-  isAdmin: boolean;
-  isHost: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithZoom: () => Promise<void>;
-  // Changed return type from Promise<void> to Promise<any> to match implementation
-  updateProfile: (updates: Partial<UserProfile>) => Promise<any>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export * from '@/hooks/useAuth';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
@@ -47,52 +19,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const navigate = useNavigate();
-
-  const cleanupAuthState = () => {
-    // Remove standard auth tokens
-    localStorage.removeItem('supabase.auth.token');
-    // Remove all Supabase auth keys from localStorage
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-        localStorage.removeItem(key);
-      }
-    });
-    // Remove from sessionStorage if in use
-    Object.keys(sessionStorage || {}).forEach((key) => {
-      if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-        sessionStorage.removeItem(key);
-      }
-    });
-  };
   
   // Fetch user profile and roles
   const fetchUserData = async (userId: string) => {
     try {
       // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, display_name, avatar_url')
-        .eq('id', userId)
-        .single();
-      
-      if (profileError) throw profileError;
-      
+      const profileData = await fetchUserProfile(userId);
       if (profileData) {
         setProfile(profileData);
       }
       
       // Fetch roles
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-      
-      if (rolesError) throw rolesError;
-      
-      if (rolesData) {
-        const userRoles = rolesData.map(r => r.role as UserRole);
-        setRoles(userRoles);
-      }
+      const rolesData = await fetchUserRoles(userId);
+      setRoles(rolesData);
     } catch (error: any) {
       console.error('Error fetching user data:', error.message);
     } finally {
@@ -300,29 +239,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (!user) throw new Error('User not logged in');
       
-      const { data, error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
+      const data = await updateUserProfile(user.id, updates);
       
       setProfile({ ...profile, ...updates } as UserProfile);
       
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully"
-      });
-      
       return data; // This returns the updated profile data
     } catch (error: any) {
-      toast({
-        title: "Update failed",
-        description: error.message,
-        variant: "destructive"
-      });
       throw error;
     }
   };
