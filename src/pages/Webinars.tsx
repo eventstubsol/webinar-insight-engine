@@ -8,7 +8,7 @@ import { useZoomWebinars } from '@/hooks/useZoomApi';
 import { LoaderCircle } from 'lucide-react';
 
 const Webinars = () => {
-  const { webinars, isLoading, isRefetching, refreshWebinars } = useZoomWebinars();
+  const { webinars, isLoading, isRefetching, error, refreshWebinars } = useZoomWebinars();
   
   return (
     <AppLayout>
@@ -39,7 +39,7 @@ const Webinars = () => {
         </div>
 
         <div className="grid gap-6">
-          <WebinarsList webinars={webinars} isLoading={isLoading} />
+          <WebinarsList webinars={webinars} isLoading={isLoading} error={error} />
         </div>
       </div>
     </AppLayout>

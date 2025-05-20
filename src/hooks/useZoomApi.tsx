@@ -51,6 +51,10 @@ export function useZoomWebinars() {
         });
         
         if (error) throw new Error(error.message);
+        
+        // Add logging for debugging
+        console.log('Webinars API response:', data);
+        
         return data.webinars;
       } catch (err: any) {
         toast({
@@ -62,7 +66,9 @@ export function useZoomWebinars() {
       } finally {
         setIsLoading(false);
       }
-    }
+    },
+    retry: 1, // Reduce unnecessary retries when auth is not configured
+    refetchOnWindowFocus: false
   });
 
   const refreshWebinars = async () => {
@@ -102,7 +108,8 @@ export function useZoomWebinarDetails(webinarId: string | null) {
       if (error) throw new Error(error.message);
       return data.webinar;
     },
-    enabled: !!webinarId
+    enabled: !!webinarId,
+    refetchOnWindowFocus: false
   });
 
   return {
@@ -125,7 +132,8 @@ export function useZoomWebinarParticipants(webinarId: string | null) {
       if (error) throw new Error(error.message);
       return data as ZoomParticipants;
     },
-    enabled: !!webinarId
+    enabled: !!webinarId,
+    refetchOnWindowFocus: false
   });
 
   return {

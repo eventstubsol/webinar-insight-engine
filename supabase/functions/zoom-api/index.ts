@@ -36,85 +36,89 @@ Deno.serve(async (req) => {
     const action = body?.action;
     const id = body?.id;
 
-    // Get Zoom access token
-    async function getZoomAccessToken() {
-      const clientId = Deno.env.get('ZOOM_CLIENT_ID')
-      const clientSecret = Deno.env.get('ZOOM_CLIENT_SECRET')
+    // Generate a Server-to-Server OAuth JWT token
+    async function getZoomJwtToken() {
+      const accountId = Deno.env.get('ZOOM_ACCOUNT_ID');
+      const clientId = Deno.env.get('ZOOM_CLIENT_ID');
+      const clientSecret = Deno.env.get('ZOOM_CLIENT_SECRET');
 
-      if (!clientId || !clientSecret) {
-        throw new Error('Zoom API credentials not configured')
+      if (!accountId || !clientId || !clientSecret) {
+        throw new Error('Zoom API credentials not properly configured');
       }
 
-      const credentials = `${clientId}:${clientSecret}`
-      const encodedCredentials = btoa(credentials)
-
-      const response = await fetch('https://zoom.us/oauth/token?grant_type=client_credentials', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${encodedCredentials}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
+      try {
+        const response = await fetch(`https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${accountId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Zoom token error:', data);
+          throw new Error(`Failed to get Zoom token: ${data.error || 'Unknown error'}`);
         }
-      })
 
-      const data = await response.json()
-      
-      if (!response.ok) {
-        console.error('Zoom token error:', data)
-        throw new Error(`Failed to get Zoom token: ${data.error}`)
+        return data.access_token;
+      } catch (error) {
+        console.error('Zoom JWT generation error:', error);
+        throw new Error(`Failed to generate Zoom JWT: ${error.message}`);
       }
-
-      return data.access_token
     }
 
     // Get webinars from Zoom
     if (action === 'list-webinars') {
-      const token = await getZoomAccessToken()
+      const token = await getZoomJwtToken();
+      console.log('Fetching webinars with token');
       
       const response = await fetch('https://api.zoom.us/v2/users/me/webinars?page_size=300', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
-      })
+      });
       
-      const data = await response.json()
+      const data = await response.json();
       
       if (!response.ok) {
-        console.error('Zoom webinars error:', data)
-        throw new Error(`Failed to fetch webinars: ${data.message || 'Unknown error'}`)
+        console.error('Zoom webinars error:', data);
+        throw new Error(`Failed to fetch webinars: ${data.message || 'Unknown error'}`);
       }
 
       return new Response(JSON.stringify({ webinars: data.webinars || [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      });
     }
     
     // Get webinar details
     else if (action === 'get-webinar' && id) {
-      const token = await getZoomAccessToken()
+      const token = await getZoomJwtToken();
       
       const response = await fetch(`https://api.zoom.us/v2/webinars/${id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
-      })
+      });
       
-      const data = await response.json()
+      const data = await response.json();
       
       if (!response.ok) {
-        console.error('Zoom webinar details error:', data)
-        throw new Error(`Failed to fetch webinar details: ${data.message || 'Unknown error'}`)
+        console.error('Zoom webinar details error:', data);
+        throw new Error(`Failed to fetch webinar details: ${data.message || 'Unknown error'}`);
       }
 
       return new Response(JSON.stringify({ webinar: data }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      });
     }
     
     // Get webinar participants (registrants and attendees)
     else if (action === 'get-participants' && id) {
-      const token = await getZoomAccessToken()
+      const token = await getZoomJwtToken();
       
       const [registrantsRes, attendeesRes] = await Promise.all([
         fetch(`https://api.zoom.us/v2/webinars/${id}/registrants?page_size=300`, {
@@ -129,31 +133,31 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json'
           }
         })
-      ])
+      ]);
       
       const [registrantsData, attendeesData] = await Promise.all([
         registrantsRes.json(),
         attendeesRes.json()
-      ])
+      ]);
       
       return new Response(JSON.stringify({
         registrants: registrantsRes.ok ? registrantsData.registrants || [] : [],
         attendees: attendeesRes.ok ? attendeesData.participants || [] : []
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      });
     }
 
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+    });
 
   } catch (error) {
-    console.error('Zoom API error:', error)
+    console.error('Zoom API error:', error);
     return new Response(JSON.stringify({ error: error.message || 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+    });
   }
-})
+});

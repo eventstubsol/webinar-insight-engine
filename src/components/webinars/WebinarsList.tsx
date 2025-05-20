@@ -18,6 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AlertCircle } from 'lucide-react';
 import { 
   ChartBar, 
   Download, 
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/pagination";
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface WebinarStatus {
   value: string;
@@ -56,16 +58,17 @@ const statusMap: Record<string, WebinarStatus> = {
 interface WebinarsListProps {
   webinars: ZoomWebinar[];
   isLoading: boolean;
+  error?: Error | null;
 }
 
-export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoading }) => {
+export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoading, error }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   
   // Filter webinars based on search query
   const filteredWebinars = webinars.filter(webinar => 
-    webinar.topic.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    webinar.topic?.toLowerCase().includes(searchQuery.toLowerCase()) || 
     webinar.host_email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -111,6 +114,20 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoa
     return pages;
   };
 
+  const renderErrorState = () => (
+    <Alert variant="destructive" className="mb-4">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>Error loading webinars</AlertTitle>
+      <AlertDescription>
+        {error?.message || 'Failed to load webinars from Zoom. Please check your Zoom API configuration in the Supabase dashboard.'}
+      </AlertDescription>
+      <AlertDescription className="mt-2 text-xs">
+        You need to configure a Server-to-Server OAuth app in Zoom Marketplace with the proper scopes (webinar:read, webinar:write).
+        Make sure ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET are properly set in your Supabase Edge Functions secrets.
+      </AlertDescription>
+    </Alert>
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -133,6 +150,8 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoa
         </div>
       </CardHeader>
       <CardContent>
+        {error && renderErrorState()}
+        
         <div className="rounded-md border overflow-hidden">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
