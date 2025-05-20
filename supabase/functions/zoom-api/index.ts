@@ -25,8 +25,16 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey)
 
   try {
-    const url = new URL(req.url)
-    const action = url.searchParams.get('action')
+    // Get request body
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      throw new Error('Invalid request body');
+    }
+    
+    const action = body?.action;
+    const id = body?.id;
 
     // Get Zoom access token
     async function getZoomAccessToken() {
@@ -82,11 +90,10 @@ Deno.serve(async (req) => {
     }
     
     // Get webinar details
-    else if (action === 'get-webinar' && url.searchParams.get('id')) {
+    else if (action === 'get-webinar' && id) {
       const token = await getZoomAccessToken()
-      const webinarId = url.searchParams.get('id')
       
-      const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
+      const response = await fetch(`https://api.zoom.us/v2/webinars/${id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -106,18 +113,17 @@ Deno.serve(async (req) => {
     }
     
     // Get webinar participants (registrants and attendees)
-    else if (action === 'get-participants' && url.searchParams.get('id')) {
+    else if (action === 'get-participants' && id) {
       const token = await getZoomAccessToken()
-      const webinarId = url.searchParams.get('id')
       
       const [registrantsRes, attendeesRes] = await Promise.all([
-        fetch(`https://api.zoom.us/v2/webinars/${webinarId}/registrants?page_size=300`, {
+        fetch(`https://api.zoom.us/v2/webinars/${id}/registrants?page_size=300`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         }),
-        fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}/participants?page_size=300`, {
+        fetch(`https://api.zoom.us/v2/past_webinars/${id}/participants?page_size=300`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

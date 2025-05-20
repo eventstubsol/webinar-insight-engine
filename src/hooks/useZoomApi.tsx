@@ -47,7 +47,7 @@ export function useZoomWebinars() {
       try {
         setIsLoading(true);
         const { data, error } = await supabase.functions.invoke('zoom-api', {
-          query: { action: 'list-webinars' }
+          body: { action: 'list-webinars' }
         });
         
         if (error) throw new Error(error.message);
@@ -96,7 +96,7 @@ export function useZoomWebinarDetails(webinarId: string | null) {
       if (!webinarId) return null;
       
       const { data, error } = await supabase.functions.invoke('zoom-api', {
-        query: { action: 'get-webinar', id: webinarId }
+        body: { action: 'get-webinar', id: webinarId }
       });
       
       if (error) throw new Error(error.message);
@@ -119,7 +119,7 @@ export function useZoomWebinarParticipants(webinarId: string | null) {
       if (!webinarId) return { registrants: [], attendees: [] };
       
       const { data, error } = await supabase.functions.invoke('zoom-api', {
-        query: { action: 'get-participants', id: webinarId }
+        body: { action: 'get-participants', id: webinarId }
       });
       
       if (error) throw new Error(error.message);
