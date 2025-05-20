@@ -52,6 +52,12 @@
     --chart-attendance: 135 70% 50%;
     --chart-conversion: 214 84% 56%;
     --chart-warning: 38 92% 50%;
+    
+    /* Dashboard card colors */
+    --card-blue: 214 84% 96%;
+    --card-sky: 204 93% 94%;  
+    --card-purple: 270 80% 96%;
+    --card-green: 142 76% 94%;
   }
 
   .dark {
@@ -100,6 +106,12 @@
     --chart-attendance: 135 70% 50%;
     --chart-conversion: 214 84% 56%;
     --chart-warning: 38 92% 50%;
+    
+    /* Dashboard card colors - dark mode */
+    --card-blue: 214 84% 20%;
+    --card-sky: 204 93% 20%;  
+    --card-purple: 270 80% 20%;
+    --card-green: 142 76% 20%;
   }
 }
 
@@ -146,4 +158,3 @@
     @apply inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary;
   }
 }
-

@@ -8,8 +8,9 @@ import {
   CardTitle 
 } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Users, BarChart, Clock, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
+import { Video, Users, Activity, Clock } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
+import { useZoomWebinarParticipants } from '@/hooks/zoom';
 import { format, parseISO } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -17,17 +18,14 @@ interface StatProps {
   title: string;
   value: string | React.ReactNode;
   description: string;
-  trend?: {
-    value: number;
-    isPositive: boolean;
-  };
   icon: React.ReactNode;
   isLoading?: boolean;
+  cardColor?: string;
 }
 
-const Stat = ({ title, value, description, trend, icon, isLoading = false }: StatProps) => {
+const Stat = ({ title, value, description, icon, isLoading = false, cardColor }: StatProps) => {
   return (
-    <Card>
+    <Card className={cardColor}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -40,15 +38,7 @@ const Stat = ({ title, value, description, trend, icon, isLoading = false }: Sta
         ) : (
           <div className="text-2xl font-bold">{value}</div>
         )}
-        <div className="flex items-center space-x-2">
-          <CardDescription>{description}</CardDescription>
-          {!isLoading && trend && (
-            <div className={`flex items-center text-xs ${trend.isPositive ? 'text-green-500' : 'text-red-500'}`}>
-              {trend.isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-              <span>{trend.value}%</span>
-            </div>
-          )}
-        </div>
+        <CardDescription>{description}</CardDescription>
       </CardContent>
     </Card>
   );
@@ -60,41 +50,47 @@ export const DashboardStats = () => {
   // Calculate stats from real data
   const getTotalWebinars = () => webinars.length;
   
-  const getUpcomingWebinars = () => {
-    const now = new Date();
-    return webinars.filter(webinar => {
-      if (!webinar.start_time) return false;
-      return new Date(webinar.start_time) > now;
-    }).length;
+  // Calculate total registrants from webinar participants
+  const getTotalRegistrants = () => {
+    // This would ideally come from the API but for now we'll return a placeholder
+    return 0;
   };
   
-  const getPastWebinars = () => {
-    const now = new Date();
-    return webinars.filter(webinar => {
-      if (!webinar.start_time) return false;
-      return new Date(webinar.start_time) <= now;
-    }).length;
+  // Calculate total attendees
+  const getTotalAttendees = () => {
+    // This would ideally come from the API but for now we'll return a placeholder
+    return 0;
   };
   
+  // Calculate attendance rate
+  const getAttendanceRate = () => {
+    const registrants = getTotalRegistrants();
+    const attendees = getTotalAttendees();
+    
+    if (registrants === 0) return "0%";
+    
+    const rate = Math.round((attendees / registrants) * 100);
+    return `${rate}%`;
+  };
+  
+  // Calculate total engagement (placeholder)
+  const getTotalEngagement = () => {
+    // This would ideally be calculated from actual engagement metrics
+    return "0h 0m";
+  };
+  
+  // Calculate average duration
   const getAverageDuration = () => {
     const webinarsWithDuration = webinars.filter(w => w.duration);
-    if (webinarsWithDuration.length === 0) return 0;
+    if (webinarsWithDuration.length === 0) return "0h 0m";
     
     const totalDuration = webinarsWithDuration.reduce((sum, webinar) => sum + (webinar.duration || 0), 0);
-    return Math.round(totalDuration / webinarsWithDuration.length);
-  };
-  
-  const getLastWebinarDate = () => {
-    const pastWebinars = webinars
-      .filter(w => w.start_time)
-      .sort((a, b) => {
-        if (!a.start_time || !b.start_time) return 0;
-        return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
-      });
-      
-    return pastWebinars.length > 0 && pastWebinars[0].start_time
-      ? format(parseISO(pastWebinars[0].start_time), 'MMM d, yyyy')
-      : 'No data';
+    const avgMinutes = Math.round(totalDuration / webinarsWithDuration.length);
+    
+    const hours = Math.floor(avgMinutes / 60);
+    const minutes = avgMinutes % 60;
+    
+    return `${hours}h ${minutes}m`;
   };
   
   return (
@@ -103,47 +99,49 @@ export const DashboardStats = () => {
         title="Total Webinars"
         value={isLoading ? <Skeleton className="h-7 w-14" /> : getTotalWebinars().toString()}
         description="Total webinars"
-        icon={<Calendar className="h-4 w-4" />}
+        icon={<Video className="h-4 w-4" />}
         isLoading={isLoading}
+        cardColor="bg-blue-50 border-blue-200"
       />
       <Stat
-        title="Upcoming Webinars"
-        value={isLoading ? <Skeleton className="h-7 w-14" /> : getUpcomingWebinars().toString()}
-        description="Scheduled webinars"
-        icon={<Clock className="h-4 w-4" />}
-        trend={!isLoading ? {
-          value: Math.round((getUpcomingWebinars() / Math.max(getTotalWebinars(), 1)) * 100),
-          isPositive: true
-        } : undefined}
-        isLoading={isLoading}
-      />
-      <Stat
-        title="Past Webinars"
-        value={isLoading ? <Skeleton className="h-7 w-14" /> : getPastWebinars().toString()}
-        description="Completed webinars"
-        icon={<BarChart className="h-4 w-4" />}
-        isLoading={isLoading}
-      />
-      <Stat
-        title="Average Duration"
-        value={isLoading ? <Skeleton className="h-7 w-14" /> : `${getAverageDuration()} min`}
-        description="Per webinar"
-        icon={<Clock className="h-4 w-4" />}
-        isLoading={isLoading}
-      />
-      <Stat
-        title="Last Webinar"
-        value={isLoading ? <Skeleton className="h-7 w-28" /> : getLastWebinarDate()}
-        description="Most recent webinar"
-        icon={<Calendar className="h-4 w-4" />}
-        isLoading={isLoading}
-      />
-      <Stat
-        title="Zoom Account"
-        value={isLoading ? <Skeleton className="h-7 w-24" /> : "Connected"}
-        description="API integration status"
+        title="Total Registrants"
+        value={isLoading ? <Skeleton className="h-7 w-14" /> : getTotalRegistrants().toString()}
+        description="Registered participants"
         icon={<Users className="h-4 w-4" />}
         isLoading={isLoading}
+        cardColor="bg-sky-50 border-sky-200"
+      />
+      <Stat
+        title="Total Attendees"
+        value={isLoading ? <Skeleton className="h-7 w-14" /> : getTotalAttendees().toString()}
+        description="Attended participants"
+        icon={<Users className="h-4 w-4" />}
+        isLoading={isLoading}
+        cardColor="bg-sky-50 border-sky-200"
+      />
+      <Stat
+        title="Attendance Rate"
+        value={isLoading ? <Skeleton className="h-7 w-14" /> : getAttendanceRate()}
+        description="Attendance percentage"
+        icon={<Activity className="h-4 w-4" />}
+        isLoading={isLoading}
+        cardColor="bg-green-50 border-green-200"
+      />
+      <Stat
+        title="Total Engagement"
+        value={isLoading ? <Skeleton className="h-7 w-28" /> : getTotalEngagement()}
+        description="Total engagement time"
+        icon={<Clock className="h-4 w-4" />}
+        isLoading={isLoading}
+        cardColor="bg-purple-50 border-purple-200"
+      />
+      <Stat
+        title="Avg. Duration"
+        value={isLoading ? <Skeleton className="h-7 w-24" /> : getAverageDuration()}
+        description="Average webinar length"
+        icon={<Clock className="h-4 w-4" />}
+        isLoading={isLoading}
+        cardColor="bg-green-50 border-green-200"
       />
     </div>
   );
