@@ -1,6 +1,5 @@
-
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
@@ -36,6 +35,38 @@ export interface ZoomParticipants {
     duration: number;
   }>;
 }
+
+// Storage key for saving sync history in localStorage
+const SYNC_HISTORY_KEY = 'zoom_webinar_sync_history';
+
+interface SyncRecord {
+  timestamp: string;
+  success: boolean;
+  count: number;
+  error?: string;
+}
+
+// Helper functions for sync history
+const getSyncHistory = (): SyncRecord[] => {
+  try {
+    const history = localStorage.getItem(SYNC_HISTORY_KEY);
+    return history ? JSON.parse(history) : [];
+  } catch (e) {
+    console.error('Error parsing sync history:', e);
+    return [];
+  }
+};
+
+const saveSyncRecord = (record: SyncRecord) => {
+  try {
+    const history = getSyncHistory();
+    // Keep only the last 10 records
+    const updatedHistory = [record, ...history].slice(0, 10);
+    localStorage.setItem(SYNC_HISTORY_KEY, JSON.stringify(updatedHistory));
+  } catch (e) {
+    console.error('Error saving sync record:', e);
+  }
+};
 
 export function useZoomCredentialsVerification() {
   const [isVerifying, setIsVerifying] = useState(false);
@@ -108,6 +139,7 @@ export function useZoomCredentialsVerification() {
 export function useZoomWebinars() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefetching, setIsRefetching] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data, error, refetch } = useQuery({
     queryKey: ['zoom-webinars'],
@@ -130,12 +162,27 @@ export function useZoomWebinars() {
         
         console.log('Webinars API response:', data);
         
+        // Record successful sync in history
+        saveSyncRecord({
+          timestamp: new Date().toISOString(),
+          success: true,
+          count: data.webinars?.length || 0
+        });
+        
         return data.webinars;
       } catch (err: any) {
         console.error('Error fetching webinars:', err);
         
         // Parse and enhance error messages for better user experience
         let errorMessage = err.message || 'An error occurred while fetching webinars';
+        
+        // Record failed sync in history
+        saveSyncRecord({
+          timestamp: new Date().toISOString(),
+          success: false,
+          count: 0,
+          error: errorMessage
+        });
         
         // Provide more helpful error messages based on common patterns
         if (errorMessage.includes('Account ID')) {
@@ -160,8 +207,14 @@ export function useZoomWebinars() {
       }
     },
     retry: 1,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    // Add staleTime and cacheTime for optimized caching
+    staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh for 5 minutes
+    gcTime: 10 * 60 * 1000 // 10 minutes - keep data in cache for 10 minutes
   });
+
+  // Get sync history
+  const syncHistory = getSyncHistory();
 
   const refreshWebinars = async () => {
     setIsRefetching(true);
@@ -206,7 +259,8 @@ export function useZoomWebinars() {
     isRefetching,
     error,
     errorDetails,
-    refreshWebinars
+    refreshWebinars,
+    syncHistory
   };
 }
 
@@ -224,7 +278,10 @@ export function useZoomWebinarDetails(webinarId: string | null) {
       return data.webinar;
     },
     enabled: !!webinarId,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    // Add optimized caching parameters
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 30 * 60 * 1000 // 30 minutes
   });
 
   return {
@@ -248,7 +305,10 @@ export function useZoomWebinarParticipants(webinarId: string | null) {
       return data as ZoomParticipants;
     },
     enabled: !!webinarId,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    // Add optimized caching parameters
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 15 * 60 * 1000 // 15 minutes
   });
 
   return {
