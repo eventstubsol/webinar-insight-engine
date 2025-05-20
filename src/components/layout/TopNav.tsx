@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Bell, Search } from 'lucide-react';
+import { Bell, Search, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -13,15 +13,23 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { useAuth } from '@/contexts/AuthContext';
-import { useZoomCredentials } from '@/hooks/zoom';
+import { useZoomCredentials, useZoomWebinars } from '@/hooks/zoom';
 import { useNavigate } from 'react-router-dom';
 
 export const TopNav = () => {
   const { user } = useAuth();
-  const { credentialsStatus, isLoading } = useZoomCredentials();
+  const { credentialsStatus, isLoading: isLoadingCredentials } = useZoomCredentials();
+  const { refreshWebinars, isRefetching } = useZoomWebinars();
   const navigate = useNavigate();
   
-  const needsZoomSetup = !isLoading && user && !credentialsStatus?.hasCredentials;
+  const needsZoomSetup = !isLoadingCredentials && user && !credentialsStatus?.hasCredentials;
+  const canSyncWebinars = user && credentialsStatus?.hasCredentials;
+  
+  const handleSync = async () => {
+    if (canSyncWebinars) {
+      await refreshWebinars();
+    }
+  };
   
   return (
     <div className="border-b border-border bg-background px-4 py-3 flex items-center gap-4 justify-between">
@@ -42,6 +50,27 @@ export const TopNav = () => {
             onClick={() => navigate('/dashboard')}
           >
             Connect Zoom
+          </Button>
+        )}
+        
+        {canSyncWebinars && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleSync}
+            disabled={isRefetching}
+          >
+            {isRefetching ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Syncing...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                <span>Sync</span>
+              </>
+            )}
           </Button>
         )}
         
