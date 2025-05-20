@@ -11,12 +11,12 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
 import { useZoomCredentials } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, ArrowRight } from 'lucide-react';
+import { Info, ArrowRight, Loader2 } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [showWizard, setShowWizard] = useState(false);
-  const { credentialsStatus, checkCredentialsStatus } = useZoomCredentials();
+  const { credentialsStatus, checkCredentialsStatus, isLoading } = useZoomCredentials();
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
   
@@ -41,8 +41,16 @@ const Dashboard = () => {
           {/* Removed the div containing the "Import Data" and "Connect Zoom" buttons */}
         </div>
 
+        {/* Show loading indicator while checking credentials */}
+        {isLoading && (
+          <div className="flex items-center justify-center h-12 my-2">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <span className="ml-2 text-muted-foreground">Checking Zoom integration...</span>
+          </div>
+        )}
+
         {/* Show Zoom setup banner for new users without credentials */}
-        {!hasZoomCredentials && (
+        {!isLoading && !hasZoomCredentials && (
           <Alert className="bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
             <AlertTitle className="text-blue-800">Set up your Zoom integration</AlertTitle>

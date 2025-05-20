@@ -13,9 +13,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { useAuth } from '@/contexts/AuthContext';
+import { useZoomCredentials } from '@/hooks/zoom';
+import { useNavigate } from 'react-router-dom';
 
 export const TopNav = () => {
   const { user } = useAuth();
+  const { credentialsStatus, isLoading } = useZoomCredentials();
+  const navigate = useNavigate();
+  
+  const needsZoomSetup = !isLoading && user && !credentialsStatus?.hasCredentials;
   
   return (
     <div className="border-b border-border bg-background px-4 py-3 flex items-center gap-4 justify-between">
@@ -29,7 +35,15 @@ export const TopNav = () => {
       </div>
       
       <div className="flex items-center gap-3">
-        {user && <Button variant="outline" size="sm">Connect Zoom</Button>}
+        {needsZoomSetup && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => navigate('/dashboard')}
+          >
+            Connect Zoom
+          </Button>
+        )}
         
         {user && (
           <DropdownMenu>

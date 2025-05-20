@@ -9,7 +9,7 @@ export function useZoomCredentials() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   
-  const { data, error, refetch } = useQuery({
+  const { data, error, refetch, isInitialLoading } = useQuery({
     queryKey: ['zoom-credentials-status', user?.id],
     queryFn: async () => {
       if (!user) return null;
@@ -28,7 +28,8 @@ export function useZoomCredentials() {
     },
     enabled: !!user,
     refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnMount: 'always', // Always fetch fresh data when component mounts
+    staleTime: 30 * 1000, // Reduce stale time to 30 seconds
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
   
@@ -50,7 +51,7 @@ export function useZoomCredentials() {
   return {
     credentialsStatus: data,
     checkCredentialsStatus,
-    isLoading,
+    isLoading: isLoading || isInitialLoading, // Combine both loading states
     error
   };
 }
