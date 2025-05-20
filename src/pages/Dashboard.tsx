@@ -2,21 +2,24 @@
 import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
-import { AttendanceChart } from '@/components/dashboard/AttendanceChart';
+import { WebinarDistributionChart } from '@/components/dashboard/WebinarDistributionChart';
+import { RegistrationAttendanceChart } from '@/components/dashboard/RegistrationAttendanceChart';
 import { RecentWebinars } from '@/components/dashboard/RecentWebinars';
-import { WebinarMetrics } from '@/components/dashboard/WebinarMetrics';
+import { UpcomingWebinars } from '@/components/dashboard/UpcomingWebinars';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
 import { useZoomCredentials } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, ArrowRight, Loader2 } from 'lucide-react';
+import { Info, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
+import { useZoomWebinars } from '@/hooks/zoom';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [showWizard, setShowWizard] = useState(false);
-  const { credentialsStatus, checkCredentialsStatus, isLoading } = useZoomCredentials();
+  const { credentialsStatus, checkCredentialsStatus, isLoading: credentialsLoading } = useZoomCredentials();
+  const { refreshWebinars, isRefetching } = useZoomWebinars();
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
   
@@ -30,19 +33,50 @@ const Dashboard = () => {
     await checkCredentialsStatus();
   };
 
+  const handleRefreshData = () => {
+    refreshWebinars(true); // Force refresh from API
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">Welcome back! Here's an overview of your analytics.</p>
+            <p className="text-muted-foreground">Welcome back! Here's an overview of your webinars.</p>
           </div>
-          {/* Removed the div containing the "Import Data" and "Connect Zoom" buttons */}
+          
+          {hasZoomCredentials && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshData}
+                disabled={isRefetching}
+              >
+                {isRefetching ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sync Zoom Data
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => navigate('/webinars')}
+              >
+                View Webinars
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Show loading indicator while checking credentials */}
-        {isLoading && (
+        {credentialsLoading && (
           <div className="flex items-center justify-center h-12 my-2">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
             <span className="ml-2 text-muted-foreground">Checking Zoom integration...</span>
@@ -50,7 +84,7 @@ const Dashboard = () => {
         )}
 
         {/* Show Zoom setup banner for new users without credentials */}
-        {!isLoading && !hasZoomCredentials && (
+        {!credentialsLoading && !hasZoomCredentials && (
           <Alert className="bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
             <AlertTitle className="text-blue-800">Set up your Zoom integration</AlertTitle>
@@ -88,12 +122,15 @@ const Dashboard = () => {
         <div className="grid gap-6">
           <DashboardStats />
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <AttendanceChart />
-            <WebinarMetrics />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <WebinarDistributionChart />
+            <RegistrationAttendanceChart />
           </div>
           
-          <RecentWebinars />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <UpcomingWebinars />
+            <RecentWebinars />
+          </div>
         </div>
       </div>
     </AppLayout>

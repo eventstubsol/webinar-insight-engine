@@ -17,51 +17,38 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChartBar, Download, Eye, Loader2 } from 'lucide-react';
+import { Calendar, Eye } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
-import { parseISO, format, isValid } from 'date-fns';
+import { parseISO, format, isValid, differenceInDays } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
 
-export const RecentWebinars = () => {
+export const UpcomingWebinars = () => {
   const { webinars, isLoading } = useZoomWebinars();
   const navigate = useNavigate();
 
-  // Get recent past webinars (completed)
-  const recentWebinars = React.useMemo(() => {
+  // Get upcoming webinars
+  const upcomingWebinars = React.useMemo(() => {
     if (!webinars || webinars.length === 0) return [];
+    
+    const now = new Date();
     
     return webinars
       .filter(webinar => {
         if (!webinar.start_time) return false;
         try {
           const startTime = parseISO(webinar.start_time);
-          return isValid(startTime) && startTime < new Date();
+          return isValid(startTime) && startTime > now;
         } catch (e) {
           return false;
         }
       })
       .sort((a, b) => {
         if (!a.start_time || !b.start_time) return 0;
-        return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
+        return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
       })
-      .slice(0, 5); // Show only the 5 most recent webinars
+      .slice(0, 5); // Show only the next 5 upcoming webinars
   }, [webinars]);
-
-  const getWebinarStatus = (webinar: any) => {
-    if (!webinar.status) return 'unknown';
-    
-    if (webinar.status.toLowerCase().includes('started') || 
-        webinar.status.toLowerCase().includes('waiting')) {
-      return 'live';
-    }
-    
-    if (webinar.status.toLowerCase().includes('ended')) {
-      return 'completed';
-    }
-    
-    return webinar.status.toLowerCase();
-  }
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Unknown';
@@ -73,13 +60,41 @@ export const RecentWebinars = () => {
       return 'Error parsing date';
     }
   };
+  
+  const formatTime = (dateString: string | null) => {
+    if (!dateString) return 'Unknown';
+    try {
+      const date = parseISO(dateString);
+      if (!isValid(date)) return 'Invalid date';
+      return format(date, 'h:mm a');
+    } catch (e) {
+      return 'Error parsing time';
+    }
+  };
+  
+  const getTimeBadgeVariant = (dateString: string | null) => {
+    if (!dateString) return 'outline';
+    try {
+      const date = parseISO(dateString);
+      if (!isValid(date)) return 'outline';
+      
+      const daysUntil = differenceInDays(date, new Date());
+      
+      if (daysUntil <= 1) return 'destructive'; // Today or tomorrow
+      if (daysUntil <= 7) return 'default'; // This week
+      return 'secondary'; // Later
+      
+    } catch (e) {
+      return 'outline';
+    }
+  };
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Recent Webinars</CardTitle>
-          <CardDescription>Completed webinars from your Zoom account</CardDescription>
+          <CardTitle>Upcoming Webinars</CardTitle>
+          <CardDescription>Your scheduled upcoming webinars</CardDescription>
         </div>
         <Button 
           variant="outline" 
@@ -96,9 +111,10 @@ export const RecentWebinars = () => {
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
-        ) : recentWebinars.length === 0 ? (
+        ) : upcomingWebinars.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-            <p>No completed webinars available</p>
+            <Calendar className="h-12 w-12 mb-2" />
+            <p>No upcoming webinars scheduled</p>
             <Button 
               variant="outline" 
               className="mt-4"
@@ -113,39 +129,26 @@ export const RecentWebinars = () => {
               <TableRow>
                 <TableHead>Webinar</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead className="hidden md:table-cell">Host</TableHead>
+                <TableHead className="hidden md:table-cell">Time</TableHead>
                 <TableHead className="hidden lg:table-cell">Duration</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recentWebinars.map((webinar) => (
+              {upcomingWebinars.map((webinar) => (
                 <TableRow key={webinar.id}>
                   <TableCell className="font-medium">{webinar.topic}</TableCell>
-                  <TableCell>{formatDate(webinar.start_time)}</TableCell>
-                  <TableCell className="hidden md:table-cell">{webinar.host_email || 'Unknown'}</TableCell>
-                  <TableCell className="hidden lg:table-cell">{webinar.duration ? `${webinar.duration} min` : '—'}</TableCell>
                   <TableCell>
-                    <Badge variant={
-                      getWebinarStatus(webinar) === 'completed' ? 'default' :
-                      getWebinarStatus(webinar) === 'live' ? 'destructive' : 'outline'
-                    }>
-                      {getWebinarStatus(webinar).charAt(0).toUpperCase() + getWebinarStatus(webinar).slice(1)}
+                    <Badge variant={getTimeBadgeVariant(webinar.start_time)}>
+                      {formatDate(webinar.start_time)}
                     </Badge>
                   </TableCell>
+                  <TableCell className="hidden md:table-cell">{formatTime(webinar.start_time)}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{webinar.duration ? `${webinar.duration} min` : '—'}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end items-center gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChartBar className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Eye className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
