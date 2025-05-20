@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
               scopeTestData.message?.includes('scopes')) {
             return new Response(JSON.stringify({
               success: false,
-              error: 'Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:admin, webinar:read:admin, webinar:write:admin',
+              error: 'Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:user:admin, user:read:user:master, webinar:read:webinar:admin, webinar:write:webinar:admin',
               code: 'missing_scopes',
               details: scopeTestData
             }), {
@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
           
           // Handle missing OAuth scopes error specifically
           if (meData.code === 4711 || meData.message?.includes('scopes')) {
-            throw new Error('Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:admin, webinar:read:admin, webinar:write:admin');
+            throw new Error('Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:user:admin, user:read:user:master, webinar:read:webinar:admin, webinar:write:webinar:admin');
           }
           
           // Handle other API error codes
@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
           if (responseData.code === 4700) {
             throw new Error('Webinar capabilities not enabled for this Zoom account. This feature requires a Zoom paid plan with webinar add-on.');
           } else if (responseData.code === 4711 || responseData.message?.includes('scopes')) {
-            throw new Error('Missing required OAuth webinar scopes. Please add webinar:read:admin to your Zoom app.');
+            throw new Error('Missing required OAuth webinar scopes. Please add webinar:read:webinar:admin to your Zoom app.');
           } else {
             throw new Error(`Failed to fetch webinars: ${responseData.message || 'Unknown error'} (Code: ${responseData.code || 'Unknown'})`);
           }
@@ -336,7 +336,7 @@ Deno.serve(async (req) => {
       errorCode = 403;
       errorType = 'capabilities_error';
     } else if (errorMessage.includes('scopes')) {
-      errorMessage = 'Missing required OAuth scopes in your Zoom App. Please update your Zoom Server-to-Server OAuth app to include: user:read:admin, webinar:read:admin, webinar:write:admin';
+      errorMessage = 'Missing required OAuth scopes in your Zoom App. Please update your Zoom Server-to-Server OAuth app to include: user:read:user:admin, user:read:user:master, webinar:read:webinar:admin, webinar:write:webinar:admin';
       errorCode = 403;
       errorType = 'scopes_error';
     }

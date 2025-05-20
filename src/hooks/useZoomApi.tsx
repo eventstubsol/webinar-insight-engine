@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -144,7 +145,7 @@ export function useZoomWebinars() {
         } else if (errorMessage.includes('capabilities')) {
           errorMessage = 'Your Zoom account does not have webinar capabilities enabled. This requires a paid Zoom plan.';
         } else if (errorMessage.includes('scopes') || errorMessage.includes('scope') || errorMessage.includes('4711')) {
-          errorMessage = 'Missing required OAuth scopes in your Zoom App. Update your Zoom Server-to-Server OAuth app to include: user:read:user:admin, user:read:user, webinar:read:admin, webinar:write:admin';
+          errorMessage = 'Missing required OAuth scopes in your Zoom App. Update your Zoom Server-to-Server OAuth app to include: user:read:user:admin, user:read:user:master, webinar:read:webinar:admin, webinar:write:webinar:admin';
         }
         
         toast({
