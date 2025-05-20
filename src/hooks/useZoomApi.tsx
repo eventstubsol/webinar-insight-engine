@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,15 +66,21 @@ export function useZoomCredentialsVerification() {
         return true;
       } else {
         // Check if it's specifically a scopes error
-        if (data.code === 'missing_scopes' || data.error?.toLowerCase().includes('scopes')) {
+        if (data.code === 'missing_scopes' || 
+            data.error?.toLowerCase().includes('scopes') || 
+            data.details?.code === 4711) {
           setScopesError(true);
         }
         
         throw new Error(data.error || 'Verification failed');
       }
     } catch (err: any) {
+      console.error('Verification error details:', err);
+      
       // Check if the error message mentions scopes
-      if (err.message?.toLowerCase().includes('scopes')) {
+      if (err.message?.toLowerCase().includes('scopes') || 
+          err.message?.toLowerCase().includes('scope') || 
+          (err.response?.data && err.response.data.code === 4711)) {
         setScopesError(true);
       }
       
@@ -138,8 +143,8 @@ export function useZoomWebinars() {
           errorMessage = 'Zoom authentication failed. Please check your API credentials in Supabase Edge Function secrets.';
         } else if (errorMessage.includes('capabilities')) {
           errorMessage = 'Your Zoom account does not have webinar capabilities enabled. This requires a paid Zoom plan.';
-        } else if (errorMessage.includes('scopes')) {
-          errorMessage = 'Missing required OAuth scopes in your Zoom App. Update your Zoom Server-to-Server OAuth app to include: user:read:admin, webinar:read:admin, webinar:write:admin';
+        } else if (errorMessage.includes('scopes') || errorMessage.includes('scope') || errorMessage.includes('4711')) {
+          errorMessage = 'Missing required OAuth scopes in your Zoom App. Update your Zoom Server-to-Server OAuth app to include: user:read:user:admin, user:read:user, webinar:read:admin, webinar:write:admin';
         }
         
         toast({
@@ -148,7 +153,7 @@ export function useZoomWebinars() {
           variant: 'destructive'
         });
         
-        throw err;
+        throw new Error(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -177,7 +182,9 @@ export function useZoomWebinars() {
                          error?.message?.includes('Account ID') || 
                          error?.message?.includes('Client ID'),
     isCapabilitiesError: error?.message?.includes('capabilities'),
-    isScopesError: error?.message?.includes('scopes'),
+    isScopesError: error?.message?.includes('scopes') || 
+                 error?.message?.includes('scope') || 
+                 error?.message?.includes('4711'),
     missingSecrets: []
   };
   

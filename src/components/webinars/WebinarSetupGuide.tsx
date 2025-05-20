@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Settings, ExternalLink, AlertTriangle, Copy, Info, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -44,7 +43,8 @@ export const WebinarSetupGuide: React.FC<WebinarSetupGuideProps> = ({
         <p>Your Zoom Server-to-Server OAuth app is missing some required scopes.</p>
         <p className="font-semibold mt-2">Required OAuth Scopes:</p>
         <ul className="list-disc pl-6 mt-1 space-y-1">
-          <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">user:read:admin</code></li>
+          <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">user:read:user:admin</code></li>
+          <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">user:read:user</code></li>
           <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">webinar:read:admin</code></li>
           <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">webinar:write:admin</code></li>
         </ul>
@@ -93,7 +93,8 @@ export const WebinarSetupGuide: React.FC<WebinarSetupGuideProps> = ({
               <li>Fill out the required information for your app</li>
               <li><span className="font-bold text-amber-700">IMPORTANT:</span> Under "Scopes", add the following scopes:
                 <ul className="list-disc pl-6 mt-1">
-                  <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">user:read:admin</code></li>
+                  <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">user:read:user:admin</code></li>
+                  <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">user:read:user</code></li>
                   <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">webinar:read:admin</code></li>
                   <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">webinar:write:admin</code></li>
                 </ul>
@@ -224,7 +225,8 @@ export const WebinarSetupGuide: React.FC<WebinarSetupGuideProps> = ({
                 <AlertDescription>
                   <p>Your Zoom app is missing required OAuth scopes. Please add the following scopes to your Zoom app in the Zoom Marketplace:</p>
                   <ul className="list-disc pl-5 mt-2">
-                    <li>user:read:admin</li>
+                    <li>user:read:user:admin</li>
+                    <li>user:read:user</li>
                     <li>webinar:read:admin</li>
                     <li>webinar:write:admin</li>
                   </ul>
