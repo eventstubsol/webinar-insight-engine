@@ -208,7 +208,8 @@ export function useZoomWebinars() {
             host_email: item.host_email,
             status: item.status,
             type: item.type,
-            ...item.raw_data // Include any additional fields from the raw data
+            // Fix the spread operator issue by ensuring raw_data is an object
+            ...(typeof item.raw_data === 'object' ? item.raw_data : {})
           }));
         }
         
