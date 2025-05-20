@@ -38,6 +38,14 @@ const Dashboard = () => {
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground">Welcome back! Here's an overview of your analytics.</p>
           </div>
+          <div className="flex gap-3">
+            <Button variant="outline">
+              Import Data
+            </Button>
+            <Button onClick={handleConnectZoom}>
+              Connect Zoom
+            </Button>
+          </div>
         </div>
 
         {/* Show Zoom setup banner for new users without credentials */}

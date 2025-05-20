@@ -29,6 +29,8 @@ export const TopNav = () => {
       </div>
       
       <div className="flex items-center gap-3">
+        {user && <Button variant="outline" size="sm">Connect Zoom</Button>}
+        
         {user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
