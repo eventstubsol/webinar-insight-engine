@@ -1,1 +1,5 @@
+
 project_id = "dcvlxtkxqyaznxxvkynd"
+
+[functions.zoom-api]
+verify_jwt = true
