@@ -26,19 +26,19 @@ interface StatProps {
 const Stat = ({ title, value, description, icon, isLoading = false, cardColor }: StatProps) => {
   return (
     <Card className={cardColor}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2">
+        <CardTitle className="text-xs font-medium sm:text-sm">{title}</CardTitle>
+        <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
           {icon}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
         {isLoading ? (
-          <Skeleton className="h-8 w-24 mb-2" />
+          <Skeleton className="h-6 w-20 mb-1" />
         ) : (
-          <div className="text-2xl font-bold">{value}</div>
+          <div className="text-lg sm:text-xl font-bold">{value}</div>
         )}
-        <CardDescription>{description}</CardDescription>
+        <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
       </CardContent>
     </Card>
   );
@@ -94,52 +94,52 @@ export const DashboardStats = () => {
   };
   
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
       <Stat
         title="Total Webinars"
-        value={isLoading ? <Skeleton className="h-7 w-14" /> : getTotalWebinars().toString()}
+        value={isLoading ? <Skeleton className="h-6 w-12" /> : getTotalWebinars().toString()}
         description="Total webinars"
-        icon={<Video className="h-4 w-4" />}
+        icon={<Video className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-blue-50 border-blue-200"
       />
       <Stat
         title="Total Registrants"
-        value={isLoading ? <Skeleton className="h-7 w-14" /> : getTotalRegistrants().toString()}
+        value={isLoading ? <Skeleton className="h-6 w-12" /> : getTotalRegistrants().toString()}
         description="Registered participants"
-        icon={<Users className="h-4 w-4" />}
+        icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-sky-50 border-sky-200"
       />
       <Stat
         title="Total Attendees"
-        value={isLoading ? <Skeleton className="h-7 w-14" /> : getTotalAttendees().toString()}
+        value={isLoading ? <Skeleton className="h-6 w-12" /> : getTotalAttendees().toString()}
         description="Attended participants"
-        icon={<Users className="h-4 w-4" />}
+        icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-sky-50 border-sky-200"
       />
       <Stat
         title="Attendance Rate"
-        value={isLoading ? <Skeleton className="h-7 w-14" /> : getAttendanceRate()}
+        value={isLoading ? <Skeleton className="h-6 w-12" /> : getAttendanceRate()}
         description="Attendance percentage"
-        icon={<Activity className="h-4 w-4" />}
+        icon={<Activity className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-green-50 border-green-200"
       />
       <Stat
         title="Total Engagement"
-        value={isLoading ? <Skeleton className="h-7 w-28" /> : getTotalEngagement()}
+        value={isLoading ? <Skeleton className="h-6 w-20" /> : getTotalEngagement()}
         description="Total engagement time"
-        icon={<Clock className="h-4 w-4" />}
+        icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-purple-50 border-purple-200"
       />
       <Stat
         title="Avg. Duration"
-        value={isLoading ? <Skeleton className="h-7 w-24" /> : getAverageDuration()}
+        value={isLoading ? <Skeleton className="h-6 w-20" /> : getAverageDuration()}
         description="Average webinar length"
-        icon={<Clock className="h-4 w-4" />}
+        icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-green-50 border-green-200"
       />
