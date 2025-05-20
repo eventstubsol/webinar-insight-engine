@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Camera } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { uploadFile } from '@/utils/storageUtils';
 import { toast } from '@/components/ui/use-toast';
 
 const Profile = () => {
@@ -51,34 +51,20 @@ const Profile = () => {
       }
       
       const file = event.target.files[0];
-      const fileExt = file.name.split('.').pop();
-      const filePath = `avatars/${user.id}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       
-      // Create a storage bucket for avatars if it doesn't exist
-      const { data: bucketData, error: bucketError } = await supabase.storage.getBucket('avatars');
+      // Use the storage utility to upload the file
+      const result = await uploadFile('avatars', file, user.id);
       
-      if (bucketError && bucketError.message.includes('does not exist')) {
-        await supabase.storage.createBucket('avatars', { public: true });
+      if (result.error) throw result.error;
+      
+      if (result.publicUrl) {
+        setAvatarUrl(result.publicUrl);
+        
+        toast({
+          title: "Avatar uploaded",
+          description: "Your avatar has been uploaded successfully."
+        });
       }
-      
-      // Upload the file
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-      
-      if (uploadError) throw uploadError;
-      
-      // Get the public URL
-      const { data } = await supabase.storage.from('avatars').getPublicUrl(filePath);
-      
-      if (data) {
-        setAvatarUrl(data.publicUrl);
-      }
-      
-      toast({
-        title: "Avatar uploaded",
-        description: "Your avatar has been uploaded successfully."
-      });
     } catch (error: any) {
       toast({
         title: "Upload failed",

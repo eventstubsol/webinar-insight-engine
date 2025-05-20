@@ -30,7 +30,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({ className }) => {
 
   return (
     <Avatar className={className}>
-      <AvatarImage src={profile?.avatar_url || ''} />
+      <AvatarImage src={profile?.avatar_url || ''} alt={profile?.display_name || 'User avatar'} />
       <AvatarFallback className="bg-brand-100 text-brand-800">
         {getInitials()}
       </AvatarFallback>

@@ -1,9 +1,9 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
+import { initializeStorage } from '@/integrations/supabase/storage';
 
 export type UserRole = 'admin' | 'host' | 'viewer';
 
@@ -99,6 +99,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   };
+
+  // Initialize storage buckets
+  useEffect(() => {
+    initializeStorage().catch(err => {
+      console.error("Failed to initialize storage buckets:", err);
+    });
+  }, []);
 
   // Initialize auth state
   useEffect(() => {
