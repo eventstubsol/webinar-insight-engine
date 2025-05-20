@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,26 +14,26 @@ import {
   CardTitle
 } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 export const LoginForm = () => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
+  const { signIn, signInWithGoogle, signInWithZoom, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    
-    // Simulate login
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Logged in successfully",
-        description: "Welcome back to ZoomLytics!"
-      });
-      navigate('/dashboard');
-    }, 1500);
+    await signIn(email, password);
+  };
+
+  const handleGoogleSignIn = async () => {
+    await signInWithGoogle();
+  };
+
+  const handleZoomSignIn = async () => {
+    await signInWithZoom();
   };
 
   return (
@@ -57,12 +57,13 @@ export const LoginForm = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Button variant="link" className="p-0 h-auto text-xs" type="button">
+                <Button variant="link" className="p-0 h-auto text-xs" type="button" onClick={() => navigate('/forgot-password')}>
                   Forgot password?
                 </Button>
               </div>
@@ -73,10 +74,16 @@ export const LoginForm = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : "Sign in"}
             </Button>
           </div>
         </form>
@@ -88,7 +95,7 @@ export const LoginForm = () => {
         </div>
         
         <div className="flex flex-col space-y-2">
-          <Button variant="outline" type="button" className="w-full">
+          <Button variant="outline" type="button" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5 mr-2">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
@@ -97,13 +104,16 @@ export const LoginForm = () => {
             </svg>
             Sign in with Google
           </Button>
-          <Button variant="outline" type="button" className="w-full">
+          <Button variant="outline" type="button" className="w-full" onClick={handleZoomSignIn} disabled={isLoading}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 mr-2 text-blue-600">
+              <path d="M15.5 7.5L12 12m0 0l-3.5 4.5M12 12l3.5 4.5M12 12L8.5 7.5M4 7h3m13 0h-3M4 12h2m12 0h2M4 17h3m13 0h-3" />
+            </svg>
             Sign in with Zoom
           </Button>
         </div>
       </CardContent>
       <CardFooter className="text-center text-sm">
-        Don't have an account? <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/register')}>Register</Button>
+        Don't have an account? <Link to="/register" className="font-medium text-brand-600 hover:text-brand-500 ml-1">Register</Link>
       </CardFooter>
     </Card>
   );
