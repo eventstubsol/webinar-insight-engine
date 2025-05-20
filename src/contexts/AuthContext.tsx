@@ -26,7 +26,8 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithZoom: () => Promise<void>;
-  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  // Changed return type from Promise<void> to Promise<any> to match implementation
+  updateProfile: (updates: Partial<UserProfile>) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -308,7 +309,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "Your profile has been updated successfully"
       });
       
-      return data;
+      return data; // This returns the updated profile data
     } catch (error: any) {
       toast({
         title: "Update failed",
