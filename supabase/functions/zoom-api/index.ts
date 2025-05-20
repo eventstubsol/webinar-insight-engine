@@ -133,9 +133,44 @@ Deno.serve(async (req) => {
     if (action === 'verify-credentials') {
       try {
         const token = await getZoomJwtToken();
+        
+        // Now test if we have the proper scopes by making a simple request
+        console.log('Testing API scopes with a simple request...');
+        const scopeTestResponse = await fetch('https://api.zoom.us/v2/users/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const scopeTestData = await scopeTestResponse.json();
+        
+        if (!scopeTestResponse.ok) {
+          console.error('Scope test failed:', scopeTestData);
+          
+          if (scopeTestData.code === 4711 || 
+              scopeTestData.message?.includes('scopes')) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:admin, webinar:read:admin, webinar:write:admin',
+              code: 'missing_scopes',
+              details: scopeTestData
+            }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          
+          throw new Error(`API scope test failed: ${scopeTestData.message || 'Unknown error'}`);
+        }
+        
         return new Response(JSON.stringify({ 
           success: true, 
-          message: 'Zoom API credentials validated successfully'
+          message: 'Zoom API credentials and scopes validated successfully',
+          user: {
+            email: scopeTestData.email,
+            account_id: scopeTestData.account_id
+          }
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -170,7 +205,12 @@ Deno.serve(async (req) => {
           const meData = await meResponse.json();
           console.error('Failed to get user info:', meData);
           
-          // Handle specific API error codes
+          // Handle missing OAuth scopes error specifically
+          if (meData.code === 4711 || meData.message?.includes('scopes')) {
+            throw new Error('Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:admin, webinar:read:admin, webinar:write:admin');
+          }
+          
+          // Handle other API error codes
           if (meData.code === 124) {
             throw new Error('Invalid Zoom access token. Please check your credentials.');
           } else if (meData.code === 1001) {
@@ -197,7 +237,9 @@ Deno.serve(async (req) => {
           console.error('Zoom webinars error:', responseData);
           
           if (responseData.code === 4700) {
-            throw new Error('Webinar capabilities not enabled for this Zoom account');
+            throw new Error('Webinar capabilities not enabled for this Zoom account. This feature requires a Zoom paid plan with webinar add-on.');
+          } else if (responseData.code === 4711 || responseData.message?.includes('scopes')) {
+            throw new Error('Missing required OAuth webinar scopes. Please add webinar:read:admin to your Zoom app.');
           } else {
             throw new Error(`Failed to fetch webinars: ${responseData.message || 'Unknown error'} (Code: ${responseData.code || 'Unknown'})`);
           }
@@ -293,6 +335,10 @@ Deno.serve(async (req) => {
       errorMessage = 'Your Zoom account does not have webinar capabilities enabled. This requires a Zoom paid plan with webinars.';
       errorCode = 403;
       errorType = 'capabilities_error';
+    } else if (errorMessage.includes('scopes')) {
+      errorMessage = 'Missing required OAuth scopes in your Zoom App. Please update your Zoom Server-to-Server OAuth app to include: user:read:admin, webinar:read:admin, webinar:write:admin';
+      errorCode = 403;
+      errorType = 'scopes_error';
     }
     
     const errorResponse = {

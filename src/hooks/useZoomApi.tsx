@@ -40,9 +40,14 @@ export interface ZoomParticipants {
 export function useZoomCredentialsVerification() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [scopesError, setScopesError] = useState(false);
+  const [verificationDetails, setVerificationDetails] = useState<any>(null);
   
   const verifyCredentials = async () => {
     setIsVerifying(true);
+    setScopesError(false);
+    setVerificationDetails(null);
+    
     try {
       const { data, error } = await supabase.functions.invoke('zoom-api', {
         body: { action: 'verify-credentials' }
@@ -54,15 +59,26 @@ export function useZoomCredentialsVerification() {
       
       if (data.success) {
         setVerified(true);
+        setVerificationDetails(data);
         toast({
           title: 'Zoom API Connected',
-          description: 'Your Zoom API credentials have been verified successfully.'
+          description: `Successfully connected as ${data.user?.email || 'Zoom User'}.`
         });
         return true;
       } else {
+        // Check if it's specifically a scopes error
+        if (data.code === 'missing_scopes' || data.error?.toLowerCase().includes('scopes')) {
+          setScopesError(true);
+        }
+        
         throw new Error(data.error || 'Verification failed');
       }
     } catch (err: any) {
+      // Check if the error message mentions scopes
+      if (err.message?.toLowerCase().includes('scopes')) {
+        setScopesError(true);
+      }
+      
       toast({
         title: 'Verification Failed',
         description: err.message || 'Could not verify Zoom API credentials',
@@ -77,7 +93,9 @@ export function useZoomCredentialsVerification() {
   return {
     verifyCredentials,
     isVerifying,
-    verified
+    verified,
+    scopesError,
+    verificationDetails
   };
 }
 
@@ -120,6 +138,8 @@ export function useZoomWebinars() {
           errorMessage = 'Zoom authentication failed. Please check your API credentials in Supabase Edge Function secrets.';
         } else if (errorMessage.includes('capabilities')) {
           errorMessage = 'Your Zoom account does not have webinar capabilities enabled. This requires a paid Zoom plan.';
+        } else if (errorMessage.includes('scopes')) {
+          errorMessage = 'Missing required OAuth scopes in your Zoom App. Update your Zoom Server-to-Server OAuth app to include: user:read:admin, webinar:read:admin, webinar:write:admin';
         }
         
         toast({
@@ -157,6 +177,7 @@ export function useZoomWebinars() {
                          error?.message?.includes('Account ID') || 
                          error?.message?.includes('Client ID'),
     isCapabilitiesError: error?.message?.includes('capabilities'),
+    isScopesError: error?.message?.includes('scopes'),
     missingSecrets: []
   };
   

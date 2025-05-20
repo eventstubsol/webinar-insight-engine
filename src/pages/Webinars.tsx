@@ -11,7 +11,8 @@ import {
   ExternalLink, 
   Settings, 
   CheckCircle2,
-  Copy
+  Copy,
+  Info
 } from 'lucide-react';
 import { useZoomWebinars, useZoomCredentialsVerification } from '@/hooks/useZoomApi';
 import { LoaderCircle } from 'lucide-react';
@@ -35,7 +36,7 @@ import {
 
 const Webinars = () => {
   const { webinars, isLoading, isRefetching, error, errorDetails, refreshWebinars } = useZoomWebinars();
-  const { verifyCredentials, isVerifying, verified } = useZoomCredentialsVerification();
+  const { verifyCredentials, isVerifying, verified, scopesError, verificationDetails } = useZoomCredentialsVerification();
   const [isCreateLoading, setIsCreateLoading] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("webinars");
@@ -46,8 +47,8 @@ const Webinars = () => {
       setIsFirstLoad(false);
     }
 
-    // If we have credential errors, automatically switch to the setup tab
-    if (error && errorDetails.isMissingCredentials && activeTab !== "setup") {
+    // If we have credential errors or scope errors, automatically switch to the setup tab
+    if ((error && (errorDetails.isMissingCredentials || errorDetails.isScopesError)) && activeTab !== "setup") {
       setActiveTab("setup");
     }
   }, [isLoading, error, errorDetails]);
@@ -71,6 +72,30 @@ const Webinars = () => {
       });
     });
   };
+
+  const renderScopesWarning = () => (
+    <Alert variant="warning" className="bg-amber-50 border-amber-200 mb-4">
+      <AlertTriangle className="h-4 w-4 text-amber-600" />
+      <AlertTitle className="text-amber-800">Missing Required OAuth Scopes</AlertTitle>
+      <AlertDescription className="text-amber-700">
+        <p>Your Zoom Server-to-Server OAuth app is missing some required scopes.</p>
+        <p className="font-semibold mt-2">Required OAuth Scopes:</p>
+        <ul className="list-disc pl-6 mt-1 space-y-1">
+          <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">user:read:admin</code></li>
+          <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">webinar:read:admin</code></li>
+          <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">webinar:write:admin</code></li>
+        </ul>
+        <div className="mt-3">
+          <Button variant="outline" className="gap-1" asChild>
+            <a href="https://marketplace.zoom.us/develop/apps" target="_blank" rel="noopener noreferrer">
+              <Settings className="h-4 w-4" />
+              Update App Scopes in Zoom Marketplace
+            </a>
+          </Button>
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
 
   const renderSetupGuide = () => (
     <Card className="w-full">
@@ -103,11 +128,11 @@ const Webinars = () => {
               <li>Select "Server-to-Server OAuth" as the app type</li>
               <li>Give your app a name like "ZoomLytics Integration"</li>
               <li>Fill out the required information for your app</li>
-              <li>Under "Scopes", add the following scopes:
+              <li><span className="font-bold text-amber-700">IMPORTANT:</span> Under "Scopes", add the following scopes:
                 <ul className="list-disc pl-6 mt-1">
-                  <li><code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">webinar:read:admin</code></li>
-                  <li><code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">webinar:write:admin</code></li>
-                  <li><code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">user:read:admin</code></li>
+                  <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">user:read:admin</code></li>
+                  <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">webinar:read:admin</code></li>
+                  <li><code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs font-mono">webinar:write:admin</code></li>
                 </ul>
               </li>
               <li>Click "Continue" and proceed to activate your app</li>
@@ -129,6 +154,8 @@ const Webinars = () => {
             </div>
           </div>
         </div>
+
+        {scopesError && renderScopesWarning()}
 
         <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
           <div className="flex flex-col space-y-1.5 p-6">
@@ -190,7 +217,7 @@ const Webinars = () => {
           </div>
           <div className="p-6 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
-              After adding your Zoom API credentials, verify the connection to start importing your webinars.
+              After adding your Zoom API credentials and updating the required scopes, verify the connection to start importing your webinars.
             </p>
             <Button 
               onClick={verifyCredentials} 
@@ -216,12 +243,60 @@ const Webinars = () => {
             </Button>
             
             {verified && (
-              <div className="flex justify-center mt-4">
-                <Button variant="outline" onClick={() => setActiveTab("webinars")}>
+              <div className="flex flex-col items-center mt-4 space-y-2">
+                <Alert variant="success" className="bg-green-50 border-green-200 w-full">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertTitle className="text-green-800">Connection Successful!</AlertTitle>
+                  <AlertDescription className="text-green-700">
+                    Connected as: <span className="font-semibold">{verificationDetails?.user?.email || 'Zoom User'}</span>
+                  </AlertDescription>
+                </Alert>
+                <Button onClick={() => setActiveTab("webinars")}>
                   View Your Webinars
                 </Button>
               </div>
             )}
+
+            {scopesError && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Missing Required OAuth Scopes</AlertTitle>
+                <AlertDescription>
+                  <p>Your Zoom app is missing required OAuth scopes. Please add the following scopes to your Zoom app in the Zoom Marketplace:</p>
+                  <ul className="list-disc pl-5 mt-2">
+                    <li>user:read:admin</li>
+                    <li>webinar:read:admin</li>
+                    <li>webinar:write:admin</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+          <div className="flex flex-col space-y-1.5 p-6">
+            <h3 className="text-lg font-semibold leading-none tracking-tight flex items-center">
+              <span className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 inline-flex items-center justify-center mr-2 text-sm">4</span>
+              Troubleshooting
+            </h3>
+          </div>
+          <div className="p-6 pt-0 space-y-3">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Check Logs for Detailed Error Messages</AlertTitle>
+              <AlertDescription>
+                If you're experiencing issues, check the Edge Function logs for detailed error messages that might help identify the problem.
+              </AlertDescription>
+              <div className="mt-3">
+                <Button variant="outline" className="gap-1" asChild>
+                  <a href="https://supabase.com/dashboard/project/dcvlxtkxqyaznxxvkynd/functions/zoom-api/logs" target="_blank" rel="noopener noreferrer">
+                    <Info className="h-4 w-4" />
+                    View Function Logs
+                  </a>
+                </Button>
+              </div>
+            </Alert>
           </div>
         </div>
       </CardContent>
@@ -261,7 +336,7 @@ const Webinars = () => {
                 </Button>
               </>
             )}
-            {errorDetails.isMissingCredentials ? (
+            {(errorDetails.isMissingCredentials || errorDetails.isScopesError) ? (
               <>
                 <Button variant="outline" asChild>
                   <a 
@@ -284,7 +359,7 @@ const Webinars = () => {
           </div>
         </div>
 
-        {errorDetails.isMissingCredentials ? (
+        {errorDetails.isMissingCredentials || errorDetails.isScopesError || error ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4">
               <TabsTrigger value="webinars">Webinars</TabsTrigger>
@@ -300,7 +375,11 @@ const Webinars = () => {
                 <AlertDescription className="mt-2">
                   <p className="font-semibold">Required configuration:</p>
                   <ol className="list-decimal ml-5 mt-1 space-y-1">
-                    <li>Create a Server-to-Server OAuth app in the Zoom Marketplace</li>
+                    {errorDetails.isScopesError ? (
+                      <li className="text-amber-800">Update your Zoom Server-to-Server OAuth app to include required scopes</li>
+                    ) : (
+                      <li>Create a Server-to-Server OAuth app in the Zoom Marketplace with the proper scopes</li>
+                    )}
                     <li>Add your Zoom API credentials to Supabase Edge Function secrets</li>
                     <li>Make sure your Zoom account has webinar capabilities (requires a paid plan)</li>
                   </ol>
