@@ -94,7 +94,7 @@ const Webinars = () => {
               <AlertDescription className="mt-2">
                 <p className="font-semibold">Required steps:</p>
                 <ol className="list-decimal ml-5 mt-1 space-y-1">
-                  <li>Verify the format of your Zoom Account ID: <code className="px-1 py-0.5 bg-destructive/10 rounded">{Deno.env.get('ZOOM_ACCOUNT_ID')?.substring(0, 10)}...</code> - should be a string like "abc123DEF456ghi789JKL"</li>
+                  <li>Verify the format of your Zoom Account ID: <code className="px-1 py-0.5 bg-destructive/10 rounded">{"[REDACTED]"}</code> - should be a string like "abc123DEF456ghi789JKL"</li>
                   <li>Make sure your Zoom Server-to-Server OAuth app is published in the Zoom Marketplace</li>
                   <li>Ensure your Zoom app has the <code className="px-1 py-0.5 bg-destructive/10 rounded">webinar:read</code> and <code className="px-1 py-0.5 bg-destructive/10 rounded">webinar:write</code> scopes</li>
                   <li>Check that your Client ID and Client Secret match what's shown in your Zoom app</li>
