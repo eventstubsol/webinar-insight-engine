@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarsList } from '@/components/webinars/WebinarsList';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, RefreshCw, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { PlusCircle, RefreshCw, AlertTriangle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/useZoomApi';
 import { LoaderCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -34,7 +34,10 @@ const Webinars = () => {
   const errorMessage = error?.message || 'An error occurred while connecting to the Zoom API';
   const isCredentialsError = errorMessage.includes('credentials') || 
                             errorMessage.includes('token') || 
-                            errorMessage.includes('Failed to generate');
+                            errorMessage.includes('Failed to generate') ||
+                            errorMessage.includes('authentication');
+  
+  const isCapabilitiesError = errorMessage.includes('capabilities');
   
   return (
     <AppLayout>
@@ -91,10 +94,29 @@ const Webinars = () => {
               <AlertDescription className="mt-2">
                 <p className="font-semibold">Required steps:</p>
                 <ol className="list-decimal ml-5 mt-1 space-y-1">
-                  <li>Verify your Zoom Account ID, Client ID, and Client Secret are correctly set in Supabase Edge Functions secrets</li>
-                  <li>Ensure your Zoom Server-to-Server OAuth app is published in the Zoom Marketplace</li>
-                  <li>Make sure your Zoom app has the <code className="px-1 py-0.5 bg-destructive/10 rounded">webinar:read</code> and <code className="px-1 py-0.5 bg-destructive/10 rounded">webinar:write</code> scopes</li>
-                  <li>Verify your Zoom account has webinar capabilities enabled (requires a paid plan)</li>
+                  <li>Verify the format of your Zoom Account ID: <code className="px-1 py-0.5 bg-destructive/10 rounded">{Deno.env.get('ZOOM_ACCOUNT_ID')?.substring(0, 10)}...</code> - should be a string like "abc123DEF456ghi789JKL"</li>
+                  <li>Make sure your Zoom Server-to-Server OAuth app is published in the Zoom Marketplace</li>
+                  <li>Ensure your Zoom app has the <code className="px-1 py-0.5 bg-destructive/10 rounded">webinar:read</code> and <code className="px-1 py-0.5 bg-destructive/10 rounded">webinar:write</code> scopes</li>
+                  <li>Check that your Client ID and Client Secret match what's shown in your Zoom app</li>
+                </ol>
+                <div className="mt-3">
+                  <a 
+                    href="https://marketplace.zoom.us/develop/apps" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                  >
+                    Go to Zoom Marketplace Developer Settings <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </AlertDescription>
+            ) : isCapabilitiesError ? (
+              <AlertDescription className="mt-2">
+                <p className="font-semibold">Your Zoom account does not have webinar capabilities:</p>
+                <ol className="list-decimal ml-5 mt-1 space-y-1">
+                  <li>Webinar functionality requires a Zoom paid plan that includes webinars</li>
+                  <li>Verify your Zoom account type and enabled features</li>
+                  <li>Contact Zoom support if you believe you should have webinar access</li>
                 </ol>
               </AlertDescription>
             ) : (

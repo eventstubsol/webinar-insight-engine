@@ -66,17 +66,28 @@ export function useZoomWebinars() {
         return data.webinars;
       } catch (err: any) {
         console.error('Error fetching webinars:', err);
+        
+        let errorMessage = err.message || 'An error occurred while fetching webinars';
+        
+        // Provide more helpful error messages
+        if (errorMessage.includes('credentials') || errorMessage.includes('token')) {
+          errorMessage = 'Zoom authentication failed. Please check your API credentials in Supabase.';
+        } else if (errorMessage.includes('capabilities')) {
+          errorMessage = 'Your Zoom account does not have webinar capabilities enabled. This requires a paid Zoom plan.';
+        }
+        
         toast({
           title: 'Failed to fetch webinars',
-          description: err.message || 'An error occurred while fetching webinars',
+          description: errorMessage,
           variant: 'destructive'
         });
+        
         throw err;
       } finally {
         setIsLoading(false);
       }
     },
-    retry: 1, // Reduce unnecessary retries when auth is not configured
+    retry: 1,
     refetchOnWindowFocus: false
   });
 

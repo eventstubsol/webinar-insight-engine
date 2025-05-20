@@ -42,6 +42,13 @@ Deno.serve(async (req) => {
       const clientId = Deno.env.get('ZOOM_CLIENT_ID');
       const clientSecret = Deno.env.get('ZOOM_CLIENT_SECRET');
 
+      // Log the first few characters of each credential for debugging
+      console.log('Credentials check:', {
+        accountId: accountId ? `${accountId.substring(0, 5)}...` : 'missing',
+        clientId: clientId ? `${clientId.substring(0, 5)}...` : 'missing',
+        clientSecret: clientSecret ? `${clientSecret.substring(0, 5)}...` : 'missing'
+      });
+
       if (!accountId || !clientId || !clientSecret) {
         console.error('Missing Zoom credentials:', {
           hasAccountId: !!accountId,
@@ -53,15 +60,27 @@ Deno.serve(async (req) => {
 
       try {
         console.log('Requesting Zoom token with account_credentials grant type');
-        console.log(`Using Account ID: ${accountId.substring(0, 5)}...`); // Log partial ID for debugging
         
-        const tokenResponse = await fetch(`https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${accountId}`, {
+        // Build the token URL with parameters
+        const tokenUrl = new URL('https://zoom.us/oauth/token');
+        tokenUrl.searchParams.append('grant_type', 'account_credentials');
+        tokenUrl.searchParams.append('account_id', accountId);
+        
+        console.log(`Using Account ID: ${accountId}`);
+        
+        // Create authorization header with base64 encoded client_id:client_secret
+        const authHeader = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
+        
+        const tokenResponse = await fetch(tokenUrl.toString(), {
           method: 'POST',
           headers: {
-            'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+            'Authorization': authHeader,
             'Content-Type': 'application/json'
           }
         });
+        
+        // Log response status for debugging
+        console.log('Token response status:', tokenResponse.status, tokenResponse.statusText);
         
         const tokenData = await tokenResponse.json();
         
@@ -81,6 +100,7 @@ Deno.serve(async (req) => {
 
     // Get webinars from Zoom
     if (action === 'list-webinars') {
+      console.log('Starting list-webinars action');
       const token = await getZoomJwtToken();
       console.log('Fetching webinars with token');
       
