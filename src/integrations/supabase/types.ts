@@ -54,6 +54,174 @@ export type Database = {
         }
         Relationships: []
       }
+      zoom_credentials: {
+        Row: {
+          account_id: string
+          client_id: string
+          client_secret: string
+          created_at: string
+          id: string
+          is_verified: boolean
+          last_verified_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          client_id: string
+          client_secret: string
+          created_at?: string
+          id?: string
+          is_verified?: boolean
+          last_verified_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          client_id?: string
+          client_secret?: string
+          created_at?: string
+          id?: string
+          is_verified?: boolean
+          last_verified_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      zoom_sync_history: {
+        Row: {
+          created_at: string
+          id: string
+          items_synced: number
+          message: string | null
+          status: string
+          sync_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          items_synced?: number
+          message?: string | null
+          status: string
+          sync_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          items_synced?: number
+          message?: string | null
+          status?: string
+          sync_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      zoom_webinar_participants: {
+        Row: {
+          created_at: string
+          duration: number | null
+          email: string | null
+          id: string
+          join_time: string | null
+          leave_time: string | null
+          name: string | null
+          participant_id: string | null
+          participant_type: string
+          raw_data: Json
+          updated_at: string
+          user_id: string
+          webinar_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration?: number | null
+          email?: string | null
+          id?: string
+          join_time?: string | null
+          leave_time?: string | null
+          name?: string | null
+          participant_id?: string | null
+          participant_type: string
+          raw_data: Json
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+        }
+        Update: {
+          created_at?: string
+          duration?: number | null
+          email?: string | null
+          id?: string
+          join_time?: string | null
+          leave_time?: string | null
+          name?: string | null
+          participant_id?: string | null
+          participant_type?: string
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+        }
+        Relationships: []
+      }
+      zoom_webinars: {
+        Row: {
+          agenda: string | null
+          created_at: string
+          duration: number | null
+          host_email: string | null
+          id: string
+          raw_data: Json
+          start_time: string | null
+          status: string | null
+          timezone: string | null
+          topic: string
+          type: number | null
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          webinar_uuid: string
+        }
+        Insert: {
+          agenda?: string | null
+          created_at?: string
+          duration?: number | null
+          host_email?: string | null
+          id?: string
+          raw_data: Json
+          start_time?: string | null
+          status?: string | null
+          timezone?: string | null
+          topic: string
+          type?: number | null
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          webinar_uuid: string
+        }
+        Update: {
+          agenda?: string | null
+          created_at?: string
+          duration?: number | null
+          host_email?: string | null
+          id?: string
+          raw_data?: Json
+          start_time?: string | null
+          status?: string | null
+          timezone?: string | null
+          topic?: string
+          type?: number | null
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          webinar_uuid?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

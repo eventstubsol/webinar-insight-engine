@@ -16,6 +16,11 @@ interface WebinarHeaderProps {
   isLoading: boolean;
   refreshWebinars: () => Promise<void>;
   lastSyncTime: Date | null;
+  onSetupZoom: () => void;
+  credentialsStatus: {
+    hasCredentials: boolean;
+    isVerified: boolean;
+  } | null;
 }
 
 export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
@@ -24,6 +29,8 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
   isLoading,
   refreshWebinars,
   lastSyncTime,
+  onSetupZoom,
+  credentialsStatus
 }) => {
   const [isCreateLoading, setIsCreateLoading] = React.useState(false);
 
@@ -49,7 +56,7 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
         )}
       </div>
       <div className="flex gap-2">
-        {!errorDetails.isMissingCredentials && (
+        {credentialsStatus?.hasCredentials ? (
           <>
             <TooltipProvider>
               <Tooltip>
@@ -83,19 +90,16 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
               )}
               Create Webinar
             </Button>
+            <Button variant="outline" onClick={onSetupZoom}>
+              <Settings className="h-4 w-4 mr-2" />
+              Zoom Settings
+            </Button>
           </>
-        )}
-        {(errorDetails.isMissingCredentials || errorDetails.isScopesError) ? (
+        ) : (
           <>
-            <Button variant="outline" asChild>
-              <a 
-                href="https://supabase.com/dashboard/project/dcvlxtkxqyaznxxvkynd/settings/functions" 
-                target="_blank" 
-                rel="noopener noreferrer"
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Configure Zoom API
-              </a>
+            <Button onClick={onSetupZoom}>
+              <Settings className="h-4 w-4 mr-2" />
+              Connect Zoom Account
             </Button>
             <Button variant="outline" asChild>
               <Link to="/dashboard">
@@ -104,7 +108,7 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
               </Link>
             </Button>
           </>
-        ) : null}
+        )}
       </div>
     </div>
   );

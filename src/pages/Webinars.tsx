@@ -5,7 +5,8 @@ import { WebinarsList } from '@/components/webinars/WebinarsList';
 import { WebinarHeader } from '@/components/webinars/WebinarHeader';
 import { WebinarError } from '@/components/webinars/WebinarError';
 import { WebinarSetupGuide } from '@/components/webinars/WebinarSetupGuide';
-import { useZoomWebinars, useZoomCredentialsVerification } from '@/hooks/useZoomApi';
+import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
+import { useZoomWebinars, useZoomCredentials, useZoomCredentialsVerification } from '@/hooks/useZoomApi';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import {
@@ -14,25 +15,34 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { CheckCircle2, Clock } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { CheckCircle2, Clock, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 const Webinars = () => {
-  const { webinars, isLoading, isRefetching, error, errorDetails, refreshWebinars } = useZoomWebinars();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { webinars, isLoading, isRefetching, error, errorDetails, refreshWebinars, lastSyncTime, credentialsStatus } = useZoomWebinars();
   const { verifyCredentials, isVerifying, verified, scopesError, verificationDetails } = useZoomCredentialsVerification();
+  const { checkCredentialsStatus } = useZoomCredentials();
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("webinars");
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-  const { toast } = useToast();
+  const [showWizard, setShowWizard] = useState(false);
   
   // Memoize the refresh function to prevent unnecessary recreations
   const handleAutoRefresh = useCallback(async () => {
-    if (!error) {
+    if (!error && credentialsStatus?.hasCredentials) {
       try {
         await refreshWebinars();
-        setLastSyncTime(new Date());
         // Silent toast for background refreshes
         toast({
           title: 'Webinars synced',
@@ -49,12 +59,23 @@ const Webinars = () => {
         });
       }
     }
-  }, [refreshWebinars, error, toast]);
+  }, [refreshWebinars, error, toast, credentialsStatus]);
+
+  // Check if this is the first login and open wizard if needed
+  useEffect(() => {
+    if (user && !isLoading && credentialsStatus !== undefined) {
+      // If user is logged in and we've checked their credentials status
+      if (!credentialsStatus?.hasCredentials) {
+        // If they don't have credentials, show the wizard
+        setShowWizard(true);
+      }
+    }
+  }, [user, credentialsStatus, isLoading]);
 
   // Set up automatic refresh on mount and when dependencies change
   useEffect(() => {
     // Skip auto-refresh if there are credential errors
-    if (errorDetails.isMissingCredentials || errorDetails.isScopesError || scopesError) {
+    if (!credentialsStatus?.hasCredentials || errorDetails.isScopesError || scopesError) {
       return;
     }
 
@@ -70,7 +91,7 @@ const Webinars = () => {
 
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
-  }, [handleAutoRefresh, isLoading, isRefetching, error, lastSyncTime, errorDetails, scopesError]);
+  }, [handleAutoRefresh, isLoading, isRefetching, error, lastSyncTime, errorDetails, scopesError, credentialsStatus]);
   
   useEffect(() => {
     // Track if data has been loaded at least once
@@ -82,12 +103,21 @@ const Webinars = () => {
     if ((error && (errorDetails.isMissingCredentials || errorDetails.isScopesError)) && activeTab !== "setup") {
       setActiveTab("setup");
     }
-    
-    // Update last sync time when data is successfully loaded
-    if (!isLoading && !isRefetching && !error && webinars.length > 0) {
-      setLastSyncTime(new Date());
-    }
   }, [isLoading, error, errorDetails, activeTab, isRefetching, webinars, isFirstLoad]);
+  
+  const handleSetupZoom = () => {
+    setShowWizard(true);
+  };
+  
+  const handleWizardComplete = async () => {
+    setShowWizard(false);
+    // Re-check credentials status
+    await checkCredentialsStatus();
+    // Refresh webinars
+    refreshWebinars();
+    // Switch to webinars tab
+    setActiveTab("webinars");
+  };
   
   const errorMessage = error?.message || 'An error occurred while connecting to the Zoom API';
   
@@ -100,7 +130,47 @@ const Webinars = () => {
           isLoading={isLoading}
           refreshWebinars={refreshWebinars}
           lastSyncTime={lastSyncTime}
+          onSetupZoom={handleSetupZoom}
+          credentialsStatus={credentialsStatus}
         />
+
+        {/* Zoom Integration Wizard Dialog */}
+        <Dialog open={showWizard} onOpenChange={setShowWizard}>
+          <DialogContent className="max-w-4xl p-0">
+            <ZoomIntegrationWizard 
+              onComplete={handleWizardComplete}
+              onCancel={() => setShowWizard(false)}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Show First Time Setup Alert when no credentials exist but wizard is closed */}
+        {credentialsStatus && !credentialsStatus.hasCredentials && !showWizard && (
+          <Alert className="bg-blue-50 border-blue-200 mb-4">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-800">Connect Your Zoom Account</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              <p>You need to connect your Zoom account to view your webinars.</p>
+              <Button 
+                onClick={handleSetupZoom} 
+                className="mt-2 bg-blue-600 hover:bg-blue-700"
+              >
+                Connect Zoom Account
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Show credential verification success message */}
+        {credentialsStatus?.hasCredentials && credentialsStatus.isVerified && verified && (
+          <Alert className="bg-green-50 border-green-200 mb-4">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-800">Zoom Account Connected</AlertTitle>
+            <AlertDescription className="text-green-700">
+              Your Zoom account is successfully connected. You can now manage and analyze your webinars.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {errorDetails.isMissingCredentials || errorDetails.isScopesError || error ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
