@@ -53,6 +53,8 @@ Deno.serve(async (req) => {
 
       try {
         console.log('Requesting Zoom token with account_credentials grant type');
+        console.log(`Using Account ID: ${accountId.substring(0, 5)}...`); // Log partial ID for debugging
+        
         const tokenResponse = await fetch(`https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${accountId}`, {
           method: 'POST',
           headers: {
@@ -64,8 +66,9 @@ Deno.serve(async (req) => {
         const tokenData = await tokenResponse.json();
         
         if (!tokenResponse.ok) {
-          console.error('Zoom token error:', tokenData);
-          throw new Error(`Failed to get Zoom token: ${tokenData.error || 'Unknown error'}`);
+          console.error('Zoom token error response:', tokenResponse.status, tokenResponse.statusText);
+          console.error('Zoom token error details:', tokenData);
+          throw new Error(`Failed to get Zoom token: ${tokenData.error || 'Unknown error'} - ${tokenData.error_description || ''}`);
         }
 
         console.log('Successfully obtained Zoom access token');
@@ -106,21 +109,21 @@ Deno.serve(async (req) => {
         }
       });
       
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Zoom webinars error:', errorData);
+        console.error('Zoom webinars error:', responseData);
         
-        if (errorData.code === 4700) {
+        if (responseData.code === 4700) {
           throw new Error('Webinar capabilities not enabled for this Zoom account');
         } else {
-          throw new Error(`Failed to fetch webinars: ${errorData.message || 'Unknown error'}`);
+          throw new Error(`Failed to fetch webinars: ${responseData.message || 'Unknown error'} (Code: ${responseData.code || 'Unknown'})`);
         }
       }
       
-      const data = await response.json();
-      console.log(`Successfully fetched ${data.webinars?.length || 0} webinars`);
+      console.log(`Successfully fetched ${responseData.webinars?.length || 0} webinars`);
       
-      return new Response(JSON.stringify({ webinars: data.webinars || [] }), {
+      return new Response(JSON.stringify({ webinars: responseData.webinars || [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -187,7 +190,19 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Zoom API error:', error);
-    return new Response(JSON.stringify({ error: error.message || 'Unknown error' }), {
+    
+    // Enhanced error response with more details
+    const errorResponse = {
+      error: error.message || 'Unknown error',
+      code: error.code || 'unknown_error',
+      context: {
+        hasAccountId: !!Deno.env.get('ZOOM_ACCOUNT_ID'),
+        hasClientId: !!Deno.env.get('ZOOM_CLIENT_ID'),
+        hasClientSecret: !!Deno.env.get('ZOOM_CLIENT_SECRET')
+      }
+    };
+    
+    return new Response(JSON.stringify(errorResponse), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

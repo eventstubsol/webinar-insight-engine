@@ -50,13 +50,22 @@ export function useZoomWebinars() {
           body: { action: 'list-webinars' }
         });
         
-        if (error) throw new Error(error.message);
+        if (error) {
+          console.error('Supabase function error:', error);
+          throw new Error(error.message || 'Failed to invoke Zoom API function');
+        }
+        
+        if (data.error) {
+          console.error('Zoom API error in response:', data.error);
+          throw new Error(data.error);
+        }
         
         // Add logging for debugging
         console.log('Webinars API response:', data);
         
         return data.webinars;
       } catch (err: any) {
+        console.error('Error fetching webinars:', err);
         toast({
           title: 'Failed to fetch webinars',
           description: err.message || 'An error occurred while fetching webinars',
