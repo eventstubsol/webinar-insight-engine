@@ -15,11 +15,18 @@ import { UserMenu } from '@/components/auth/UserMenu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useZoomCredentials, useZoomWebinars } from '@/hooks/zoom';
 import { useNavigate } from 'react-router-dom';
+import { format, isToday, isYesterday } from 'date-fns';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
 
 export const TopNav = () => {
   const { user } = useAuth();
   const { credentialsStatus, isLoading: isLoadingCredentials } = useZoomCredentials();
-  const { refreshWebinars, isRefetching } = useZoomWebinars();
+  const { refreshWebinars, isRefetching, lastSyncTime } = useZoomWebinars();
   const navigate = useNavigate();
   
   const needsZoomSetup = !isLoadingCredentials && user && !credentialsStatus?.hasCredentials;
@@ -27,7 +34,20 @@ export const TopNav = () => {
   
   const handleSync = async () => {
     if (canSyncWebinars) {
-      await refreshWebinars();
+      await refreshWebinars(true); // Force sync from Zoom API
+    }
+  };
+  
+  // Format last sync time in a friendly way
+  const formatLastSync = (date: Date | null) => {
+    if (!date) return 'Never synced';
+    
+    if (isToday(date)) {
+      return `Today at ${format(date, 'h:mm a')}`;
+    } else if (isYesterday(date)) {
+      return `Yesterday at ${format(date, 'h:mm a')}`;
+    } else {
+      return format(date, 'MMM d, yyyy h:mm a');
     }
   };
   
@@ -54,24 +74,40 @@ export const TopNav = () => {
         )}
         
         {canSyncWebinars && (
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={handleSync}
-            disabled={isRefetching}
-          >
-            {isRefetching ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                <span>Syncing...</span>
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4" />
-                <span>Sync</span>
-              </>
-            )}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2">
+                  {lastSyncTime && (
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      Last sync: {formatLastSync(lastSyncTime)}
+                    </span>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleSync}
+                    disabled={isRefetching}
+                  >
+                    {isRefetching ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin mr-1" />
+                        <span>Syncing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                        <span>Sync</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Sync webinars directly from Zoom
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
         
         {user && (

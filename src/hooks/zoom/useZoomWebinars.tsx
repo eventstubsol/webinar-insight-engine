@@ -21,6 +21,7 @@ export function useZoomWebinars() {
       
       try {
         setIsLoading(true);
+        console.log('[useZoomWebinars] Fetching webinars from database or API');
         
         // Try to get webinars from database first
         const { data: dbWebinars, error: dbError } = await supabase
@@ -31,6 +32,7 @@ export function useZoomWebinars() {
         
         // If we have webinars in the database, return them immediately
         if (!dbError && dbWebinars && dbWebinars.length > 0) {
+          console.log(`[useZoomWebinars] Found ${dbWebinars.length} webinars in database`);
           // Transform to ZoomWebinar format
           return dbWebinars.map(item => ({
             id: item.webinar_id,
@@ -46,6 +48,8 @@ export function useZoomWebinars() {
             // Fix the spread operator issue by ensuring raw_data is an object
             ...(typeof item.raw_data === 'object' ? item.raw_data : {})
           }));
+        } else {
+          console.log('[useZoomWebinars] No webinars found in database, fetching from API');
         }
         
         // If not in database or database fetch failed, try API
@@ -54,20 +58,20 @@ export function useZoomWebinars() {
         });
         
         if (error) {
-          console.error('Supabase function invocation error:', error);
+          console.error('[useZoomWebinars] Supabase function invocation error:', error);
           throw new Error(error.message || 'Failed to invoke Zoom API function');
         }
         
         if (data.error) {
-          console.error('Zoom API error in response:', data.error);
+          console.error('[useZoomWebinars] Zoom API error in response:', data.error);
           throw new Error(data.error);
         }
         
-        console.log('Webinars API response:', data);
+        console.log('[useZoomWebinars] API response:', data);
         
         return data.webinars || [];
       } catch (err: any) {
-        console.error('Error fetching webinars:', err);
+        console.error('[useZoomWebinars] Error fetching webinars:', err);
         
         // Parse and enhance error messages for better user experience
         let errorMessage = err.message || 'An error occurred while fetching webinars';
@@ -99,7 +103,7 @@ export function useZoomWebinars() {
     gcTime: 10 * 60 * 1000 // 10 minutes
   });
 
-  const refreshWebinars = async () => {
+  const refreshWebinars = async (force: boolean = false) => {
     if (!user) {
       toast({
         title: 'Authentication Required',
@@ -110,14 +114,69 @@ export function useZoomWebinars() {
     }
     
     setIsRefetching(true);
+    console.log(`[refreshWebinars] Starting refresh with force=${force}`);
+    
     try {
-      await refetch();
-      toast({
-        title: 'Webinars refreshed',
-        description: 'Webinar data has been updated from Zoom'
+      // Make the API call to fetch fresh data from Zoom
+      const { data: refreshData, error: refreshError } = await supabase.functions.invoke('zoom-api', {
+        body: { 
+          action: 'list-webinars',
+          force_sync: force 
+        }
       });
-    } catch (err) {
-      // Error already handled in query function
+      
+      if (refreshError) {
+        console.error('[refreshWebinars] Error during refresh:', refreshError);
+        toast({
+          title: 'Sync failed',
+          description: refreshError.message || 'Failed to sync with Zoom API',
+          variant: 'destructive'
+        });
+        throw refreshError;
+      }
+      
+      if (refreshData.error) {
+        console.error('[refreshWebinars] API returned error:', refreshData.error);
+        toast({
+          title: 'Sync failed',
+          description: refreshData.error,
+          variant: 'destructive'
+        });
+        throw new Error(refreshData.error);
+      }
+      
+      console.log('[refreshWebinars] Sync completed successfully:', refreshData);
+      
+      // Show appropriate toast based on sync results
+      if (refreshData.syncResults) {
+        if (refreshData.syncResults.itemsUpdated > 0) {
+          toast({
+            title: 'Webinars synced',
+            description: `Successfully updated ${refreshData.syncResults.itemsUpdated} webinars from Zoom`,
+            variant: 'success'
+          });
+        } else {
+          toast({
+            title: 'No changes found',
+            description: 'No webinar changes detected in your Zoom account',
+          });
+        }
+      } else {
+        toast({
+          title: 'Webinars synced',
+          description: 'Webinar data has been updated from Zoom'
+        });
+      }
+
+      // Invalidate the query cache to force a refresh
+      await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', user.id] });
+      
+      // Trigger a refetch to get the latest data
+      const refetchResult = await refetch();
+      return refetchResult.data;
+    } catch (err: any) {
+      console.error('[refreshWebinars] Error during refresh:', err);
+      // Error handling already done above
     } finally {
       setIsRefetching(false);
     }

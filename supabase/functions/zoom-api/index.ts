@@ -52,6 +52,9 @@ Deno.serve(async (req) => {
     
     const action = body?.action;
     const id = body?.id;
+    const force_sync = body?.force_sync === true;
+    
+    console.log(`[zoom-api] Action: ${action}, force_sync: ${force_sync}`);
     
     // Get user's Zoom credentials from database
     const { data: credentials, error: credentialsError } = await supabase
@@ -315,11 +318,53 @@ Deno.serve(async (req) => {
 
     // Get webinars from Zoom
     if (action === 'list-webinars') {
-      console.log('Starting list-webinars action for user:', user.id);
+      console.log(`[zoom-api][list-webinars] Starting action for user: ${user.id}, force_sync: ${force_sync}`);
       
       try {
+        // If not forcing sync, first try to get webinars from database
+        if (!force_sync) {
+          console.log('[zoom-api][list-webinars] Checking database first for webinars');
+          const { data: dbWebinars, error: dbError } = await supabase
+            .from('zoom_webinars')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('start_time', { ascending: false });
+            
+          // If we have webinars in the database and not forcing a refresh, return them
+          if (!dbError && dbWebinars && dbWebinars.length > 0) {
+            console.log(`[zoom-api][list-webinars] Found ${dbWebinars.length} webinars in database, returning cached data`);
+            return new Response(JSON.stringify({ 
+              webinars: dbWebinars.map(w => ({
+                id: w.webinar_id,
+                uuid: w.webinar_uuid,
+                topic: w.topic,
+                start_time: w.start_time,
+                duration: w.duration,
+                timezone: w.timezone,
+                agenda: w.agenda || '',
+                host_email: w.host_email,
+                status: w.status,
+                type: w.type,
+                ...w.raw_data
+              })),
+              source: 'database',
+              syncResults: {
+                itemsFetched: dbWebinars.length, 
+                itemsUpdated: 0
+              }
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          } else {
+            console.log('[zoom-api][list-webinars] No webinars found in database or forcing refresh');
+          }
+        } else {
+          console.log('[zoom-api][list-webinars] Force sync requested, bypassing database cache');
+        }
+        
+        // Get token and fetch from Zoom API
         const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
-        console.log('Fetching webinars with token');
+        console.log('[zoom-api][list-webinars] Got Zoom token, fetching webinars directly from Zoom');
         
         // First try to get the user's email
         const meResponse = await fetch('https://api.zoom.us/v2/users/me', {
@@ -331,7 +376,7 @@ Deno.serve(async (req) => {
         
         if (!meResponse.ok) {
           const meData = await meResponse.json();
-          console.error('Failed to get user info:', meData);
+          console.error('[zoom-api][list-webinars] Failed to get user info:', meData);
           
           // Handle missing OAuth scopes error specifically
           if (meData.code === 4711 || meData.message?.includes('scopes')) {
@@ -349,7 +394,7 @@ Deno.serve(async (req) => {
         }
         
         const meData = await meResponse.json();
-        console.log(`Got user info for: ${meData.email}`);
+        console.log(`[zoom-api][list-webinars] Got user info for: ${meData.email}`);
 
         // Now fetch the webinars
         const response = await fetch(`https://api.zoom.us/v2/users/${meData.id}/webinars?page_size=300`, {
@@ -362,7 +407,7 @@ Deno.serve(async (req) => {
         const responseData = await response.json();
         
         if (!response.ok) {
-          console.error('Zoom webinars error:', responseData);
+          console.error('[zoom-api][list-webinars] Zoom webinars error:', responseData);
           
           if (responseData.code === 4700) {
             throw new Error('Webinar capabilities not enabled for this Zoom account. This feature requires a Zoom paid plan with webinar add-on.');
@@ -373,54 +418,100 @@ Deno.serve(async (req) => {
           }
         }
         
-        console.log(`Successfully fetched ${responseData.webinars?.length || 0} webinars`);
+        console.log(`[zoom-api][list-webinars] Successfully fetched ${responseData.webinars?.length || 0} webinars from Zoom API`);
         
-        // Store webinars in database for this user
+        let itemsUpdated = 0;
+        let existingWebinars = [];
+        
+        // If there are webinars, compare with existing data to detect changes
         if (responseData.webinars && responseData.webinars.length > 0) {
-          // First delete existing webinars for this user
-          const { error: deleteError } = await supabase
+          // Get existing webinars for comparison
+          const { data: existingData } = await supabase
             .from('zoom_webinars')
-            .delete()
+            .select('*')
             .eq('user_id', user.id);
+            
+          existingWebinars = existingData || [];
           
-          if (deleteError) {
-            console.error('Error deleting existing webinars:', deleteError);
+          // Compare and detect changes
+          for (const webinar of responseData.webinars) {
+            const existing = existingWebinars.find(w => w.webinar_id === webinar.id.toString());
+            
+            if (!existing || 
+                existing.topic !== webinar.topic ||
+                existing.start_time !== webinar.start_time ||
+                existing.duration !== webinar.duration ||
+                existing.agenda !== webinar.agenda ||
+                existing.status !== webinar.status ||
+                JSON.stringify(existing.raw_data) !== JSON.stringify(webinar)) {
+              itemsUpdated++;
+            }
           }
           
-          // Insert new webinars
-          const webinarsToInsert = responseData.webinars.map((webinar: any) => ({
-            user_id: user.id,
-            webinar_id: webinar.id,
-            webinar_uuid: webinar.uuid,
-            topic: webinar.topic,
-            start_time: webinar.start_time,
-            duration: webinar.duration,
-            timezone: webinar.timezone,
-            agenda: webinar.agenda || '',
-            host_email: webinar.host_email,
-            status: webinar.status,
-            type: webinar.type,
-            raw_data: webinar
-          }));
+          console.log(`[zoom-api][list-webinars] Detected ${itemsUpdated} webinars with changes out of ${responseData.webinars.length} total`);
           
-          const { error: insertError } = await supabase
-            .from('zoom_webinars')
-            .insert(webinarsToInsert);
-          
-          if (insertError) {
-            console.error('Error inserting webinars:', insertError);
-          }
-          
-          // Record sync in history
-          await supabase
-            .from('zoom_sync_history')
-            .insert({
+          // If changes detected or force sync, update the database
+          if (itemsUpdated > 0 || force_sync) {
+            // First delete existing webinars for this user
+            const { error: deleteError } = await supabase
+              .from('zoom_webinars')
+              .delete()
+              .eq('user_id', user.id);
+            
+            if (deleteError) {
+              console.error('[zoom-api][list-webinars] Error deleting existing webinars:', deleteError);
+            }
+            
+            // Insert new webinars
+            const webinarsToInsert = responseData.webinars.map((webinar: any) => ({
               user_id: user.id,
-              sync_type: 'webinars',
-              status: 'success',
-              items_synced: webinarsToInsert.length,
-              message: `Successfully synced ${webinarsToInsert.length} webinars`
-            });
+              webinar_id: webinar.id,
+              webinar_uuid: webinar.uuid,
+              topic: webinar.topic,
+              start_time: webinar.start_time,
+              duration: webinar.duration,
+              timezone: webinar.timezone,
+              agenda: webinar.agenda || '',
+              host_email: webinar.host_email,
+              status: webinar.status,
+              type: webinar.type,
+              raw_data: webinar
+            }));
+            
+            const { error: insertError } = await supabase
+              .from('zoom_webinars')
+              .insert(webinarsToInsert);
+            
+            if (insertError) {
+              console.error('[zoom-api][list-webinars] Error inserting webinars:', insertError);
+            }
+            
+            // Record sync in history
+            await supabase
+              .from('zoom_sync_history')
+              .insert({
+                user_id: user.id,
+                sync_type: 'webinars',
+                status: 'success',
+                items_synced: webinarsToInsert.length,
+                message: `Successfully synced ${webinarsToInsert.length} webinars with ${itemsUpdated} changes detected`
+              });
+              
+            console.log(`[zoom-api][list-webinars] Database updated with ${webinarsToInsert.length} webinars`);
+          } else {
+            // Record sync but note no changes
+            await supabase
+              .from('zoom_sync_history')
+              .insert({
+                user_id: user.id,
+                sync_type: 'webinars',
+                status: 'success',
+                items_synced: 0,
+                message: `No changes detected in ${responseData.webinars.length} webinars`
+              });
+              
+            console.log('[zoom-api][list-webinars] No changes detected, database not updated');
+          }
         } else {
           // Record empty sync in history
           await supabase
@@ -432,13 +523,22 @@ Deno.serve(async (req) => {
               items_synced: 0,
               message: 'No webinars found to sync'
             });
+            
+          console.log('[zoom-api][list-webinars] No webinars found in Zoom account');
         }
         
-        return new Response(JSON.stringify({ webinars: responseData.webinars || [] }), {
+        return new Response(JSON.stringify({ 
+          webinars: responseData.webinars || [],
+          source: 'api',
+          syncResults: {
+            itemsFetched: responseData.webinars?.length || 0,
+            itemsUpdated: itemsUpdated
+          }
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       } catch (error) {
-        console.error('Error in list-webinars action:', error);
+        console.error('[zoom-api][list-webinars] Error in action:', error);
         
         // Record failed sync in history
         await supabase
@@ -582,7 +682,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Zoom API error:', error);
+    console.error('[zoom-api] Error:', error);
     
     // Enhanced error response with more details and user-friendly messages
     let errorMessage = error.message || 'Unknown error';
