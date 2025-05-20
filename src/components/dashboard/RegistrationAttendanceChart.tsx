@@ -89,63 +89,71 @@ export const RegistrationAttendanceChart = () => {
         ) : (
           <ChartContainer
             config={{
-              registrants: { label: "Registrants", color: "hsl(var(--primary))" },
-              attendees: { label: "Attendees", color: "hsl(var(--warning))" }
+              registrants: { 
+                label: "Registrants", 
+                color: "hsl(var(--chart-registrants))" 
+              },
+              attendees: { 
+                label: "Attendees", 
+                color: "hsl(var(--chart-attendees))" 
+              }
             }}
           >
-            <LineChart
-              data={webinarStats}
-              margin={{ top: 5, right: 30, left: 20, bottom: 40 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis 
-                dataKey="date" 
-                tick={{ fontSize: 12 }}
-                tickLine={false}
-                angle={-45}
-                textAnchor="end"
-                height={60}
-              />
-              <YAxis 
-                allowDecimals={false}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 12 }}
-              />
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <ChartTooltipContent
-                        payload={payload}
-                        active={active}
-                        label={payload[0]?.payload.name}
-                      />
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="registrants" 
-                name="Registrants"
-                stroke="var(--color-registrants)" 
-                strokeWidth={2}
-                dot={{ r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="attendees" 
-                name="Attendees"
-                stroke="var(--color-attendees)" 
-                strokeWidth={2}
-                dot={{ r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={webinarStats}
+                margin={{ top: 5, right: 30, left: 20, bottom: 40 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 12 }}
+                  tickLine={false}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis 
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 12 }}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <ChartTooltipContent
+                          payload={payload}
+                          active={active}
+                          label={payload[0]?.payload.name}
+                        />
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="registrants" 
+                  name="Registrants"
+                  stroke="var(--color-registrants)" 
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="attendees" 
+                  name="Attendees"
+                  stroke="var(--color-attendees)" 
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </ChartContainer>
         )}
       </CardContent>

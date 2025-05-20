@@ -71,9 +71,9 @@ export const WebinarMetrics = () => {
                   }}
                 />
                 <Legend iconType="circle" />
-                <Bar dataKey="questions" name="Questions" fill="#2384ff" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="chat" name="Chat Messages" fill="#0abfb6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="polls" name="Poll Responses" fill="#94fff2" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="questions" name="Questions" fill="hsl(var(--chart-completed))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="chat" name="Chat Messages" fill="hsl(var(--chart-registrants))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="polls" name="Poll Responses" fill="hsl(var(--chart-attendees))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </TabsContent>
@@ -99,7 +99,7 @@ export const WebinarMetrics = () => {
                     boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)"
                   }}
                 />
-                <Bar dataKey="attendees" name="Attendees" fill="#2384ff" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="attendees" name="Attendees" fill="hsl(var(--chart-completed))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </TabsContent>

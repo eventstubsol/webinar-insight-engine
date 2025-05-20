@@ -43,6 +43,15 @@
     --sidebar-accent-foreground: 214 84% 56%;
     --sidebar-border: 214 84% 90%;
     --sidebar-ring: 214 84% 56%;
+    
+    /* Chart colors */
+    --chart-completed: 214 84% 56%;
+    --chart-upcoming: 215.4 16.3% 46.9%;
+    --chart-registrants: 214 84% 56%;
+    --chart-attendees: 22 100% 50%;
+    --chart-attendance: 135 70% 50%;
+    --chart-conversion: 214 84% 56%;
+    --chart-warning: 38 92% 50%;
   }
 
   .dark {
@@ -82,6 +91,15 @@
     --sidebar-accent-foreground: 214 84% 56%;
     --sidebar-border: 214 84% 20%;
     --sidebar-ring: 214 84% 56%;
+    
+    /* Chart colors - dark mode */
+    --chart-completed: 214 84% 56%;
+    --chart-upcoming: 215 20.2% 65.1%;
+    --chart-registrants: 214 84% 56%;
+    --chart-attendees: 22 100% 50%;
+    --chart-attendance: 135 70% 50%;
+    --chart-conversion: 214 84% 56%;
+    --chart-warning: 38 92% 50%;
   }
 }
 
@@ -128,3 +146,4 @@
     @apply inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary;
   }
 }
+

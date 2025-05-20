@@ -86,44 +86,52 @@ export const WebinarDistributionChart = () => {
         ) : (
           <ChartContainer
             config={{
-              completed: { label: "Completed", color: "hsl(var(--primary))" },
-              upcoming: { label: "Upcoming", color: "hsl(var(--muted))" }
+              completed: { 
+                label: "Completed", 
+                color: "hsl(var(--chart-completed))" 
+              },
+              upcoming: { 
+                label: "Upcoming", 
+                color: "hsl(var(--chart-upcoming))" 
+              }
             }}
           >
-            <BarChart
-              data={monthlyDistribution}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis 
-                dataKey="monthYear" 
-                tick={{ fontSize: 12 }}
-                tickLine={false}
-              />
-              <YAxis 
-                allowDecimals={false}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 12 }}
-              />
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <ChartTooltipContent
-                        payload={payload}
-                        active={active}
-                        label={payload[0]?.payload.monthYear}
-                      />
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Legend />
-              <Bar dataKey="completed" stackId="a" name="Completed" fill="var(--color-completed)" />
-              <Bar dataKey="upcoming" stackId="a" name="Upcoming" fill="var(--color-upcoming)" />
-            </BarChart>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={monthlyDistribution}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="monthYear" 
+                  tick={{ fontSize: 12 }}
+                  tickLine={false}
+                />
+                <YAxis 
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 12 }}
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <ChartTooltipContent
+                          payload={payload}
+                          active={active}
+                          label={payload[0]?.payload.monthYear}
+                        />
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="completed" stackId="a" name="Completed" fill="var(--color-completed)" />
+                <Bar dataKey="upcoming" stackId="a" name="Upcoming" fill="var(--color-upcoming)" />
+              </BarChart>
+            </ResponsiveContainer>
           </ChartContainer>
         )}
       </CardContent>
