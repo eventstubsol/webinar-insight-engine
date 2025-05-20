@@ -36,31 +36,56 @@ Deno.serve(async (req) => {
     const action = body?.action;
     const id = body?.id;
 
+    // First, check if credentials are configured
+    const credentialsStatus = checkZoomCredentials();
+    if (credentialsStatus.missing.length > 0) {
+      console.error(`Missing Zoom credentials: ${credentialsStatus.missing.join(', ')}`);
+      return new Response(JSON.stringify({
+        error: `Zoom API credentials not properly configured. Missing: ${credentialsStatus.missing.join(', ')}`,
+        code: 'credentials_missing',
+        context: {
+          hasAccountId: !!Deno.env.get('ZOOM_ACCOUNT_ID'),
+          hasClientId: !!Deno.env.get('ZOOM_CLIENT_ID'),
+          hasClientSecret: !!Deno.env.get('ZOOM_CLIENT_SECRET'),
+          missing: credentialsStatus.missing
+        }
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Function to check if all required Zoom credentials are set
+    function checkZoomCredentials() {
+      const missing = [];
+      const accountId = Deno.env.get('ZOOM_ACCOUNT_ID');
+      const clientId = Deno.env.get('ZOOM_CLIENT_ID');
+      const clientSecret = Deno.env.get('ZOOM_CLIENT_SECRET');
+      
+      if (!accountId) missing.push('ZOOM_ACCOUNT_ID');
+      if (!clientId) missing.push('ZOOM_CLIENT_ID');
+      if (!clientSecret) missing.push('ZOOM_CLIENT_SECRET');
+      
+      return {
+        isConfigured: missing.length === 0,
+        missing
+      };
+    }
+
     // Generate a Server-to-Server OAuth access token
     async function getZoomJwtToken() {
       const accountId = Deno.env.get('ZOOM_ACCOUNT_ID');
       const clientId = Deno.env.get('ZOOM_CLIENT_ID');
       const clientSecret = Deno.env.get('ZOOM_CLIENT_SECRET');
 
-      // Validate required credentials
-      if (!accountId || !clientId || !clientSecret) {
-        const missingCreds = [];
-        if (!accountId) missingCreds.push('ZOOM_ACCOUNT_ID');
-        if (!clientId) missingCreds.push('ZOOM_CLIENT_ID'); 
-        if (!clientSecret) missingCreds.push('ZOOM_CLIENT_SECRET');
-        
-        console.error(`Missing Zoom credentials: ${missingCreds.join(', ')}`);
-        throw new Error(`Zoom API credentials not properly configured. Missing: ${missingCreds.join(', ')}`);
-      }
-
-      // Validate Account ID format (should look like a string, not undefined)
+      // Validate Account ID format
       if (typeof accountId !== 'string' || accountId.trim() === '') {
         console.error(`Invalid Account ID format: ${accountId}`);
         throw new Error('Zoom Account ID is invalid or empty');
       }
 
       try {
-        console.log(`Requesting Zoom token with account_credentials grant type for account ${accountId.substring(0, 5)}...`);
+        console.log(`Requesting Zoom token with account_credentials grant type for account ID starting with ${accountId.substring(0, 4)}...`);
         
         // Build the token URL with parameters
         const tokenUrl = new URL('https://zoom.us/oauth/token');
@@ -101,6 +126,27 @@ Deno.serve(async (req) => {
       } catch (error) {
         console.error('Zoom JWT generation error:', error);
         throw error;
+      }
+    }
+
+    // Check Zoom API configuration and connectivity
+    if (action === 'verify-credentials') {
+      try {
+        const token = await getZoomJwtToken();
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Zoom API credentials validated successfully'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: error.message 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
     }
 
@@ -234,20 +280,24 @@ Deno.serve(async (req) => {
     // Enhanced error response with more details and user-friendly messages
     let errorMessage = error.message || 'Unknown error';
     let errorCode = 500;
+    let errorType = 'unknown_error';
     
     // Format error message for common issues
-    if (errorMessage.includes('Account ID')) {
-      errorMessage = 'Zoom Account ID is missing or invalid. Please verify it is correctly set in Supabase Secrets.';
-    } else if (errorMessage.includes('client credentials')) {
+    if (errorMessage.includes('Account ID') || errorMessage.includes('account_id')) {
+      errorMessage = 'Zoom Account ID is missing, invalid, or not correctly set in Supabase Secrets.';
+      errorType = 'account_id_error';
+    } else if (errorMessage.includes('client credentials') || errorMessage.includes('invalid_client')) {
       errorMessage = 'Invalid Zoom Client ID or Client Secret. Please check your credentials in Supabase Secrets.';
+      errorType = 'credentials_error';
     } else if (errorMessage.includes('capabilities')) {
       errorMessage = 'Your Zoom account does not have webinar capabilities enabled. This requires a Zoom paid plan with webinars.';
       errorCode = 403;
+      errorType = 'capabilities_error';
     }
     
     const errorResponse = {
       error: errorMessage,
-      code: error.code || 'unknown_error',
+      code: errorType,
       context: {
         hasAccountId: !!Deno.env.get('ZOOM_ACCOUNT_ID'),
         hasClientId: !!Deno.env.get('ZOOM_CLIENT_ID'),

@@ -37,6 +37,50 @@ export interface ZoomParticipants {
   }>;
 }
 
+export function useZoomCredentialsVerification() {
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verified, setVerified] = useState(false);
+  
+  const verifyCredentials = async () => {
+    setIsVerifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zoom-api', {
+        body: { action: 'verify-credentials' }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      if (data.success) {
+        setVerified(true);
+        toast({
+          title: 'Zoom API Connected',
+          description: 'Your Zoom API credentials have been verified successfully.'
+        });
+        return true;
+      } else {
+        throw new Error(data.error || 'Verification failed');
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Verification Failed',
+        description: err.message || 'Could not verify Zoom API credentials',
+        variant: 'destructive'
+      });
+      return false;
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+  
+  return {
+    verifyCredentials,
+    isVerifying,
+    verified
+  };
+}
+
 export function useZoomWebinars() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefetching, setIsRefetching] = useState(false);
@@ -107,12 +151,32 @@ export function useZoomWebinars() {
       setIsRefetching(false);
     }
   };
+  
+  const errorDetails = {
+    isMissingCredentials: error?.message?.includes('credentials') || 
+                         error?.message?.includes('Account ID') || 
+                         error?.message?.includes('Client ID'),
+    isCapabilitiesError: error?.message?.includes('capabilities'),
+    missingSecrets: []
+  };
+  
+  // Check which secrets might be missing from the error message
+  if (error) {
+    const message = error.message.toLowerCase();
+    if (message.includes('account_id') || message.includes('account id')) 
+      errorDetails.missingSecrets.push('ZOOM_ACCOUNT_ID');
+    if (message.includes('client_id') || message.includes('client id')) 
+      errorDetails.missingSecrets.push('ZOOM_CLIENT_ID');
+    if (message.includes('client_secret') || message.includes('client secret')) 
+      errorDetails.missingSecrets.push('ZOOM_CLIENT_SECRET');
+  }
 
   return {
     webinars: data || [],
     isLoading,
     isRefetching,
     error,
+    errorDetails,
     refreshWebinars
   };
 }
