@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarsList } from '@/components/webinars/WebinarsList';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, RefreshCw, AlertTriangle, ArrowLeft, ExternalLink } from 'lucide-react';
+import { PlusCircle, RefreshCw, AlertTriangle, ArrowLeft, ExternalLink, Settings } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/useZoomApi';
 import { LoaderCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -35,7 +35,8 @@ const Webinars = () => {
   const isCredentialsError = errorMessage.includes('credentials') || 
                             errorMessage.includes('token') || 
                             errorMessage.includes('Failed to generate') ||
-                            errorMessage.includes('authentication');
+                            errorMessage.includes('authentication') ||
+                            errorMessage.includes('Account ID');
   
   const isCapabilitiesError = errorMessage.includes('capabilities');
   
@@ -73,12 +74,24 @@ const Webinars = () => {
               </>
             )}
             {isCredentialsError && (
-              <Button variant="outline" asChild>
-                <Link to="/dashboard">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Dashboard
-                </Link>
-              </Button>
+              <>
+                <Button variant="outline" asChild>
+                  <a 
+                    href="https://supabase.com/dashboard/project/dcvlxtkxqyaznxxvkynd/settings/functions" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Configure Zoom API
+                  </a>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link to="/dashboard">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Dashboard
+                  </Link>
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -99,7 +112,7 @@ const Webinars = () => {
                   <li>Ensure your Zoom app has the <code className="px-1 py-0.5 bg-destructive/10 rounded">webinar:read</code> and <code className="px-1 py-0.5 bg-destructive/10 rounded">webinar:write</code> scopes</li>
                   <li>Check that your Client ID and Client Secret match what's shown in your Zoom app</li>
                 </ol>
-                <div className="mt-3">
+                <div className="flex flex-col sm:flex-row gap-2 mt-3">
                   <a 
                     href="https://marketplace.zoom.us/develop/apps" 
                     target="_blank" 
@@ -107,6 +120,14 @@ const Webinars = () => {
                     className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
                   >
                     Go to Zoom Marketplace Developer Settings <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <a 
+                    href="https://supabase.com/dashboard/project/dcvlxtkxqyaznxxvkynd/settings/functions" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                  >
+                    Configure Supabase Edge Function Secrets <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
               </AlertDescription>

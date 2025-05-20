@@ -51,7 +51,7 @@ export function useZoomWebinars() {
         });
         
         if (error) {
-          console.error('Supabase function error:', error);
+          console.error('Supabase function invocation error:', error);
           throw new Error(error.message || 'Failed to invoke Zoom API function');
         }
         
@@ -60,18 +60,20 @@ export function useZoomWebinars() {
           throw new Error(data.error);
         }
         
-        // Add logging for debugging
         console.log('Webinars API response:', data);
         
         return data.webinars;
       } catch (err: any) {
         console.error('Error fetching webinars:', err);
         
+        // Parse and enhance error messages for better user experience
         let errorMessage = err.message || 'An error occurred while fetching webinars';
         
-        // Provide more helpful error messages
-        if (errorMessage.includes('credentials') || errorMessage.includes('token')) {
-          errorMessage = 'Zoom authentication failed. Please check your API credentials in Supabase.';
+        // Provide more helpful error messages based on common patterns
+        if (errorMessage.includes('Account ID')) {
+          errorMessage = 'Zoom Account ID is missing or invalid. Please check your Supabase Edge Function secrets.';
+        } else if (errorMessage.includes('client credentials') || errorMessage.includes('authentication failed')) {
+          errorMessage = 'Zoom authentication failed. Please check your API credentials in Supabase Edge Function secrets.';
         } else if (errorMessage.includes('capabilities')) {
           errorMessage = 'Your Zoom account does not have webinar capabilities enabled. This requires a paid Zoom plan.';
         }
