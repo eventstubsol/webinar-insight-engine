@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ChartBar, Download, Filter, Calendar, Check } from 'lucide-react';
+import { ChartBar, Download, Filter, Calendar, Check, Users } from 'lucide-react';
 
 const LandingPage = () => {
   const navigate = useNavigate();
