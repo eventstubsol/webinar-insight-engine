@@ -6,7 +6,7 @@ import { WebinarHeader } from '@/components/webinars/WebinarHeader';
 import { WebinarError } from '@/components/webinars/WebinarError';
 import { WebinarSetupGuide } from '@/components/webinars/WebinarSetupGuide';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
-import { useZoomWebinars, useZoomCredentials, useZoomCredentialsVerification } from '@/hooks/useZoomApi';
+import { useZoomWebinars, useZoomCredentials, useZoomCredentialsVerification } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import {
