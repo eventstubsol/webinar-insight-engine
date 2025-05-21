@@ -14,6 +14,7 @@ import { Grid, List, Info, X, Video } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ZoomWebinar } from '@/hooks/useZoomApi';
 
 interface DateRange {
   from: Date | undefined;
@@ -21,7 +22,7 @@ interface DateRange {
 }
 
 interface WebinarLayoutProps {
-  webinars: any[];
+  webinars: ZoomWebinar[];
   isLoading: boolean;
   error: Error | null;
   viewMode: 'list' | 'grid';
@@ -33,7 +34,7 @@ interface WebinarLayoutProps {
     missingSecrets: string[];
   };
   onDismissError?: () => void;
-  errorBannerDismissed: boolean; // Explicitly typed as boolean
+  errorBannerDismissed: boolean; // Changed from string to boolean
 }
 
 export const WebinarLayout: React.FC<WebinarLayoutProps> = ({

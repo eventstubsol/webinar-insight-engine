@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarHeader } from '@/components/webinars/WebinarHeader';
@@ -119,7 +120,7 @@ const Webinars = () => {
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
-            errorBannerDismissed={errorBannerDismissed}
+            errorBannerDismissed={errorBannerDismissed} // Pass as boolean
             onDismissError={dismissErrorBanner}
           />
         ) : (
