@@ -65,7 +65,7 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
       <Card>
         <CardHeader>
           {/* Flex container that will now hold both tabs and toggle group */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pb-[15px]">
             {/* Webinar Type Tabs - moved here and removed mt-6 class */}
             <Tabs value={filterTab} onValueChange={(value) => window.dispatchEvent(new CustomEvent('filterTabChange', { detail: value }))}>
               <TabsList>
