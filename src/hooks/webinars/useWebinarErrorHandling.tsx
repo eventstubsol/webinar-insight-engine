@@ -22,7 +22,7 @@ export function useWebinarErrorHandling(
   }, [error]);
 
   // Error message preparation
-  const errorMessage = error?.message || 'An error occurred while connecting to the Zoom API';
+  const errorMessage: string | null = error?.message || null;
 
   // Initial load tracking and tab selection logic
   useEffect(() => {
