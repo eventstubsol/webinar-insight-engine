@@ -1,3 +1,4 @@
+
 import { supabase } from "./client";
 
 /**
@@ -98,12 +99,12 @@ export async function downloadFile(
     
     return { 
       path: filePath, 
-      file: data, 
+      blob: data, // Changed from 'file' to 'blob' to match the type
       error: null 
     };
   } catch (error) {
     console.error("Error downloading file:", error);
-    return { path: "", file: null, error: error as Error };
+    return { path: "", blob: null, error: error as Error };
   }
 }
 
@@ -161,11 +162,11 @@ export async function listFiles(
  */
 export async function createBucket(
   bucketName: string,
-  public: boolean = false
+  isPublic: boolean = false
 ): Promise<BucketCreateResult> {
   try {
     const { error } = await supabase.storage.createBucket(bucketName, {
-      public: public
+      public: isPublic // Fixed: using property name 'public' in an object is fine
     });
     
     if (error) throw error;
@@ -194,7 +195,7 @@ export interface FileUploadResult {
  */
 export interface FileDownloadResult {
   path: string;
-  file: File | null;
+  blob: Blob | null; // Changed from 'file' to 'blob' to match Supabase's return type
   error: Error | null;
 }
 
