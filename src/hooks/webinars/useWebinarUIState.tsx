@@ -20,7 +20,7 @@ export function useWebinarUIState() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   
-  // Track if user has dismissed the error banner
+  // Track if user has dismissed the error banner - ensure it's a boolean type
   const [errorBannerDismissed, setErrorBannerDismissed] = useState(
     localStorage.getItem(ERROR_PERSIST_KEY) === 'true'
   );
