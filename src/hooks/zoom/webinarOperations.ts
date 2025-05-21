@@ -67,6 +67,7 @@ export async function refreshWebinarsOperation(
   
   let isCompleted = false;
   let timeoutTriggered = false;
+  let participantsUpdated = 0;
   
   try {
     console.log(`[refreshWebinarsOperation] Starting refresh with force=${force} for user ${userId}`);
@@ -86,20 +87,11 @@ export async function refreshWebinarsOperation(
     );
     
     isCompleted = true;
-    
-    // Show appropriate toast based on sync results
-    if (refreshData.syncResults) {
-      showSyncSuccessNotification(refreshData.syncResults);
-    } else {
-      toast({
-        title: 'Webinars synced',
-        description: 'Webinar data has been updated from Zoom'
-      });
-    }
 
-    // Also update participant data for completed webinars
+    // Also update participant data for completed webinars (silently)
     try {
-      await updateParticipantDataOperation(userId, queryClient);
+      const participantData = await updateParticipantDataOperation(userId, queryClient, true);
+      participantsUpdated = participantData?.updated || 0;
     } catch (err) {
       console.error('[refreshWebinarsOperation] Error updating participant data:', err);
       // Don't throw here, as we want the main sync to succeed even if participant data fails
@@ -107,6 +99,22 @@ export async function refreshWebinarsOperation(
 
     // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
+    
+    // Show a consolidated notification with both webinar and participant data
+    if (refreshData.syncResults) {
+      const webinarsUpdated = refreshData.syncResults.itemsUpdated || 0;
+      
+      toast({
+        title: 'Sync completed successfully',
+        description: `Updated ${webinarsUpdated} webinars${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`,
+        variant: 'success'
+      });
+    } else {
+      toast({
+        title: 'Webinars synced',
+        description: `Webinar data has been updated from Zoom${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`
+      });
+    }
   } catch (err: any) {
     isCompleted = true;
     
@@ -128,25 +136,27 @@ export async function refreshWebinarsOperation(
     // Ensure that even if there's an uncaught exception, we set isCompleted
     // This flag can be used by the calling code to reset UI states
     console.log(`[refreshWebinarsOperation] Operation completed: ${isCompleted}`);
-    
-    // Could expose this value via a promise that resolves regardless of success/failure
   }
 }
 
 /**
  * Update participant data operation with improved error handling
+ * @param silent When true, don't show success notifications
  */
 export async function updateParticipantDataOperation(
   userId: string | undefined,
-  queryClient: QueryClient
-): Promise<void> {
+  queryClient: QueryClient,
+  silent: boolean = false
+): Promise<any> {
   if (!userId) {
-    toast({
-      title: 'Authentication Required',
-      description: 'You must be logged in to update participant data',
-      variant: 'destructive'
-    });
-    return;
+    if (!silent) {
+      toast({
+        title: 'Authentication Required',
+        description: 'You must be logged in to update participant data',
+        variant: 'destructive'
+      });
+    }
+    return null;
   }
   
   try {
@@ -154,22 +164,32 @@ export async function updateParticipantDataOperation(
       () => updateParticipantDataAPI(),
       OPERATION_TIMEOUT,
       () => {
-        toast({
-          title: 'Update taking longer than expected',
-          description: 'The participant data update is still running in the background.',
-          variant: 'default'
-        });
+        if (!silent) {
+          toast({
+            title: 'Update taking longer than expected',
+            description: 'The participant data update is still running in the background.',
+            variant: 'default'
+          });
+        }
       }
     );
     
-    // Show toast with results
-    showParticipantUpdateNotification(data);
+    // Only show toast if not silent mode
+    if (!silent) {
+      showParticipantUpdateNotification(data);
+    }
     
     // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
+    
+    return data;
   } catch (err) {
     console.error('[updateParticipantDataOperation] Unhandled error:', err);
-    showErrorNotification(err, 'Update failed');
+    
+    if (!silent) {
+      showErrorNotification(err, 'Update failed');
+    }
+    
     throw err;
   }
 }
