@@ -19,7 +19,6 @@ const Webinars = () => {
     refreshWebinars,
     lastSyncTime,
     credentialsStatus,
-    verifyCredentials,
     isVerifying,
     verified,
     scopesError,
@@ -35,12 +34,6 @@ const Webinars = () => {
     handleWizardComplete,
     errorMessage
   } = useWebinarState();
-
-  // Wrapper function to handle Promise<boolean> return type
-  const handleVerifyCredentials = async () => {
-    await verifyCredentials();
-    // We're not using the boolean result here
-  };
 
   return (
     <AppLayout>
@@ -79,7 +72,6 @@ const Webinars = () => {
             errorMessage={errorMessage}
             errorDetails={errorDetails}
             verified={verified}
-            verifyCredentials={verifyCredentials}
             isVerifying={isVerifying}
             verificationDetails={verificationDetails}
             scopesError={scopesError}

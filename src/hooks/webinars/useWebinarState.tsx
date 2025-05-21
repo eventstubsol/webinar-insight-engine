@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { useZoomWebinars, useZoomCredentialsVerification, useZoomCredentials } from '@/hooks/zoom';
+import { useZoomWebinars, useZoomCredentials } from '@/hooks/zoom';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -20,20 +20,18 @@ export const useWebinarState = () => {
     credentialsStatus 
   } = useZoomWebinars();
   
-  const { 
-    verifyCredentials: originalVerifyCredentials, 
-    isVerifying, 
-    verified, 
-    scopesError, 
-    verificationDetails 
-  } = useZoomCredentialsVerification();
-  
-  // Ensure verifyCredentials always returns Promise<boolean> to match WebinarTabs requirement
-  const verifyCredentials = async (): Promise<boolean> => {
-    return await originalVerifyCredentials();
-  };
-  
+  // We no longer need useZoomCredentialsVerification since we're relying on 
+  // the data fetching process to verify credentials
   const { checkCredentialsStatus } = useZoomCredentials();
+  
+  // Determine verified status from credentials status and errors
+  const verified = credentialsStatus?.hasCredentials && 
+                  !errorDetails.isMissingCredentials && 
+                  !errorDetails.isScopesError;
+                  
+  const isVerifying = isLoading && !isRefetching;
+  const scopesError = errorDetails.isScopesError;
+  
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("webinars");
   const [showWizard, setShowWizard] = useState(false);
@@ -155,11 +153,11 @@ export const useWebinarState = () => {
     refreshWebinars,
     lastSyncTime,
     credentialsStatus,
-    verifyCredentials, // This now returns Promise<boolean> which matches the WebinarTabs component's expectation
     isVerifying,
     verified,
     scopesError,
-    verificationDetails,
+    // We'll use the webinar data fetch details instead of a separate verification
+    verificationDetails: credentialsStatus,
     isFirstLoad,
     activeTab,
     setActiveTab,

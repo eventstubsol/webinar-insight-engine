@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Settings, ExternalLink, AlertTriangle, Copy, Info, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface WebinarSetupGuideProps {
   scopesError: boolean;
-  verifyCredentials: () => Promise<boolean>;
   isVerifying: boolean;
   verified: boolean;
   verificationDetails: any;
@@ -21,7 +21,6 @@ interface WebinarSetupGuideProps {
 
 export const WebinarSetupGuide: React.FC<WebinarSetupGuideProps> = ({
   scopesError,
-  verifyCredentials,
   isVerifying,
   verified,
   verificationDetails
@@ -176,48 +175,40 @@ export const WebinarSetupGuide: React.FC<WebinarSetupGuideProps> = ({
           <div className="flex flex-col space-y-1.5 p-6">
             <h3 className="text-lg font-semibold leading-none tracking-tight flex items-center">
               <span className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 inline-flex items-center justify-center mr-2 text-sm">3</span>
-              Verify Your Connection
+              Connection Status
             </h3>
           </div>
           <div className="p-6 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
-              After adding your Zoom API credentials and updating the required scopes, verify the connection to start importing your webinars.
+              After adding your Zoom API credentials and updating the required scopes, the system will automatically verify your connection and import your webinars.
             </p>
-            <Button 
-              onClick={verifyCredentials} 
-              disabled={isVerifying} 
-              className="w-full"
-            >
-              {isVerifying ? (
-                <>
-                  <span className="mr-2 h-4 w-4 animate-spin">⟳</span>
-                  Verifying Connection...
-                </>
-              ) : verified ? (
-                <>
-                  <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
-                  Connection Verified
-                </>
-              ) : (
-                <>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Verify Connection
-                </>
-              )}
-            </Button>
             
-            {verified && (
-              <div className="flex flex-col items-center mt-4 space-y-2">
-                <Alert variant="success" className="bg-green-50 border-green-200 w-full">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <AlertTitle className="text-green-800">Connection Successful!</AlertTitle>
-                  <AlertDescription className="text-green-700">
-                    Connected as: <span className="font-semibold">{verificationDetails?.user?.email || 'Zoom User'}</span>
-                  </AlertDescription>
-                </Alert>
-              </div>
+            {isVerifying ? (
+              <Alert>
+                <span className="mr-2 h-4 w-4 animate-spin">⟳</span>
+                <AlertTitle>Checking Connection...</AlertTitle>
+                <AlertDescription>
+                  We're currently testing your Zoom API connection. This may take a moment.
+                </AlertDescription>
+              </Alert>
+            ) : verified ? (
+              <Alert variant="success" className="bg-green-50 border-green-200">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-green-800">Connection Successful!</AlertTitle>
+                <AlertDescription className="text-green-700">
+                  Connected to Zoom API. Your webinars will be synced automatically.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert variant="default">
+                <Info className="h-4 w-4" />
+                <AlertTitle>Connection Status</AlertTitle>
+                <AlertDescription>
+                  The system will automatically check your connection when you add or update your credentials.
+                </AlertDescription>
+              </Alert>
             )}
-
+            
             {scopesError && (
               <Alert variant="destructive" className="mt-4">
                 <AlertTriangle className="h-4 w-4" />

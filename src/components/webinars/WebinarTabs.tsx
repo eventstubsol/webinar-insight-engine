@@ -23,7 +23,6 @@ interface WebinarTabsProps {
     missingSecrets: string[];
   };
   verified: boolean;
-  verifyCredentials: () => Promise<boolean>;
   isVerifying: boolean;
   verificationDetails: any;
   scopesError: boolean;
@@ -41,7 +40,6 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
   errorMessage,
   errorDetails,
   verified,
-  verifyCredentials,
   isVerifying,
   verificationDetails,
   scopesError,
@@ -75,7 +73,6 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
       <TabsContent value="setup">
         <WebinarSetupGuide 
           scopesError={scopesError}
-          verifyCredentials={verifyCredentials}
           isVerifying={isVerifying}
           verified={verified}
           verificationDetails={verificationDetails}
