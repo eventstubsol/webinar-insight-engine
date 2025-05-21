@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
@@ -92,7 +91,7 @@ export const WebinarDistributionChart = () => {
   };
 
   return (
-    <Card className="col-span-1 lg:col-span-2">
+    <Card className="col-span-1">
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="space-y-0.5">
           <CardTitle className="text-base font-semibold">Monthly Webinar Distribution</CardTitle>
