@@ -47,6 +47,9 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
   errorBannerDismissed,
   onDismissError
 }) => {
+  // Force it to be a boolean type for certainty
+  const dismissedAsBool: boolean = Boolean(errorBannerDismissed);
+  
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
       <div className="border-b">
@@ -72,7 +75,7 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
           filterTab={filterTab}
           errorDetails={errorDetails}
           onDismissError={onDismissError}
-          errorBannerDismissed={errorBannerDismissed} // Pass as boolean correctly
+          errorBannerDismissed={dismissedAsBool} // Pass as explicitly cast boolean
         />
       </TabsContent>
       
