@@ -72,7 +72,7 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
           filterTab={filterTab}
           errorDetails={errorDetails}
           onDismissError={onDismissError}
-          errorBannerDismissed={errorBannerDismissed} // Ensuring this is passed as a boolean
+          errorBannerDismissed={Boolean(errorBannerDismissed)} // Explicitly convert to boolean
         />
       </TabsContent>
       

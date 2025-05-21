@@ -90,7 +90,7 @@ const Webinars = () => {
             showWizard={showWizard}
             onSetupZoom={handleSetupZoom}
             onDismissError={dismissErrorBanner}
-            errorBannerDismissed={errorBannerDismissed}
+            errorBannerDismissed={Boolean(errorBannerDismissed)} // Explicitly convert to boolean
           />
         )}
 
@@ -120,7 +120,7 @@ const Webinars = () => {
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
-            errorBannerDismissed={errorBannerDismissed} // Ensuring this is passed as a boolean
+            errorBannerDismissed={Boolean(errorBannerDismissed)} // Explicitly convert to boolean
             onDismissError={dismissErrorBanner}
           />
         ) : (
@@ -132,7 +132,7 @@ const Webinars = () => {
             filterTab={filterTab}
             errorDetails={errorDetails}
             onDismissError={dismissErrorBanner}
-            errorBannerDismissed={errorBannerDismissed} // Ensuring this is passed as a boolean
+            errorBannerDismissed={Boolean(errorBannerDismissed)} // Explicitly convert to boolean
           />
         )}
       </div>
