@@ -51,7 +51,7 @@ export const WebinarStatusBadge: React.FC<WebinarStatusBadgeProps> = ({ status }
   const StatusIcon = status.icon;
   
   return (
-    <Badge variant={status.variant} className="flex items-center gap-1">
+    <Badge variant={status.variant} className="flex items-center gap-1 py-0.5 text-xs">
       {StatusIcon && <StatusIcon className="h-3 w-3" />}
       <span>{status.label}</span>
     </Badge>
