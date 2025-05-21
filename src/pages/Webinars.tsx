@@ -42,8 +42,11 @@ const Webinars = () => {
     errorBannerDismissed
   } = useWebinarState();
 
-  // Force it to be a boolean type for certainty
+  // Ensure errorBannerDismissed is boolean 
   const dismissedAsBool: boolean = Boolean(errorBannerDismissed);
+  
+  // Make sure scopesError is boolean
+  const scopesErrorBool: boolean = Boolean(scopesError);
   
   // Only show the full error banner when there's a confirmed critical error after initial loading
   // and the banner hasn't been dismissed by the user
@@ -116,7 +119,7 @@ const Webinars = () => {
             verified={verified}
             isVerifying={isVerifying}
             verificationDetails={verificationDetails}
-            scopesError={scopesError}
+            scopesError={scopesErrorBool} // Pass as boolean
             webinars={webinars}
             isLoading={isLoading}
             isFirstLoad={isFirstLoad}
