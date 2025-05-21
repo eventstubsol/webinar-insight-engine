@@ -59,7 +59,7 @@ export const WebinarDistributionChart = () => {
         const dateB = new Date(`${b.month} 1, ${b.year}`);
         return dateA.getTime() - dateB.getTime();
       })
-      .slice(-6); // Show last 6 months
+      .slice(-12); // Show last 12 months instead of 6
   }, [webinars]);
 
   const chartConfig = {
@@ -84,7 +84,7 @@ export const WebinarDistributionChart = () => {
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="space-y-0.5">
           <CardTitle className="text-base font-semibold">Monthly Webinar Distribution</CardTitle>
-          <CardDescription>Number of webinars by month</CardDescription>
+          <CardDescription>Last 12 months of webinar activity</CardDescription>
         </div>
         <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
           <Calendar className="h-4 w-4" />
@@ -108,13 +108,16 @@ export const WebinarDistributionChart = () => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={monthlyDistribution}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                margin={{ top: 5, right: 30, left: 20, bottom: 15 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis 
                   dataKey="monthYear" 
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 11 }}
                   tickLine={false}
+                  angle={-15}
+                  textAnchor="end"
+                  height={50}
                 />
                 <YAxis 
                   allowDecimals={false}
