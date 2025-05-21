@@ -37,7 +37,9 @@ export function useWebinarData() {
                   !errorDetails.isScopesError;
                   
   const isVerifying = isLoading && !isRefetching;
-  const scopesError = errorDetails.isScopesError;
+  
+  // Explicitly ensure scopesError is a boolean
+  const scopesError: boolean = Boolean(errorDetails.isScopesError);
   
   // Reset error state on new error
   useEffect(() => {
@@ -186,7 +188,7 @@ export function useWebinarData() {
     credentialsStatus,
     isVerifying,
     verified,
-    scopesError,
+    scopesError, // Now explicitly a boolean
     checkCredentialsStatus,
     isRefreshError,
     verificationDetails: credentialsStatus,
