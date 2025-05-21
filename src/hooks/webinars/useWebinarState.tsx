@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useZoomWebinars, useZoomCredentialsVerification, useZoomCredentials } from '@/hooks/zoom';
 import { useToast } from '@/hooks/use-toast';
@@ -20,12 +21,17 @@ export const useWebinarState = () => {
   } = useZoomWebinars();
   
   const { 
-    verifyCredentials, 
+    verifyCredentials: originalVerifyCredentials, 
     isVerifying, 
     verified, 
     scopesError, 
     verificationDetails 
   } = useZoomCredentialsVerification();
+  
+  // Ensure verifyCredentials always returns Promise<boolean> to match WebinarTabs requirement
+  const verifyCredentials = async (): Promise<boolean> => {
+    return await originalVerifyCredentials();
+  };
   
   const { checkCredentialsStatus } = useZoomCredentials();
   const [isFirstLoad, setIsFirstLoad] = useState(true);
@@ -149,7 +155,7 @@ export const useWebinarState = () => {
     refreshWebinars,
     lastSyncTime,
     credentialsStatus,
-    verifyCredentials, // This now returns Promise<void> which matches the WebinarTabs component's expectation
+    verifyCredentials, // This now returns Promise<boolean> which matches the WebinarTabs component's expectation
     isVerifying,
     verified,
     scopesError,

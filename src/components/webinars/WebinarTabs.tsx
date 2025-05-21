@@ -23,7 +23,7 @@ interface WebinarTabsProps {
     missingSecrets: string[];
   };
   verified: boolean;
-  verifyCredentials: () => Promise<void>;
+  verifyCredentials: () => Promise<boolean>;
   isVerifying: boolean;
   verificationDetails: any;
   scopesError: boolean;

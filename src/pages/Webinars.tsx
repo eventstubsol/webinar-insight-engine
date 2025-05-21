@@ -36,6 +36,12 @@ const Webinars = () => {
     errorMessage
   } = useWebinarState();
 
+  // Wrapper function to handle Promise<boolean> return type
+  const handleVerifyCredentials = async () => {
+    await verifyCredentials();
+    // We're not using the boolean result here
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
