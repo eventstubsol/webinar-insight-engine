@@ -10,7 +10,8 @@ import { WebinarError } from '@/components/webinars/WebinarError';
 import { WebinarSetupGuide } from '@/components/webinars/WebinarSetupGuide';
 import { WebinarLayout } from '@/components/webinars/WebinarLayout';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle2, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface WebinarTabsProps {
@@ -51,8 +52,14 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
   viewMode,
   filterTab
 }) => {
-  // Only show error when there's a confirmed error after loading
-  const showError = !isLoading && (error || errorDetails.isMissingCredentials || errorDetails.isScopesError);
+  // Only show error when there's a confirmed error after loading, and we're in the webinars tab
+  // This makes the error display less intrusive, only showing when relevant
+  const showFullError = !isLoading && !isFirstLoad && activeTab === "webinars" && 
+    (error || errorDetails.isMissingCredentials || errorDetails.isScopesError);
+  
+  // Use this for a more subtle error indicator
+  const showSubtleError = !isLoading && !isFirstLoad && activeTab === "webinars" && 
+    (error || errorDetails.isMissingCredentials || errorDetails.isScopesError);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -61,13 +68,34 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
         <TabsTrigger value="setup">API Setup</TabsTrigger>
       </TabsList>
       <TabsContent value="webinars">
-        {showError ? (
+        {/* Subtle error banner when appropriate */}
+        {showSubtleError && !showFullError && (
+          <Alert variant="warning" className="mb-4">
+            <Info className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Connection issue with Zoom API. {errorDetails.isMissingCredentials ? 'API connection required.' : 'Check your settings.'}</span>
+              <Button 
+                onClick={() => setActiveTab("setup")} 
+                variant="outline" 
+                size="sm"
+                className="ml-2"
+              >
+                View Setup
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {/* Full error only when really needed and explicitly shown */}
+        {showFullError && (
           <WebinarError 
             errorMessage={errorMessage}
             errorDetails={errorDetails}
             onSetupClick={() => setActiveTab("setup")}
           />
-        ) : isLoading ? (
+        )}
+
+        {isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-8 w-64" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -78,7 +106,7 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
           </div>
         ) : null}
         
-        {!showError && !isLoading && (
+        {!showFullError && !isLoading && (
           <WebinarLayout 
             webinars={webinars}
             isLoading={isLoading}

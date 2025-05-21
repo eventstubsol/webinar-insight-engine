@@ -41,7 +41,9 @@ const Webinars = () => {
     (error || errorDetails.isMissingCredentials || errorDetails.isScopesError);
 
   // Determine if we should show the tabs or layout
-  const showTabs = showErrorBanner || activeTab === "setup";
+  // Only show tabs in two cases: user explicitly selected the setup tab OR we're in an error condition
+  // that requires user to correct their setup (missing credentials, scopes error)
+  const showTabs = activeTab === "setup" || (showErrorBanner && errorDetails.isMissingCredentials);
 
   return (
     <AppLayout>
