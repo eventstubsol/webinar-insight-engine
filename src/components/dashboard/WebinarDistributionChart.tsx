@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
 import { parseISO, format, startOfMonth, isValid } from 'date-fns';
-import { BarChart as BarChartIcon, Calendar } from 'lucide-react';
+import { BarChartIcon, Calendar } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -62,6 +62,23 @@ export const WebinarDistributionChart = () => {
       .slice(-6); // Show last 6 months
   }, [webinars]);
 
+  const chartConfig = {
+    completed: { 
+      label: "Completed", 
+      theme: {
+        light: "hsl(var(--chart-completed))",
+        dark: "hsl(var(--chart-completed))"
+      }
+    },
+    upcoming: { 
+      label: "Upcoming", 
+      theme: {
+        light: "hsl(var(--chart-upcoming))",
+        dark: "hsl(var(--chart-upcoming))"
+      }
+    }
+  };
+
   return (
     <Card className="col-span-1 lg:col-span-2">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -85,16 +102,8 @@ export const WebinarDistributionChart = () => {
           </div>
         ) : (
           <ChartContainer
-            config={{
-              completed: { 
-                label: "Completed", 
-                color: "hsl(var(--chart-completed))" 
-              },
-              upcoming: { 
-                label: "Upcoming", 
-                color: "hsl(var(--chart-upcoming))" 
-              }
-            }}
+            config={chartConfig}
+            className="h-full w-full"
           >
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -128,8 +137,18 @@ export const WebinarDistributionChart = () => {
                   }}
                 />
                 <Legend />
-                <Bar dataKey="completed" stackId="a" name="Completed" fill="var(--color-completed)" />
-                <Bar dataKey="upcoming" stackId="a" name="Upcoming" fill="var(--color-upcoming)" />
+                <Bar 
+                  dataKey="completed" 
+                  stackId="a" 
+                  name="Completed" 
+                  fill="var(--color-completed)" 
+                />
+                <Bar 
+                  dataKey="upcoming" 
+                  stackId="a" 
+                  name="Upcoming" 
+                  fill="var(--color-upcoming)" 
+                />
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>
