@@ -123,7 +123,7 @@ const Webinars = () => {
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
-            errorBannerDismissed={dismissedAsBool} // Pass as explicitly cast boolean
+            errorBannerDismissed={dismissedAsBool}
             onDismissError={dismissErrorBanner}
           />
         ) : (
@@ -135,7 +135,7 @@ const Webinars = () => {
             filterTab={filterTab}
             errorDetails={errorDetails}
             onDismissError={dismissErrorBanner}
-            errorBannerDismissed={dismissedAsBool} // Pass as explicitly cast boolean
+            errorBannerDismissed={dismissedAsBool}
           />
         )}
       </div>
