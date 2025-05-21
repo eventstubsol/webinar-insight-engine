@@ -64,7 +64,7 @@ export const RegistrationAttendanceChart = () => {
     // Initialize the map with the last 12 months
     for (let i = 0; i < 12; i++) {
       const month = subMonths(new Date(), i);
-      const monthKey = format(month, 'MMM yyyy');
+      const monthKey = format(month, 'MMMyy');
       monthlyData.set(monthKey, { 
         month: monthKey,
         registrants: 0, 
@@ -82,7 +82,7 @@ export const RegistrationAttendanceChart = () => {
       // Skip if the webinar is older than 12 months
       if (isBefore(webinarDate, startDate)) return;
       
-      const monthKey = format(webinarDate, 'MMM yyyy');
+      const monthKey = format(webinarDate, 'MMMyy');
       
       // If this month isn't in our map (should not happen given initialization), skip
       if (!monthlyData.has(monthKey)) return;
@@ -117,7 +117,6 @@ export const RegistrationAttendanceChart = () => {
         const dateB = new Date(b.month);
         return dateA.getTime() - dateB.getTime();
       });
-      // No longer slicing to the last 6 months - showing all 12 months
   }, [webinars, isLoading, debug]);
   
   const CustomTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
@@ -253,7 +252,8 @@ export const RegistrationAttendanceChart = () => {
                   dataKey="month" 
                   tickLine={false}
                   axisLine={{ stroke: '#cbd5e1' }}
-                  tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
+                  tick={{ fontSize: 11, fontFamily: 'inherit', fill: '#64748b' }}
+                  interval={0}
                 />
                 <YAxis 
                   tickLine={false}

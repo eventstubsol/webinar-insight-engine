@@ -40,16 +40,16 @@ export const WebinarDistributionChart = () => {
       monthsArray = Array.from({ length: 12 }, (_, i) => {
         const date = subMonths(today, 11 - i); // Start from 11 months ago
         const monthStart = startOfMonth(date);
-        const monthKey = format(monthStart, 'MMM yyyy');
+        const monthKey = format(monthStart, 'MMMyy');
         const month = format(monthStart, 'MMM');
-        const year = format(monthStart, 'yyyy');
+        const year = format(monthStart, 'yy');
         
         return {
           date: monthStart,
           monthKey,
           month,
           year,
-          monthYear: monthKey, // Changed to use monthKey (MMM yyyy) instead of just month
+          monthYear: monthKey, // Changed to use monthKey (MMMyy) instead of just month
           total: 0
         };
       });
@@ -58,9 +58,9 @@ export const WebinarDistributionChart = () => {
       monthsArray = Array.from({ length: 12 }, (_, i) => {
         const date = addMonths(today, i); // Start from current month
         const monthStart = startOfMonth(date);
-        const monthKey = format(monthStart, 'MMM yyyy');
+        const monthKey = format(monthStart, 'MMMyy');
         const month = format(monthStart, 'MMM');
-        const year = format(monthStart, 'yyyy');
+        const year = format(monthStart, 'yy');
         
         return {
           date: monthStart,
@@ -87,7 +87,7 @@ export const WebinarDistributionChart = () => {
           const date = parseISO(webinar.start_time);
           if (!isValid(date)) return;
           
-          const monthKey = format(date, 'MMM yyyy');
+          const monthKey = format(date, 'MMMyy');
           const isPastWebinar = isBefore(date, today) || webinar.status === 'ended';
           const isFutureWebinar = isAfter(date, today) && webinar.status !== 'ended';
           
@@ -173,9 +173,10 @@ export const WebinarDistributionChart = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" opacity={0.7} />
                 <XAxis 
                   dataKey="monthYear" 
-                  tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
+                  tick={{ fontSize: 11, fontFamily: 'inherit', fill: '#64748b' }}
                   tickLine={false}
                   axisLine={{ stroke: '#cbd5e1' }}
+                  interval={0} 
                 />
                 <YAxis 
                   allowDecimals={false}
