@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react';
+
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
-import { parseISO, format, isValid, subMonths, startOfMonth } from 'date-fns';
+import { parseISO, format, isValid, subMonths, startOfMonth, addMonths, isBefore, isAfter } from 'date-fns';
 import { BarChartIcon, Calendar } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Cell } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 // Color palette for the bars - 12 different colors
 const COLOR_PALETTE = [
@@ -23,32 +25,57 @@ const COLOR_PALETTE = [
   '#10B981'  // Emerald
 ];
 
+type TimeRangeView = 'past' | 'future';
+
 export const WebinarDistributionChart = () => {
   const { webinars, isLoading } = useZoomWebinars();
+  const [timeRange, setTimeRange] = useState<TimeRangeView>('past');
   
   const monthlyDistribution = useMemo(() => {
-    // Generate the last 12 months regardless of data
     const today = new Date();
-    const last12Months = Array.from({ length: 12 }, (_, i) => {
-      const date = subMonths(today, 11 - i); // Start from 11 months ago
-      const monthStart = startOfMonth(date);
-      const monthKey = format(monthStart, 'MMM yyyy');
-      const month = format(monthStart, 'MMM');
-      const year = format(monthStart, 'yyyy');
-      
-      return {
-        date: monthStart,
-        monthKey,
-        month,
-        year,
-        monthYear: monthKey, // Changed to use monthKey (MMM yyyy) instead of just month
-        total: 0
-      };
-    });
+    let monthsArray = [];
+    
+    if (timeRange === 'past') {
+      // Generate the last 12 months for past view
+      monthsArray = Array.from({ length: 12 }, (_, i) => {
+        const date = subMonths(today, 11 - i); // Start from 11 months ago
+        const monthStart = startOfMonth(date);
+        const monthKey = format(monthStart, 'MMM yyyy');
+        const month = format(monthStart, 'MMM');
+        const year = format(monthStart, 'yyyy');
+        
+        return {
+          date: monthStart,
+          monthKey,
+          month,
+          year,
+          monthYear: monthKey, // Changed to use monthKey (MMM yyyy) instead of just month
+          total: 0
+        };
+      });
+    } else {
+      // Generate the next 12 months for future view
+      monthsArray = Array.from({ length: 12 }, (_, i) => {
+        const date = addMonths(today, i); // Start from current month
+        const monthStart = startOfMonth(date);
+        const monthKey = format(monthStart, 'MMM yyyy');
+        const month = format(monthStart, 'MMM');
+        const year = format(monthStart, 'yyyy');
+        
+        return {
+          date: monthStart,
+          monthKey,
+          month,
+          year,
+          monthYear: monthKey,
+          total: 0
+        };
+      });
+    }
     
     // Create a map for fast lookup
     const distributionMap = new Map(
-      last12Months.map(item => [item.monthKey, item])
+      monthsArray.map(item => [item.monthKey, item])
     );
     
     // If we have webinar data, update the counts
@@ -61,12 +88,17 @@ export const WebinarDistributionChart = () => {
           if (!isValid(date)) return;
           
           const monthKey = format(date, 'MMM yyyy');
+          const isPastWebinar = isBefore(date, today) || webinar.status === 'ended';
+          const isFutureWebinar = isAfter(date, today) && webinar.status !== 'ended';
           
-          // Only update if this month is in our 12-month window
+          // Only update if this month is in our window and matches the selected view
           if (distributionMap.has(monthKey)) {
-            const entry = distributionMap.get(monthKey);
-            if (entry) {
-              entry.total += 1;
+            if ((timeRange === 'past' && isPastWebinar) || 
+                (timeRange === 'future' && isFutureWebinar)) {
+              const entry = distributionMap.get(monthKey);
+              if (entry) {
+                entry.total += 1;
+              }
             }
           }
         } catch (error) {
@@ -78,7 +110,7 @@ export const WebinarDistributionChart = () => {
     // Convert map back to array and ensure it's sorted by date
     return Array.from(distributionMap.values())
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [webinars]);
+  }, [webinars, timeRange]);
 
   const chartConfig = {
     total: { 
@@ -90,15 +122,31 @@ export const WebinarDistributionChart = () => {
     }
   };
 
+  const getCardDescription = () => {
+    return timeRange === 'past' 
+      ? "Last 12 months of webinar activity" 
+      : "Next 12 months of scheduled webinars";
+  };
+
   return (
     <Card className="col-span-1">
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="space-y-0.5">
           <CardTitle className="text-base font-semibold">Monthly Webinar Distribution</CardTitle>
-          <CardDescription>Last 12 months of webinar activity</CardDescription>
+          <CardDescription>{getCardDescription()}</CardDescription>
         </div>
-        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-          <Calendar className="h-4 w-4" />
+        <div className="flex items-center space-x-2">
+          <ToggleGroup type="single" value={timeRange} onValueChange={(value) => value && setTimeRange(value as TimeRangeView)}>
+            <ToggleGroupItem value="past" aria-label="Last 12 Months" className="text-xs">
+              Last 12 Months
+            </ToggleGroupItem>
+            <ToggleGroupItem value="future" aria-label="Next 12 Months" className="text-xs">
+              Next 12 Months
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <Calendar className="h-4 w-4" />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="w-full h-80">
@@ -158,7 +206,9 @@ export const WebinarDistributionChart = () => {
                   {monthlyDistribution.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                      fill={timeRange === 'past' ? COLOR_PALETTE[index % COLOR_PALETTE.length] : 'none'}
+                      stroke={timeRange === 'future' ? COLOR_PALETTE[index % COLOR_PALETTE.length] : undefined}
+                      strokeWidth={timeRange === 'future' ? 2 : undefined}
                     />
                   ))}
                 </Bar>
