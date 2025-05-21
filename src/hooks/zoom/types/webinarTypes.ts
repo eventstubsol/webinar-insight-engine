@@ -23,8 +23,8 @@ export interface UseZoomWebinarsResult {
   isRefetching: boolean;
   error: Error | null;
   errorDetails: WebinarErrorDetails;
-  refreshWebinars: (force?: boolean) => Promise<ZoomWebinar[] | undefined>;
-  updateParticipantData: () => Promise<ZoomWebinar[] | undefined>;
+  refreshWebinars: (force?: boolean) => Promise<void>;
+  updateParticipantData: () => Promise<void>;
   syncHistory: SyncHistoryItem[];
   lastSyncTime: Date | null;
   credentialsStatus: any;

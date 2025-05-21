@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarsList } from '@/components/webinars/WebinarsList';
@@ -109,12 +108,13 @@ const Webinars = () => {
     setShowWizard(true);
   };
   
+  // Fixed return type to void to match expected type
   const handleWizardComplete = async () => {
     setShowWizard(false);
     // Re-check credentials status
     await checkCredentialsStatus();
     // Refresh webinars
-    refreshWebinars();
+    await refreshWebinars();
     // Switch to webinars tab
     setActiveTab("webinars");
   };

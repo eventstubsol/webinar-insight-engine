@@ -10,6 +10,10 @@ export interface ZoomWebinar {
   host_email: string;
   status: string;
   type: number;
+  registrants_count?: number;
+  participants_count?: number;
+  raw_data?: Record<string, any>;
+  [key: string]: any; // Allow additional properties
 }
 
 export interface ZoomParticipants {

@@ -1,4 +1,3 @@
-
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ZoomWebinar } from '../types';
@@ -37,6 +36,11 @@ export async function fetchWebinarsFromDatabase(userId: string): Promise<ZoomWeb
     host_email: item.host_email,
     status: item.status,
     type: item.type,
+    // Add registrants_count and participants_count properties
+    registrants_count: item.raw_data?.registrants_count || 0,
+    participants_count: item.raw_data?.participants_count || 0,
+    // Include raw_data
+    raw_data: item.raw_data,
     // Fix the spread operator issue by ensuring raw_data is an object
     ...(typeof item.raw_data === 'object' ? item.raw_data : {})
   }));
@@ -82,8 +86,8 @@ export function enhanceErrorMessage(err: any): string {
   return errorMessage;
 }
 
-// Update participant data for webinars
-export async function updateParticipantDataForWebinars(userId: string | undefined): Promise<any> {
+// Update participant data for webinars - return void instead of any
+export async function updateParticipantDataForWebinars(userId: string | undefined): Promise<void> {
   if (!userId) {
     throw new Error('Authentication Required: You must be logged in to update participant data');
   }
@@ -109,8 +113,6 @@ export async function updateParticipantDataForWebinars(userId: string | undefine
     description: data.message || `Updated ${data.updated} webinars with participant data`,
     variant: 'success'
   });
-  
-  return data;
 }
 
 // Fetch sync history

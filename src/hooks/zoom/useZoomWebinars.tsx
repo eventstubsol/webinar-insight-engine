@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -66,7 +65,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     gcTime: 10 * 60 * 1000 // 10 minutes
   });
 
-  const refreshWebinars = async (force: boolean = false) => {
+  const refreshWebinars = async (force: boolean = false): Promise<void> => {
     if (!user) {
       toast({
         title: 'Authentication Required',
@@ -135,8 +134,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
       await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', user.id] });
       
       // Trigger a refetch to get the latest data
-      const refetchResult = await refetch();
-      return refetchResult.data;
+      await refetch();
     } catch (err: any) {
       console.error('[refreshWebinars] Error during refresh:', err);
       // Error handling already done above
@@ -145,7 +143,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     }
   };
   
-  const updateParticipantData = async () => {
+  const updateParticipantData = async (): Promise<void> => {
     try {
       await updateParticipantDataForWebinars(user?.id);
       
@@ -153,8 +151,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
       await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', user?.id] });
       
       // Trigger a refetch to get the latest data
-      const refetchResult = await refetch();
-      return refetchResult.data;
+      await refetch();
     } catch (err) {
       console.error('[updateParticipantData] Error:', err);
       // Error handling already done in the utility function
