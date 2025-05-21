@@ -167,3 +167,54 @@ export async function handleVerifyCredentials(req: Request, supabase: any, user:
     });
   }
 }
+
+// Get Zoom credentials for a user
+export async function getZoomCredentials(supabase: any, userId: string) {
+  console.log(`Getting Zoom credentials for user ${userId}`);
+  
+  try {
+    const { data: credentials, error } = await supabase
+      .from('zoom_credentials')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+      
+    if (error) {
+      console.error('Error fetching Zoom credentials:', error);
+      return null;
+    }
+    
+    if (!credentials) {
+      console.log('No Zoom credentials found for this user');
+      return null;
+    }
+    
+    return credentials;
+  } catch (err) {
+    console.error('Exception when fetching Zoom credentials:', err);
+    return null;
+  }
+}
+
+// Verify that Zoom credentials are valid
+export async function verifyZoomCredentials(credentials: any) {
+  if (!credentials) {
+    throw new Error('Credentials are required');
+  }
+  
+  try {
+    console.log('Verifying Zoom credentials...');
+    // Try to get a token to verify the credentials work
+    const token = await getZoomJwtToken(
+      credentials.account_id,
+      credentials.client_id,
+      credentials.client_secret
+    );
+    
+    // If we got here, the credentials are valid
+    return token;
+  } catch (error) {
+    console.error('Zoom credential verification failed:', error);
+    throw new Error(`Invalid Zoom credentials: ${error.message}`);
+  }
+}
