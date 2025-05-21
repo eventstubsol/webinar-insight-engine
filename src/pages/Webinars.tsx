@@ -120,7 +120,7 @@ const Webinars = () => {
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
-            errorBannerDismissed={errorBannerDismissed} // Ensuring we pass boolean here
+            errorBannerDismissed={errorBannerDismissed} // Ensuring this is passed as a boolean
             onDismissError={dismissErrorBanner}
           />
         ) : (
@@ -132,7 +132,7 @@ const Webinars = () => {
             filterTab={filterTab}
             errorDetails={errorDetails}
             onDismissError={dismissErrorBanner}
-            errorBannerDismissed={errorBannerDismissed}
+            errorBannerDismissed={errorBannerDismissed} // Ensuring this is passed as a boolean
           />
         )}
       </div>
