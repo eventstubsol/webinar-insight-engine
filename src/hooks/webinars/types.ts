@@ -27,7 +27,7 @@ export interface WebinarState {
   credentialsStatus: ZoomCredentialsStatus | null;
   isVerifying: boolean;
   verified: boolean;
-  scopesError: boolean;
+  scopesError: boolean; // Changed from string to boolean
   verificationDetails: ZoomCredentialsStatus | null;
   isFirstLoad: boolean;
   activeTab: string;
@@ -38,11 +38,11 @@ export interface WebinarState {
   filterTab: string;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  dateFilter: Date | undefined;
-  setDateFilter: (date: Date | undefined) => void;
+  dateRange: { from: Date | undefined; to: Date | undefined };
+  setDateRange: (date: { from: Date | undefined; to: Date | undefined }) => void;
   handleSetupZoom: () => void;
   handleWizardComplete: () => Promise<void>;
-  errorMessage: string;
+  errorMessage: string | null; // Made nullable
   dismissErrorBanner: () => void;
   errorBannerDismissed: boolean;
 }
