@@ -20,8 +20,7 @@ export function useWebinarUIState() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   
-  // Track if user has dismissed the error banner - explicitly define as boolean
-  // Ensure we convert the localStorage string to boolean properly
+  // Ensure we explicitly type as boolean and convert localStorage string properly
   const [errorBannerDismissed, setErrorBannerDismissed] = useState<boolean>(
     localStorage.getItem(ERROR_PERSIST_KEY) === 'true'
   );
