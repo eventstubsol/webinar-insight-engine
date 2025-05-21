@@ -1,18 +1,21 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useZoomCredentials } from './useZoomCredentials';
-import { ZoomWebinar } from './types';
 import { 
   fetchWebinarsFromDatabase, 
-  fetchWebinarsFromAPI, 
-  enhanceErrorMessage,
-  fetchSyncHistory
-} from './utils/webinarUtils';
-import { UseZoomWebinarsResult, WebinarErrorDetails } from './types/webinarTypes';
+  fetchWebinarsFromAPI,
+  fetchSyncHistory 
+} from './services/webinarApiService';
+import { 
+  refreshWebinarsOperation, 
+  updateParticipantDataOperation 
+} from './webinarOperations';
+import { parseErrorDetails } from './utils/errorUtils';
+import { enhanceErrorMessage } from './utils/errorUtils';
+import { toast } from '@/hooks/use-toast';
+import { UseZoomWebinarsResult } from './types/webinarTypes';
 
 export function useZoomWebinars(): UseZoomWebinarsResult {
   const { user } = useAuth();
@@ -22,6 +25,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
   const { credentialsStatus } = useZoomCredentials();
   const [syncHistory, setSyncHistory] = useState<any[]>([]);
 
+  // Main query to fetch webinars
   const { data, error, refetch } = useQuery({
     queryKey: ['zoom-webinars', user?.id],
     queryFn: async () => {
@@ -67,130 +71,24 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     gcTime: 10 * 60 * 1000 // 10 minutes
   });
 
+  // Refresh webinars function - just wraps the operation function
   const refreshWebinars = async (force: boolean = false): Promise<void> => {
-    if (!user) {
-      toast({
-        title: 'Authentication Required',
-        description: 'You must be logged in to refresh webinars',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
     setIsRefetching(true);
-    console.log(`[refreshWebinars] Starting refresh with force=${force}`);
-    
     try {
-      // Make the API call to fetch fresh data from Zoom
-      const { data: refreshData, error: refreshError } = await supabase.functions.invoke('zoom-api', {
-        body: { 
-          action: 'list-webinars',
-          force_sync: force 
-        }
-      });
-      
-      if (refreshError) {
-        console.error('[refreshWebinars] Error during refresh:', refreshError);
-        toast({
-          title: 'Sync failed',
-          description: refreshError.message || 'Failed to sync with Zoom API',
-          variant: 'destructive'
-        });
-        throw refreshError;
-      }
-      
-      if (refreshData.error) {
-        console.error('[refreshWebinars] API returned error:', refreshData.error);
-        toast({
-          title: 'Sync failed',
-          description: refreshData.error,
-          variant: 'destructive'
-        });
-        throw new Error(refreshData.error);
-      }
-      
-      console.log('[refreshWebinars] Sync completed successfully:', refreshData);
-      
-      // Show appropriate toast based on sync results
-      if (refreshData.syncResults) {
-        if (refreshData.syncResults.itemsUpdated > 0) {
-          toast({
-            title: 'Webinars synced',
-            description: `Successfully updated ${refreshData.syncResults.itemsUpdated} webinars from Zoom`,
-            variant: 'success'
-          });
-        } else {
-          toast({
-            title: 'No changes found',
-            description: 'No webinar changes detected in your Zoom account',
-          });
-        }
-      } else {
-        toast({
-          title: 'Webinars synced',
-          description: 'Webinar data has been updated from Zoom'
-        });
-      }
-
-      // Invalidate the query cache to force a refresh
-      await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', user.id] });
-      
-      // Trigger a refetch to get the latest data
+      await refreshWebinarsOperation(user?.id, queryClient, force);
       await refetch();
-    } catch (err: any) {
-      console.error('[refreshWebinars] Error during refresh:', err);
-      // Error handling already done above
     } finally {
       setIsRefetching(false);
     }
   };
   
+  // Update participant data function - just wraps the operation function
   const updateParticipantData = async (): Promise<void> => {
-    if (!user) {
-      toast({
-        title: 'Authentication Required',
-        description: 'You must be logged in to update participant data',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
     try {
-      console.log('[updateParticipantData] Updating participant data');
-      
-      const { data, error } = await supabase.functions.invoke('zoom-api', {
-        body: { 
-          action: 'update-webinar-participants'
-        }
-      });
-      
-      if (error) {
-        console.error('[updateParticipantData] Error:', error);
-        toast({
-          title: 'Update failed',
-          description: error.message || 'Failed to update participant data',
-          variant: 'destructive'
-        });
-        throw error;
-      }
-      
-      console.log('[updateParticipantData] Update completed:', data);
-      
-      // Show toast with results
-      toast({
-        title: 'Participant data updated',
-        description: data.message || `Updated ${data.updated} webinars with participant data`,
-        variant: 'success'
-      });
-      
-      // Invalidate the query cache to force a refresh
-      await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', user.id] });
-      
-      // Trigger a refetch to get the latest data
+      await updateParticipantDataOperation(user?.id, queryClient);
       await refetch();
     } catch (err) {
-      console.error('[updateParticipantData] Unhandled error:', err);
-      // Most error handling already done above
+      // Error handling done in operation function
     }
   };
   
@@ -211,15 +109,8 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     ? new Date(syncHistory[0].created_at) 
     : null;
   
-  const errorDetails: WebinarErrorDetails = {
-    isMissingCredentials: (!credentialsStatus?.hasCredentials) ||
-                         error?.message?.includes('credentials not configured'),
-    isCapabilitiesError: error?.message?.includes('capabilities'),
-    isScopesError: error?.message?.includes('scopes') || 
-                 error?.message?.includes('scope') || 
-                 error?.message?.includes('4711'),
-    missingSecrets: []
-  };
+  // Parse error details
+  const errorDetails = parseErrorDetails(error as Error | null);
 
   return {
     webinars: data || [],
