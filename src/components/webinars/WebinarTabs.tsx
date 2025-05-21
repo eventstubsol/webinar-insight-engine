@@ -18,7 +18,7 @@ interface WebinarTabsProps {
   verified: boolean | undefined;
   isVerifying: boolean;
   verificationDetails: any;
-  scopesError: boolean; // Changed from string | null to boolean
+  scopesError: boolean;
   webinars: ZoomWebinar[];
   isLoading: boolean;
   isFirstLoad: boolean;
@@ -47,9 +47,6 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
   errorBannerDismissed,
   onDismissError
 }) => {
-  // Using Boolean constructor to ensure it's a boolean
-  const dismissedAsBool: boolean = Boolean(errorBannerDismissed);
-  
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
       <div className="border-b">
@@ -75,7 +72,7 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
           filterTab={filterTab}
           errorDetails={errorDetails}
           onDismissError={onDismissError}
-          errorBannerDismissed={dismissedAsBool}
+          errorBannerDismissed={errorBannerDismissed}
         />
       </TabsContent>
       

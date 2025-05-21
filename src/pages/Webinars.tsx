@@ -42,17 +42,11 @@ const Webinars = () => {
     errorBannerDismissed
   } = useWebinarState();
 
-  // Ensure errorBannerDismissed is boolean 
-  const dismissedAsBool: boolean = Boolean(errorBannerDismissed);
-  
-  // Make sure scopesError is boolean
-  const scopesErrorBool: boolean = Boolean(scopesError);
-  
   // Only show the full error banner when there's a confirmed critical error after initial loading
   // and the banner hasn't been dismissed by the user
   const showErrorBanner = !isLoading && 
     !isFirstLoad && 
-    !dismissedAsBool &&
+    !errorBannerDismissed &&
     (
       (error && (errorDetails.isMissingCredentials || errorDetails.isScopesError)) || 
       (errorDetails.isCapabilitiesError)
@@ -96,7 +90,7 @@ const Webinars = () => {
             showWizard={showWizard}
             onSetupZoom={handleSetupZoom}
             onDismissError={dismissErrorBanner}
-            errorBannerDismissed={dismissedAsBool}
+            errorBannerDismissed={errorBannerDismissed}
           />
         )}
 
@@ -119,14 +113,14 @@ const Webinars = () => {
             verified={verified}
             isVerifying={isVerifying}
             verificationDetails={verificationDetails}
-            scopesError={scopesErrorBool} // Pass as boolean
+            scopesError={Boolean(scopesError)}
             webinars={webinars}
             isLoading={isLoading}
             isFirstLoad={isFirstLoad}
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
-            errorBannerDismissed={dismissedAsBool}
+            errorBannerDismissed={errorBannerDismissed}
             onDismissError={dismissErrorBanner}
           />
         ) : (
@@ -138,7 +132,7 @@ const Webinars = () => {
             filterTab={filterTab}
             errorDetails={errorDetails}
             onDismissError={dismissErrorBanner}
-            errorBannerDismissed={dismissedAsBool}
+            errorBannerDismissed={errorBannerDismissed}
           />
         )}
       </div>
