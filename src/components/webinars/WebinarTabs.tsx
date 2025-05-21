@@ -25,7 +25,7 @@ interface WebinarTabsProps {
   error: Error | null;
   viewMode: 'list' | 'grid';
   filterTab: string;
-  errorBannerDismissed: boolean;
+  errorBannerDismissed: boolean; // Changed from string to boolean
   onDismissError: () => void;
 }
 
@@ -72,7 +72,7 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
           filterTab={filterTab}
           errorDetails={errorDetails}
           onDismissError={onDismissError}
-          errorBannerDismissed={errorBannerDismissed}
+          errorBannerDismissed={errorBannerDismissed} // Now correctly passing boolean
         />
       </TabsContent>
       

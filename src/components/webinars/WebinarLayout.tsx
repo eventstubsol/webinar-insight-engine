@@ -33,7 +33,7 @@ interface WebinarLayoutProps {
     missingSecrets: string[];
   };
   onDismissError?: () => void;
-  errorBannerDismissed?: boolean;
+  errorBannerDismissed?: boolean; // Ensure this is boolean
 }
 
 export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
