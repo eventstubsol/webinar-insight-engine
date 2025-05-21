@@ -64,8 +64,23 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
     <div className="grid gap-6 mt-4">
       <Card>
         <CardHeader>
+          {/* Flex container that will now hold both tabs and toggle group */}
           <div className="flex items-center justify-between">
-            {/* Title and description removed */}
+            {/* Webinar Type Tabs - moved here and removed mt-6 class */}
+            <Tabs value={filterTab} onValueChange={(value) => window.dispatchEvent(new CustomEvent('filterTabChange', { detail: value }))}>
+              <TabsList>
+                <TabsTrigger value="all">All Webinars</TabsTrigger>
+                <TabsTrigger value="live" className="flex items-center gap-1">
+                  <Video className="h-3 w-3" />
+                  Live
+                </TabsTrigger>
+                <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                <TabsTrigger value="past">Past</TabsTrigger>
+                <TabsTrigger value="drafts">Drafts</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            
+            {/* Toggle Group - already on the right */}
             <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && window.dispatchEvent(new CustomEvent('viewModeChange', { detail: value }))}>
               <ToggleGroupItem value="list" aria-label="List view">
                 <List className="h-4 w-4" />
@@ -99,20 +114,6 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
               </AlertDescription>
             </Alert>
           )}
-          
-          {/* Webinar Type Tabs */}
-          <Tabs value={filterTab} onValueChange={(value) => window.dispatchEvent(new CustomEvent('filterTabChange', { detail: value }))} className="mt-6">
-            <TabsList className="mb-4">
-              <TabsTrigger value="all">All Webinars</TabsTrigger>
-              <TabsTrigger value="live" className="flex items-center gap-1">
-                <Video className="h-3 w-3" />
-                Live
-              </TabsTrigger>
-              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-              <TabsTrigger value="past">Past</TabsTrigger>
-              <TabsTrigger value="drafts">Drafts</TabsTrigger>
-            </TabsList>
-          </Tabs>
           
           {/* Search and Filter */}
           <div className="mt-4">
