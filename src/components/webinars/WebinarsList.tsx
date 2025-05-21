@@ -71,6 +71,23 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoa
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([]);
   const itemsPerPage = viewMode === 'grid' ? 12 : 10;
   
+  // Helper function to format Zoom webinar status
+  const getStatus = (webinar: ZoomWebinar): WebinarStatus => {
+    const now = new Date();
+    const startTime = new Date(webinar.start_time);
+    const endTime = new Date(startTime.getTime() + webinar.duration * 60000);
+    
+    if (webinar.status === 'cancelled') {
+      return statusMap['cancelled'];
+    } else if (now < startTime) {
+      return statusMap['available'];
+    } else if (now >= startTime && now <= endTime) {
+      return statusMap['started'];
+    } else {
+      return statusMap['ended'];
+    }
+  };
+  
   // Filter webinars based on search query
   let filteredWebinars = webinars.filter(webinar => 
     webinar.topic?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -100,23 +117,6 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoa
   const totalPages = Math.max(1, Math.ceil(filteredWebinars.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedWebinars = filteredWebinars.slice(startIndex, startIndex + itemsPerPage);
-
-  // Helper function to format Zoom webinar status
-  const getStatus = (webinar: ZoomWebinar): WebinarStatus => {
-    const now = new Date();
-    const startTime = new Date(webinar.start_time);
-    const endTime = new Date(startTime.getTime() + webinar.duration * 60000);
-    
-    if (webinar.status === 'cancelled') {
-      return statusMap['cancelled'];
-    } else if (now < startTime) {
-      return statusMap['available'];
-    } else if (now >= startTime && now <= endTime) {
-      return statusMap['started'];
-    } else {
-      return statusMap['ended'];
-    }
-  };
 
   // Generate array for pagination
   const getPageNumbers = () => {
