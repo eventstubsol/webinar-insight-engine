@@ -3,9 +3,8 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ResponsiveContainer,
-  ComposedChart,
-  Bar,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -29,7 +28,7 @@ export const RegistrationAttendanceChart = () => {
   const { webinars, isLoading, refreshWebinars } = useZoomWebinars();
   const [updatingParticipantData, setUpdatingParticipantData] = useState(false);
   const [debug, setDebug] = useState(false);
-  const { user } = useAuth(); // Get the current user
+  const { user } = useAuth();
   
   // Calculate registrants and attendees aggregated by month for the last 12 months
   const webinarStats = useMemo(() => {
@@ -117,8 +116,8 @@ export const RegistrationAttendanceChart = () => {
         const dateA = new Date(a.month);
         const dateB = new Date(b.month);
         return dateA.getTime() - dateB.getTime();
-      })
-      .slice(-6); // Only show last 6 months for better visibility
+      });
+      // No longer slicing to the last 6 months - showing all 12 months
   }, [webinars, isLoading, debug]);
   
   const CustomTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
@@ -126,9 +125,16 @@ export const RegistrationAttendanceChart = () => {
       return (
         <div className="bg-white p-3 border rounded shadow-sm">
           <p className="font-medium">{label}</p>
-          <p className="text-blue-600">{`Registrants: ${payload[0].value}`}</p>
-          <p className="text-green-600">{`Attendees: ${payload[1].value}`}</p>
-          {payload[2] && <p className="text-gray-600">{`Rate: ${payload[2].value}%`}</p>}
+          <p className="text-blue-600">{`Registrants: ${payload[0]?.value || 0}`}</p>
+          <p className="text-green-600">{`Attendees: ${payload[1]?.value || 0}`}</p>
+          
+          // Calculate attendance rate for the tooltip
+          {(() => {
+            const registrants = payload[0]?.value as number || 0;
+            const attendees = payload[1]?.value as number || 0;
+            const rate = registrants > 0 ? Math.round((attendees / registrants) * 100) : 0;
+            return <p className="text-gray-600">{`Attendance Rate: ${rate}%`}</p>;
+          })()}
         </div>
       );
     }
@@ -181,7 +187,7 @@ export const RegistrationAttendanceChart = () => {
         <div>
           <CardTitle className="text-base sm:text-lg">Registration vs. Attendance</CardTitle>
           <CardDescription>
-            Last 6 months • 
+            Last 12 months • 
             {isLoading ? (
               <Skeleton className="w-10 h-4 ml-1 inline-block" />
             ) : (
@@ -224,33 +230,56 @@ export const RegistrationAttendanceChart = () => {
         ) : (
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
+              <AreaChart
                 data={webinarStats}
                 margin={{
                   top: 10,
-                  right: 30,
+                  right: 10,
                   left: 0,
                   bottom: 5,
                 }}
               >
+                <defs>
+                  <linearGradient id="registrantsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="attendeesGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                <XAxis dataKey="month" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
+                <XAxis 
+                  dataKey="month" 
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis 
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Bar yAxisId="left" dataKey="registrants" fill="#3b82f6" name="Registrants" />
-                <Bar yAxisId="left" dataKey="attendees" fill="#10b981" name="Attendees" />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="attendanceRate"
-                  stroke="#6b7280"
-                  name="Attendance Rate"
-                  dot={false}
-                  activeDot={{ r: 6 }}
+                <Area 
+                  type="monotone" 
+                  dataKey="registrants" 
+                  name="Registrants" 
+                  stroke="#3b82f6" 
+                  fill="url(#registrantsGradient)" 
+                  strokeWidth={2}
+                  stackId="1"
                 />
-              </ComposedChart>
+                <Area 
+                  type="monotone" 
+                  dataKey="attendees" 
+                  name="Attendees" 
+                  stroke="#10b981" 
+                  fill="url(#attendeesGradient)" 
+                  strokeWidth={2}
+                  stackId="2"
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         )}
