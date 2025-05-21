@@ -102,7 +102,7 @@ export const useWebinarState = () => {
     credentialsStatus,
     isVerifying,
     verified,
-    scopesError,
+    scopesError: Boolean(scopesError), // Ensure scopesError is returned as boolean
     verificationDetails,
     isFirstLoad,
     activeTab,
