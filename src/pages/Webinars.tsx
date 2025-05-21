@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarHeader } from '@/components/webinars/WebinarHeader';
@@ -90,7 +89,7 @@ const Webinars = () => {
             showWizard={showWizard}
             onSetupZoom={handleSetupZoom}
             onDismissError={dismissErrorBanner}
-            errorBannerDismissed={errorBannerDismissed} // No conversion needed, already boolean
+            errorBannerDismissed={errorBannerDismissed}
           />
         )}
 
@@ -120,7 +119,7 @@ const Webinars = () => {
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
-            errorBannerDismissed={errorBannerDismissed} // Pass as boolean, already boolean from hook
+            errorBannerDismissed={errorBannerDismissed}
             onDismissError={dismissErrorBanner}
           />
         ) : (
@@ -132,7 +131,7 @@ const Webinars = () => {
             filterTab={filterTab}
             errorDetails={errorDetails}
             onDismissError={dismissErrorBanner}
-            errorBannerDismissed={errorBannerDismissed} // Pass as boolean, already boolean from hook
+            errorBannerDismissed={errorBannerDismissed}
           />
         )}
       </div>
