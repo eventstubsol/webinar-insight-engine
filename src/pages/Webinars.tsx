@@ -50,8 +50,8 @@ const Webinars = () => {
   const [activeTab, setActiveTab] = useState<string>("webinars");
   const [showWizard, setShowWizard] = useState(false);
   
-  // New state variables for the UI redesign
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  // Changed default viewMode from 'list' to 'grid'
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [filterTab, setFilterTab] = useState('all'); // 'all', 'upcoming', 'past', 'drafts'
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
