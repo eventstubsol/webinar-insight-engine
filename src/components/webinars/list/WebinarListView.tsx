@@ -14,22 +14,20 @@ import { WebinarStatusBadge } from './WebinarStatusBadge';
 import { getWebinarStatus } from './webinarHelpers';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
-import { Clock, Download, ChartBar, Eye, Loader2 } from 'lucide-react';
+import { Clock, Download, ChartBar, Eye } from 'lucide-react';
 
 interface WebinarListViewProps {
   webinars: ZoomWebinar[];
   selectedWebinars: string[];
   handleWebinarSelection: (webinarId: string) => void;
   handleSelectAll: () => void;
-  isRefetching?: boolean;
 }
 
 export const WebinarListView: React.FC<WebinarListViewProps> = ({ 
   webinars,
   selectedWebinars,
   handleWebinarSelection,
-  handleSelectAll,
-  isRefetching = false
+  handleSelectAll
 }) => {
   return (
     <div className="rounded-md border overflow-hidden">
@@ -57,7 +55,6 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
           {webinars.length === 0 ? (
             <TableRow>
               <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                {isRefetching && <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />}
                 {webinars.length === 0 ? 'No webinars found. Connect to Zoom to sync your webinars.' : 'No webinars found matching your search'}
               </TableCell>
             </TableRow>
@@ -75,14 +72,11 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
                     />
                   </TableCell>
                   <TableCell className="font-medium">
-                    <div className="flex items-center">
-                      {isRefetching && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
-                      <div>
-                        {webinar.topic}
-                        <p className="text-muted-foreground text-xs mt-1 line-clamp-1">
-                          ID: {webinar.id}
-                        </p>
-                      </div>
+                    <div>
+                      {webinar.topic}
+                      <p className="text-muted-foreground text-xs mt-1 line-clamp-1">
+                        ID: {webinar.id}
+                      </p>
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
@@ -120,4 +114,3 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
     </div>
   );
 };
-

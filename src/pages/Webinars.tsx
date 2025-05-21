@@ -126,16 +126,13 @@ const Webinars = () => {
         ) : (
           <WebinarLayout 
             webinars={webinars} 
-            isLoading={isLoading}
-            isRefetching={isRefetching}
+            isLoading={isLoading} 
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
             errorDetails={errorDetails}
-            onRefreshData={() => refreshWebinars(true)}
             onDismissError={dismissErrorBanner}
             errorBannerDismissed={errorBannerDismissed}
-            lastSyncTime={lastSyncTime}
           />
         )}
       </div>

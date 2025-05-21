@@ -1,12 +1,6 @@
-
 import { useState, useMemo } from 'react';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
-import { 
-  isWebinarLive, 
-  isWebinarUpcoming, 
-  isWebinarPast,
-  isWebinarDraft 
-} from '@/components/webinars/list/webinarHelpers';
+import { isWebinarLive, isWebinarUpcoming, isWebinarPast } from '@/components/webinars/list/webinarHelpers';
 
 interface DateRange {
   from: Date | undefined;
@@ -39,35 +33,25 @@ export const useWebinarListState = ({
       setCurrentPage(1);
     }
     
-    // Make a copy of webinars to avoid mutating original array
-    let filtered = [...webinars];
-    
-    console.log(`[useWebinarListState] Starting with ${filtered.length} webinars`);
+    let filtered = webinars;
     
     // Apply search filter if query exists
-    if (searchQuery?.trim()) {
+    if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(webinar => 
         (webinar.topic?.toLowerCase().includes(query)) || 
-        (webinar.host_email?.toLowerCase().includes(query)) ||
-        (webinar.agenda?.toLowerCase().includes(query)) ||
-        (webinar.id?.toLowerCase().includes(query))
+        (webinar.host_email?.toLowerCase().includes(query))
       );
-      console.log(`[useWebinarListState] After search filter: ${filtered.length} webinars`);
     }
     
     // Apply date range filter if dates are selected
-    if (dateRange?.from) {
+    if (dateRange.from) {
       const startDate = new Date(dateRange.from);
       startDate.setHours(0, 0, 0, 0);
       
       filtered = filtered.filter(webinar => {
-        // If webinar doesn't have a start_time, include it only if we're on drafts tab
-        if (!webinar.start_time) {
-          return filterTab === 'drafts';
-        }
+        if (!webinar.start_time) return false;
         
-        // Ensure we're working with a proper Date object
         const webinarDate = new Date(webinar.start_time);
         
         // If only start date is selected, filter for webinars on or after that date
@@ -80,12 +64,10 @@ export const useWebinarListState = ({
         endDate.setHours(23, 59, 59, 999);
         return webinarDate >= startDate && webinarDate <= endDate;
       });
-      
-      console.log(`[useWebinarListState] After date filter: ${filtered.length} webinars`);
     }
     
     // Filter webinars based on the selected tab
-    if (filterTab && filterTab !== 'all') {
+    if (filterTab !== 'all') {
       filtered = filtered.filter(webinar => {
         switch(filterTab) {
           case 'live':
@@ -95,44 +77,13 @@ export const useWebinarListState = ({
           case 'past':
             return isWebinarPast(webinar);
           case 'drafts':
-            return isWebinarDraft(webinar);
+            // Assuming drafts might be a specific status you want to add
+            return false; // Currently no draft status in our data model
           default:
             return true;
         }
       });
-      
-      console.log(`[useWebinarListState] After tab filter (${filterTab}): ${filtered.length} webinars`);
     }
-    
-    // Ensure webinars are sorted by start_time with improved logic
-    filtered.sort((a, b) => {
-      // For drafts tab, sort by creation date if available
-      if (filterTab === 'drafts') {
-        // If both have no start time but have created_at
-        if ((!a.start_time && !b.start_time) && a.raw_data?.created_at && b.raw_data?.created_at) {
-          return new Date(b.raw_data.created_at).getTime() - new Date(a.raw_data.created_at).getTime();
-        }
-      }
-      
-      // For future webinars (upcoming tab), sort by closest first
-      if (filterTab === 'upcoming') {
-        if (a.start_time && b.start_time) {
-          return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-        }
-      } else {
-        // For past webinars, sort by most recent first
-        if (a.start_time && b.start_time) {
-          return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
-        }
-      }
-      
-      // Put webinars without start_time at the end (or at the beginning for drafts tab)
-      if (!a.start_time && b.start_time) return filterTab === 'drafts' ? -1 : 1;
-      if (a.start_time && !b.start_time) return filterTab === 'drafts' ? 1 : -1;
-      
-      // If all else fails, sort by ID or topic
-      return (b.topic || '').localeCompare(a.topic || '');
-    });
     
     return filtered;
   }, [webinars, searchQuery, dateRange, filterTab, currentPage]);

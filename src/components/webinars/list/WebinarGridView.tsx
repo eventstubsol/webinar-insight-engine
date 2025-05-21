@@ -15,23 +15,21 @@ import { WebinarEmptyState } from './WebinarEmptyState';
 import { getWebinarStatus } from './webinarHelpers';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
-import { Calendar, Clock, Users, Eye, Download, ChartBar, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Users, Eye, Download, ChartBar } from 'lucide-react';
 
 interface WebinarGridViewProps {
   webinars: ZoomWebinar[];
   selectedWebinars: string[];
   handleWebinarSelection: (webinarId: string) => void;
-  isRefetching?: boolean;
 }
 
 export const WebinarGridView: React.FC<WebinarGridViewProps> = ({ 
   webinars, 
   selectedWebinars,
-  handleWebinarSelection,
-  isRefetching = false
+  handleWebinarSelection
 }) => {
   if (webinars.length === 0) {
-    return <WebinarEmptyState isEmpty={true} isFiltered={false} isRefetching={isRefetching} />;
+    return <WebinarEmptyState isEmpty={true} isFiltered={false} />;
   }
 
   return (
@@ -42,11 +40,6 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
         
         return (
           <Card key={webinar.id} className="relative h-full">
-            {isRefetching && (
-              <div className="absolute top-2 right-2 z-10">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            )}
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
                 <Checkbox 
@@ -102,4 +95,3 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
     </div>
   );
 };
-
