@@ -424,7 +424,7 @@ export async function handleGetParticipants(req: Request, supabase: any, user: a
   });
 }
 
-// New function to update participant counts for all webinars
+// Updated function to update participant counts for all webinars
 export async function handleUpdateWebinarParticipants(req: Request, supabase: any, user: any, credentials: any) {
   console.log(`[zoom-api][update-participants] Starting action for user: ${user.id}`);
   
@@ -439,22 +439,22 @@ export async function handleUpdateWebinarParticipants(req: Request, supabase: an
     }
     
     const specificWebinarId = body.webinar_id;
+    const userId = body.user_id || user.id;
     
     // Get token for API calls
     const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
     
-    // Get webinars from database
+    // Get webinars from database - UPDATED QUERY to include more past webinars
     const { data: webinars, error: webinarsError } = await supabase
       .from('zoom_webinars')
       .select('*')
-      .eq('user_id', user.id)
-      .order('start_time', { ascending: false })
-      .is('status', 'ended'); // Only process ended webinars
+      .eq('user_id', userId)
+      .order('start_time', { ascending: false });
       
     if (webinarsError || !webinars || webinars.length === 0) {
-      console.log('[zoom-api][update-participants] No ended webinars found in database');
+      console.log('[zoom-api][update-participants] No webinars found in database');
       return new Response(JSON.stringify({ 
-        message: 'No ended webinars found to update', 
+        message: 'No webinars found to update', 
         updated: 0,
         skipped: 0,
         errors: 0 
@@ -463,10 +463,28 @@ export async function handleUpdateWebinarParticipants(req: Request, supabase: an
       });
     }
     
+    // Filter to get completed webinars using time-based logic
+    const now = new Date();
+    const completedWebinars = webinars.filter(webinar => {
+      // Check explicitly for "ended" status or use time-based logic
+      if (webinar.status === 'ended') {
+        return true;
+      }
+      
+      // Time-based logic: Check if webinar has already passed (start_time + duration)
+      const startTime = new Date(webinar.start_time);
+      const durationMs = (webinar.duration || 0) * 60 * 1000; // convert minutes to ms
+      const endTime = new Date(startTime.getTime() + durationMs);
+      
+      return endTime < now; // Webinar has ended if end time is in the past
+    });
+    
+    console.log(`[zoom-api][update-participants] Found ${completedWebinars.length} completed webinars out of ${webinars.length} total`);
+      
     // Filter by specific webinar ID if provided
     const webinarsToProcess = specificWebinarId 
-      ? webinars.filter(w => w.webinar_id === specificWebinarId) 
-      : webinars;
+      ? completedWebinars.filter(w => w.webinar_id === specificWebinarId) 
+      : completedWebinars;
       
     console.log(`[zoom-api][update-participants] Processing ${webinarsToProcess.length} webinars`);
     
@@ -477,7 +495,7 @@ export async function handleUpdateWebinarParticipants(req: Request, supabase: an
     
     for (const webinar of webinarsToProcess) {
       try {
-        // Make parallel requests for registrants and attendees
+        // Make parallel requests for registrants and attendees - FIX URL FROM OPENAI TO ZOOM API
         const [registrantsRes, attendeesRes] = await Promise.all([
           fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/registrants?page_size=1`, {
             headers: {
@@ -498,35 +516,28 @@ export async function handleUpdateWebinarParticipants(req: Request, supabase: an
           attendeesRes.ok ? attendeesRes.json() : { total_records: 0 }
         ]);
         
-        // Update raw_data with participant counts
+        // Update raw_data with participant counts and ensure status is set to "ended" for past webinars
         const updatedRawData = {
           ...webinar.raw_data,
           registrants_count: registrantsData.total_records || 0,
           participants_count: attendeesData.total_records || 0
         };
         
-        // Only update if counts have changed
-        if (webinar.raw_data.registrants_count !== updatedRawData.registrants_count || 
-            webinar.raw_data.participants_count !== updatedRawData.participants_count) {
-          
-          // Update the database with new participant counts
-          const { error: updateError } = await supabase
-            .from('zoom_webinars')
-            .update({
-              raw_data: updatedRawData
-            })
-            .eq('id', webinar.id);
-          
-          if (updateError) {
-            console.error(`[zoom-api][update-participants] Error updating webinar ${webinar.webinar_id}:`, updateError);
-            errors++;
-          } else {
-            console.log(`[zoom-api][update-participants] Updated webinar ${webinar.webinar_id} with registrants: ${updatedRawData.registrants_count}, participants: ${updatedRawData.participants_count}`);
-            updated++;
-          }
+        // Update both the raw_data and set status to "ended" for past webinars
+        const { error: updateError } = await supabase
+          .from('zoom_webinars')
+          .update({
+            raw_data: updatedRawData,
+            status: 'ended' // Explicitly set status to ended for past webinars
+          })
+          .eq('id', webinar.id);
+        
+        if (updateError) {
+          console.error(`[zoom-api][update-participants] Error updating webinar ${webinar.webinar_id}:`, updateError);
+          errors++;
         } else {
-          console.log(`[zoom-api][update-participants] No changes for webinar ${webinar.webinar_id}`);
-          skipped++;
+          console.log(`[zoom-api][update-participants] Updated webinar ${webinar.webinar_id} with registrants: ${updatedRawData.registrants_count}, participants: ${updatedRawData.participants_count}`);
+          updated++;
         }
       } catch (err) {
         console.error(`[zoom-api][update-participants] Error processing webinar ${webinar.webinar_id}:`, err);
@@ -538,7 +549,7 @@ export async function handleUpdateWebinarParticipants(req: Request, supabase: an
     await supabase
       .from('zoom_sync_history')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         sync_type: 'participants_count',
         status: errors === 0 ? 'success' : 'partial',
         items_synced: updated,

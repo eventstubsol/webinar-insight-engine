@@ -1,22 +1,25 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  TooltipProps
+} from 'recharts';
+import {
+  NameType,
+  ValueType,
+} from 'recharts/types/component/DefaultTooltipContent';
+import { Loader2, BarChartIcon, RefreshCw } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
-import { 
-  parseISO, 
-  format, 
-  isValid, 
-  subMonths, 
-  startOfMonth, 
-  endOfMonth, 
-  isSameMonth,
-  isAfter,
-  isBefore,
-  addMonths
-} from 'date-fns';
-import { TrendingUp, Users, RefreshCw, Calendar } from 'lucide-react';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { format, parseISO, subMonths, startOfMonth, isAfter, isBefore, addMinutes } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { updateParticipantDataForWebinars } from '@/hooks/zoom/utils/webinarUtils';
@@ -30,300 +33,226 @@ export const RegistrationAttendanceChart = () => {
   
   // Calculate registrants and attendees aggregated by month for the last 12 months
   const webinarStats = useMemo(() => {
-    const DEBUG = debug;
+    if (!webinars || isLoading) return [];
     
-    // Generate all months for the last 12 months
-    const today = new Date();
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const month = subMonths(today, 11 - i);
-      return {
-        month: startOfMonth(month),
-        name: format(month, 'MMM yyyy'),
-        registrants: 0,
-        attendees: 0
-      };
-    });
-
-    if (!webinars || webinars.length === 0) {
-      if (DEBUG) console.log('No webinars data available');
-      return months;
-    }
+    // Get 12 months ago from now
+    const twelveMonthsAgo = subMonths(new Date(), 12);
+    const startDate = startOfMonth(twelveMonthsAgo);
     
-    if (DEBUG) {
-      console.log(`Processing ${webinars.length} webinars for chart data`);
-      console.log('Generated month ranges:', months.map(m => m.name));
-    }
-    
-    // Filter webinars to get only past webinars (end date in the past)
-    const pastWebinars = webinars.filter(webinar => {
-      if (!webinar.start_time) return false;
+    // Filter webinars that have already ended (either status is 'ended' or the start_time + duration is in the past)
+    const now = new Date();
+    const completedWebinars = webinars.filter(webinar => {
+      const startTime = webinar.start_time ? new Date(webinar.start_time) : null;
       
-      try {
-        const startDate = parseISO(webinar.start_time);
-        if (!isValid(startDate)) return false;
-        
-        // Calculate the end time (start time + duration in minutes)
-        const endDate = new Date(startDate.getTime() + (webinar.duration || 0) * 60 * 1000);
-        
-        // Check if webinar has ended (end time is in the past)
-        const hasEnded = isBefore(endDate, new Date());
-        
-        if (DEBUG && hasEnded) {
-          console.log(`Webinar "${webinar.topic}" has ended. Start: ${webinar.start_time}, Duration: ${webinar.duration}min`);
-          console.log(`Participants: ${webinar.participants_count}, Registrants: ${webinar.registrants_count}`);
-        }
-        
-        return hasEnded;
-      } catch (err) {
-        console.error('Error parsing webinar date:', err, webinar);
-        return false;
-      }
+      if (!startTime) return false;
+      
+      // Include webinars with 'ended' status
+      if (webinar.status === 'ended') return true;
+      
+      // Include webinars that happened in the past (start_time + duration has passed)
+      const endTime = addMinutes(startTime, webinar.duration || 0);
+      return endTime < now;
     });
     
-    if (DEBUG) {
-      console.log(`Found ${pastWebinars.length} past webinars out of ${webinars.length} total`);
+    // Log filtered webinars if debug mode is on
+    if (debug) {
+      console.log('Complete webinars for chart:', completedWebinars);
     }
     
-    // Iterate through completed webinars and aggregate data by month
-    pastWebinars.forEach(webinar => {
+    // Create a map of months with their aggregated data
+    const monthlyData = new Map();
+    
+    // Initialize the map with the last 12 months
+    for (let i = 0; i < 12; i++) {
+      const month = subMonths(new Date(), i);
+      const monthKey = format(month, 'MMM yyyy');
+      monthlyData.set(monthKey, { 
+        month: monthKey,
+        registrants: 0, 
+        attendees: 0
+      });
+    }
+    
+    // Add data from webinars
+    completedWebinars.forEach(webinar => {
+      // Skip if no start_time
       if (!webinar.start_time) return;
       
-      try {
-        const webinarDate = parseISO(webinar.start_time);
-        if (!isValid(webinarDate)) {
-          if (DEBUG) console.log(`Invalid webinar date: ${webinar.start_time}`);
-          return;
-        }
-        
-        // Find the month entry that corresponds to this webinar
-        const monthEntry = months.find(m => {
-          const monthStart = m.month;
-          const monthEnd = endOfMonth(m.month);
-          
-          // Check if webinar date is within this month
-          const isInMonth = 
-            isAfter(webinarDate, monthStart) && 
-            isBefore(webinarDate, monthEnd) || 
-            isSameMonth(webinarDate, monthStart);
-          
-          if (DEBUG && isInMonth) {
-            console.log(`Webinar "${webinar.topic}" on ${webinar.start_time} matches month ${m.name}`);
-          }
-          
-          return isInMonth;
-        });
-        
-        if (!monthEntry) {
-          if (DEBUG) {
-            console.log(`No month entry found for webinar "${webinar.topic}" on ${webinar.start_time}`);
-          }
-          return;
-        }
-        
-        // Extract registrants and attendees data
-        let registrants = 0;
-        let attendees = 0;
-        
-        // Try to get data from raw_data first
-        if (webinar.raw_data && typeof webinar.raw_data === 'object') {
-          registrants = webinar.raw_data.registrants_count || 0;
-          attendees = webinar.raw_data.participants_count || 0;
-        } 
-        
-        // Fallback to direct properties if raw_data doesn't have the counts
-        if (registrants === 0 && webinar.registrants_count) {
-          registrants = webinar.registrants_count;
-        }
-        
-        if (attendees === 0 && webinar.participants_count) {
-          attendees = webinar.participants_count;
-        }
-        
-        if (DEBUG) {
-          console.log(`Adding to ${monthEntry.name}: ${registrants} registrants, ${attendees} attendees`);
-        }
-        
-        // Add to the month's total
-        monthEntry.registrants += registrants;
-        monthEntry.attendees += attendees;
-      } catch (err) {
-        console.error('Error processing webinar for chart:', err, webinar);
+      const webinarDate = new Date(webinar.start_time);
+      
+      // Skip if the webinar is older than 12 months
+      if (isBefore(webinarDate, startDate)) return;
+      
+      const monthKey = format(webinarDate, 'MMM yyyy');
+      
+      // If this month isn't in our map (should not happen given initialization), skip
+      if (!monthlyData.has(monthKey)) return;
+      
+      const currentData = monthlyData.get(monthKey);
+      
+      // Get registrant and participant counts from raw_data if available
+      let registrantsCount = 0;
+      let attendeesCount = 0;
+      
+      if (webinar.raw_data && typeof webinar.raw_data === 'object') {
+        registrantsCount = webinar.raw_data.registrants_count || 0;
+        attendeesCount = webinar.raw_data.participants_count || 0;
+      } else {
+        // Try the direct properties as fallback
+        registrantsCount = webinar.registrants_count || 0;
+        attendeesCount = webinar.participants_count || 0;
       }
+      
+      // Update the month data
+      monthlyData.set(monthKey, {
+        ...currentData,
+        registrants: currentData.registrants + registrantsCount,
+        attendees: currentData.attendees + attendeesCount
+      });
     });
     
-    if (DEBUG) {
-      console.log('Final chart data:', months);
+    // Convert map to array and sort by date
+    return Array.from(monthlyData.values())
+      .sort((a, b) => {
+        const dateA = new Date(a.month);
+        const dateB = new Date(b.month);
+        return dateA.getTime() - dateB.getTime();
+      })
+      .slice(-6); // Only show last 6 months for better visibility
+  }, [webinars, isLoading, debug]);
+  
+  const CustomTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-3 border rounded shadow-sm">
+          <p className="font-medium">{label}</p>
+          <p className="text-blue-600">{`Registrants: ${payload[0].value}`}</p>
+          <p className="text-green-600">{`Attendees: ${payload[1].value}`}</p>
+          {payload[2] && <p className="text-gray-600">{`Rate: ${payload[2].value}%`}</p>}
+        </div>
+      );
     }
-    
-    return months;
-  }, [webinars, debug]);
-
-  // Handle updating webinar participant data
+    return null;
+  };
+  
+  // Calculate totals for the title
+  const totalRegistrants = useMemo(() => {
+    return webinarStats.reduce((total, item) => total + item.registrants, 0);
+  }, [webinarStats]);
+  
+  const totalAttendees = useMemo(() => {
+    return webinarStats.reduce((total, item) => total + item.attendees, 0);
+  }, [webinarStats]);
+  
+  const attendanceRate = useMemo(() => {
+    if (totalRegistrants === 0) return 0;
+    return Math.round((totalAttendees / totalRegistrants) * 100);
+  }, [totalRegistrants, totalAttendees]);
+  
   const handleUpdateParticipantData = async () => {
-    if (updatingParticipantData) return;
+    if (!user) {
+      console.error('No user found, cannot update participant data');
+      return;
+    }
     
     try {
       setUpdatingParticipantData(true);
       console.log('Starting participant data update');
       
-      // Pass the user.id to the function - this fixes the TypeScript error
-      await updateParticipantDataForWebinars(user?.id);
+      // Pass the user.id to the function
+      await updateParticipantDataForWebinars(user.id);
       
       // Refresh webinars to get updated data
       await refreshWebinars();
       
-    } catch (err) {
-      console.error('Error updating participant data:', err);
+      if (debug) {
+        console.log('Participant data update completed, webinars refreshed');
+      }
+    } catch (error) {
+      console.error('Error updating participant data:', error);
     } finally {
       setUpdatingParticipantData(false);
     }
   };
-
-  // Format the chart data with proper colors and stacked areas
-  const chartConfig = {
-    registrants: { 
-      label: "Registrants", 
-      color: "rgba(50, 180, 100, 0.8)" // Green for registrants
-    },
-    attendees: { 
-      label: "Attendees", 
-      color: "rgba(30, 174, 219, 0.8)" // Blue for attendees
-    }
-  };
-
-  // Check if we have any data to display (at least one month with non-zero registrants or attendees)
-  const hasData = webinarStats.some(month => month.registrants > 0 || month.attendees > 0);
-
+  
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div className="space-y-0.5">
-          <CardTitle className="text-base font-semibold">Registration vs Attendance</CardTitle>
-          <CardDescription>Monthly trends for the last 12 months</CardDescription>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={() => setDebug(!debug)}
-            className="flex items-center gap-1"
-          >
-            {debug ? 'Hide Debug' : 'Debug'}
-          </Button>
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={handleUpdateParticipantData}
-            disabled={updatingParticipantData || isLoading}
-            className="flex items-center gap-1"
-          >
-            <RefreshCw className={`h-3 w-3 ${updatingParticipantData ? 'animate-spin' : ''}`} />
-            {updatingParticipantData ? 'Updating...' : 'Update Data'}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="w-full h-80">
-        {isLoading || updatingParticipantData ? (
-          <div className="flex items-center justify-center h-full w-full">
-            <Skeleton className="h-64 w-full" />
-          </div>
-        ) : !hasData ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            {debug && webinars && webinars.length > 0 ? (
-              <div className="w-full h-full overflow-auto p-4">
-                <h3 className="font-semibold mb-2">Debug Information:</h3>
-                <p className="mb-2">Found {webinars.length} webinars but no chart data.</p>
-                <div className="space-y-4">
-                  {webinars.slice(0, 5).map(webinar => (
-                    <div key={webinar.id} className="text-xs p-2 border rounded">
-                      <p>Title: {webinar.topic}</p>
-                      <p>Date: {webinar.start_time}</p>
-                      <p>Status: {webinar.status}</p>
-                      <p>Registrants: {webinar.registrants_count || webinar.raw_data?.registrants_count || 0}</p>
-                      <p>Participants: {webinar.participants_count || webinar.raw_data?.participants_count || 0}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+    <Card className="col-span-1">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base sm:text-lg">Registration vs. Attendance</CardTitle>
+          <CardDescription>
+            Last 6 months • 
+            {isLoading ? (
+              <Skeleton className="w-10 h-4 ml-1 inline-block" />
             ) : (
-              <>
-                <Calendar className="h-12 w-12 mb-2" />
-                <p className="mb-4">No registration or attendance data available</p>
-                <p className="mb-4 text-sm max-w-md text-center">
-                  This chart displays data from completed webinars. Make sure you have past webinars 
-                  with registration and attendance records.
-                </p>
-                <Button 
-                  variant="outline" 
-                  onClick={handleUpdateParticipantData}
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Update Participant Data
-                </Button>
-              </>
+              ` ${attendanceRate}% attendance rate`
             )}
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleUpdateParticipantData}
+          disabled={updatingParticipantData || !user}
+        >
+          {updatingParticipantData ? (
+            <>
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+              Updating...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-3 w-3" />
+              Update Data
+            </>
+          )}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[300px]">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : webinarStats.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-[300px] text-center">
+            <BarChartIcon className="h-12 w-12 text-muted-foreground mb-3" />
+            <p className="text-muted-foreground">No webinar data available</p>
+            <p className="text-xs text-muted-foreground">
+              Once your past webinars are synced, attendance data will appear here
+            </p>
           </div>
         ) : (
-          <ChartContainer config={chartConfig}>
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
+              <ComposedChart
                 data={webinarStats}
-                margin={{ top: 5, right: 30, left: 20, bottom: 40 }}
+                margin={{
+                  top: 10,
+                  right: 30,
+                  left: 0,
+                  bottom: 5,
+                }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fontSize: 12 }}
-                  tickLine={false}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis 
-                  allowDecimals={false}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      return (
-                        <ChartTooltipContent
-                          payload={payload}
-                          active={active}
-                          label={label}
-                        />
-                      );
-                    }
-                    return null;
-                  }}
-                />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                <XAxis dataKey="month" />
+                <YAxis yAxisId="left" />
+                <YAxis yAxisId="right" orientation="right" />
+                <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Area 
-                  type="monotone" 
-                  dataKey="registrants" 
-                  name="Registrants"
-                  fill="rgba(50, 180, 100, 0.8)" 
-                  stroke="rgba(50, 180, 100, 1)"
-                  strokeWidth={2}
-                  stackId="1"
-                  fillOpacity={0.8}
+                <Bar yAxisId="left" dataKey="registrants" fill="#3b82f6" name="Registrants" />
+                <Bar yAxisId="left" dataKey="attendees" fill="#10b981" name="Attendees" />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="attendanceRate"
+                  stroke="#6b7280"
+                  name="Attendance Rate"
+                  dot={false}
+                  activeDot={{ r: 6 }}
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="attendees" 
-                  name="Attendees"
-                  fill="rgba(30, 174, 219, 0.8)" 
-                  stroke="rgba(30, 174, 219, 1)"
-                  strokeWidth={2}
-                  stackId="1"
-                  fillOpacity={0.8}
-                />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
-          </ChartContainer>
+          </div>
         )}
       </CardContent>
     </Card>
