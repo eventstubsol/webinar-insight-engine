@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
@@ -42,7 +41,7 @@ export const WebinarDistributionChart = () => {
         monthKey,
         month,
         year,
-        monthYear: month, // Only show month name in chart
+        monthYear: monthKey, // Changed to use monthKey (MMM yyyy) instead of just month
         total: 0
       };
     });
