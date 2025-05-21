@@ -1,8 +1,7 @@
 
 import React from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Settings, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Settings } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface WebinarErrorProps {
@@ -14,15 +13,28 @@ interface WebinarErrorProps {
     missingSecrets: string[];
   };
   onSetupClick: () => void;
+  onDismiss?: () => void;
 }
 
 export const WebinarError: React.FC<WebinarErrorProps> = ({
   errorMessage,
   errorDetails,
   onSetupClick,
+  onDismiss,
 }) => {
   return (
-    <Alert variant="destructive">
+    <Alert variant="destructive" className="relative mb-4">
+      {onDismiss && (
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={onDismiss} 
+          className="absolute right-2 top-2 p-0 h-6 w-6"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
+      
       <AlertTriangle className="h-4 w-4" />
       <AlertTitle>Zoom API {errorDetails.isMissingCredentials ? 'Connection Required' : 'Error'}</AlertTitle>
       <AlertDescription>

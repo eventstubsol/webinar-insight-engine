@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarHeader } from '@/components/webinars/WebinarHeader';
 import { WebinarTabs } from '@/components/webinars/WebinarTabs';
@@ -7,7 +7,7 @@ import { WebinarLayout } from '@/components/webinars/WebinarLayout';
 import { WebinarAlerts } from '@/components/webinars/WebinarAlerts';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
 import { useWebinarState } from '@/hooks/webinars/useWebinarState';
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Webinars = () => {
@@ -33,17 +33,26 @@ const Webinars = () => {
     filterTab,
     handleSetupZoom,
     handleWizardComplete,
-    errorMessage
+    errorMessage,
+    dismissErrorBanner,
+    errorBannerDismissed
   } = useWebinarState();
 
-  // Only show the full error banner when there's a confirmed error after initial loading
-  const showErrorBanner = !isLoading && !isFirstLoad && 
-    (error || errorDetails.isMissingCredentials || errorDetails.isScopesError);
+  // Only show the full error banner when there's a confirmed critical error after initial loading
+  // and the banner hasn't been dismissed by the user
+  const showErrorBanner = !isLoading && 
+    !isFirstLoad && 
+    !errorBannerDismissed &&
+    (
+      (error && (errorDetails.isMissingCredentials || errorDetails.isScopesError)) || 
+      (errorDetails.isCapabilitiesError)
+    );
 
   // Determine if we should show the tabs or layout
-  // Only show tabs in two cases: user explicitly selected the setup tab OR we're in an error condition
-  // that requires user to correct their setup (missing credentials, scopes error)
-  const showTabs = activeTab === "setup" || (showErrorBanner && errorDetails.isMissingCredentials);
+  // Only show tabs when user explicitly selected the setup tab OR
+  // we have critical errors that require configuration
+  const showTabs = activeTab === "setup" || 
+    (showErrorBanner && (errorDetails.isMissingCredentials || errorDetails.isScopesError));
 
   return (
     <AppLayout>
@@ -61,6 +70,7 @@ const Webinars = () => {
         {/* Zoom Integration Wizard Dialog */}
         <Dialog open={showWizard} onOpenChange={setShowWizard}>
           <DialogContent className="max-w-4xl p-0">
+            <DialogTitle className="sr-only">Zoom Integration Setup</DialogTitle>
             <ZoomIntegrationWizard 
               onComplete={handleWizardComplete}
               onCancel={() => setShowWizard(false)}
@@ -75,6 +85,8 @@ const Webinars = () => {
             verified={verified}
             showWizard={showWizard}
             onSetupZoom={handleSetupZoom}
+            onDismissError={dismissErrorBanner}
+            errorBannerDismissed={errorBannerDismissed}
           />
         )}
 
@@ -104,6 +116,8 @@ const Webinars = () => {
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
+            errorBannerDismissed={errorBannerDismissed}
+            onDismissError={dismissErrorBanner}
           />
         ) : (
           <WebinarLayout 
@@ -112,6 +126,9 @@ const Webinars = () => {
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
+            errorDetails={errorDetails}
+            onDismissError={dismissErrorBanner}
+            errorBannerDismissed={errorBannerDismissed}
           />
         )}
       </div>

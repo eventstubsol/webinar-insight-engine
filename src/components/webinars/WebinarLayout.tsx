@@ -10,8 +10,10 @@ import {
 import { WebinarsList } from '@/components/webinars/WebinarsList';
 import { WebinarFilters } from '@/components/webinars/WebinarFilters';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Grid, List } from 'lucide-react';
+import { Grid, List, Info, X } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
 interface WebinarLayoutProps {
   webinars: any[];
@@ -19,6 +21,14 @@ interface WebinarLayoutProps {
   error: Error | null;
   viewMode: 'list' | 'grid';
   filterTab: string;
+  errorDetails?: {
+    isMissingCredentials: boolean;
+    isCapabilitiesError: boolean;
+    isScopesError: boolean;
+    missingSecrets: string[];
+  };
+  onDismissError?: () => void;
+  errorBannerDismissed?: boolean;
 }
 
 export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
@@ -26,10 +36,20 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
   isLoading,
   error,
   viewMode,
-  filterTab
+  filterTab,
+  errorDetails,
+  onDismissError,
+  errorBannerDismissed = false
 }) => {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [dateFilter, setDateFilter] = React.useState<Date | undefined>(undefined);
+  
+  // Show a subtle error only for non-critical errors
+  const showSubtleError = !errorBannerDismissed && 
+    error && 
+    errorDetails && 
+    !errorDetails.isMissingCredentials && 
+    !errorDetails.isScopesError;
   
   return (
     <div className="grid gap-6 mt-4">
@@ -47,6 +67,30 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
             </ToggleGroup>
           </div>
           <CardDescription>Manage and view all your Zoom webinar sessions</CardDescription>
+          
+          {/* Subtle error alert for recoverable errors */}
+          {showSubtleError && (
+            <Alert variant="warning" className="mt-4 mb-2">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>
+                  {errorDetails?.isCapabilitiesError 
+                    ? 'Your Zoom account may not have webinar capabilities.' 
+                    : 'Some webinar data may not be available.'}
+                </span>
+                {onDismissError && (
+                  <Button 
+                    onClick={onDismissError} 
+                    variant="ghost" 
+                    size="sm"
+                    className="px-2"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
           
           {/* Webinar Type Tabs */}
           <Tabs value={filterTab} onValueChange={(value) => window.dispatchEvent(new CustomEvent('filterTabChange', { detail: value }))} className="mt-6">

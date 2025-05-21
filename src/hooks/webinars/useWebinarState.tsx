@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 
 const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
+const ERROR_PERSIST_KEY = 'zoom-webinar-error-dismissed';
 
 export const useWebinarState = () => {
   const { user } = useAuth();
@@ -42,10 +43,37 @@ export const useWebinarState = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   
+  // Track if user has dismissed the error banner
+  const [errorBannerDismissed, setErrorBannerDismissed] = useState(
+    localStorage.getItem(ERROR_PERSIST_KEY) === 'true'
+  );
+  
+  // Dismiss error banner and remember the choice
+  const dismissErrorBanner = useCallback(() => {
+    setErrorBannerDismissed(true);
+    localStorage.setItem(ERROR_PERSIST_KEY, 'true');
+    
+    // Log for debugging
+    console.log('[useWebinarState] Error banner dismissed by user');
+  }, []);
+  
+  // Reset error dismissal state when there's a new error
+  useEffect(() => {
+    if (error) {
+      // Only reset if the previous error was dismissed and there's actually a new error
+      if (errorBannerDismissed && error.message) {
+        console.log('[useWebinarState] New error detected, resetting dismissal state');
+        setErrorBannerDismissed(false);
+        localStorage.removeItem(ERROR_PERSIST_KEY);
+      }
+    }
+  }, [error, errorBannerDismissed]);
+  
   // Memoize the refresh function to prevent unnecessary recreations
   const handleAutoRefresh = useCallback(async () => {
     if (!error && credentialsStatus?.hasCredentials) {
       try {
+        console.log('[useWebinarState] Starting auto-refresh');
         await refreshWebinars();
         // Silent toast for background refreshes
         toast({
@@ -54,7 +82,7 @@ export const useWebinarState = () => {
           variant: 'default'
         });
       } catch (err) {
-        console.error('Auto-refresh failed:', err);
+        console.error('[useWebinarState] Auto-refresh failed:', err);
         // Only show error toast for auto-refresh failures if it's a new error
         toast({
           title: 'Sync failed',
@@ -89,6 +117,7 @@ export const useWebinarState = () => {
     if (user && !isLoading && credentialsStatus !== undefined) {
       // If user is logged in and we've checked their credentials status
       if (!credentialsStatus?.hasCredentials) {
+        console.log('[useWebinarState] No credentials found, showing wizard');
         // If they don't have credentials, show the wizard
         setShowWizard(true);
       }
@@ -116,23 +145,37 @@ export const useWebinarState = () => {
     return () => clearInterval(intervalId);
   }, [handleAutoRefresh, isLoading, isRefetching, error, lastSyncTime, errorDetails, scopesError, credentialsStatus]);
   
+  // Initial load tracking and tab selection logic
   useEffect(() => {
     // Track if data has been loaded at least once
     if (!isLoading && isFirstLoad) {
+      console.log('[useWebinarState] First load complete');
       setIsFirstLoad(false);
     }
 
-    // If we have credential errors or scope errors, automatically switch to the setup tab
-    if ((error && (errorDetails.isMissingCredentials || errorDetails.isScopesError)) && activeTab !== "setup") {
+    // Only automatically switch to setup tab for critical configuration errors
+    if (error && 
+        !isFirstLoad && 
+        (errorDetails.isMissingCredentials || errorDetails.isScopesError) && 
+        activeTab !== "setup" && 
+        !errorBannerDismissed) {
+      console.log('[useWebinarState] Critical configuration error detected, switching to setup tab');
       setActiveTab("setup");
     }
-  }, [isLoading, error, errorDetails, activeTab, isRefetching, webinars, isFirstLoad]);
+  }, [isLoading, error, errorDetails, activeTab, isFirstLoad, errorBannerDismissed]);
   
+  // Handle setup wizard opening
   const handleSetupZoom = () => {
+    console.log('[useWebinarState] Opening Zoom setup wizard');
     setShowWizard(true);
+    // Reset error dismissal when user explicitly chooses to configure
+    setErrorBannerDismissed(false);
+    localStorage.removeItem(ERROR_PERSIST_KEY);
   };
   
+  // Handle wizard completion
   const handleWizardComplete = async () => {
+    console.log('[useWebinarState] Wizard complete, refreshing credentials and webinars');
     setShowWizard(false);
     // Re-check credentials status
     await checkCredentialsStatus();
@@ -140,6 +183,9 @@ export const useWebinarState = () => {
     await refreshWebinars();
     // Switch to webinars tab
     setActiveTab("webinars");
+    // Reset error dismissal
+    setErrorBannerDismissed(false);
+    localStorage.removeItem(ERROR_PERSIST_KEY);
   };
   
   const errorMessage = error?.message || 'An error occurred while connecting to the Zoom API';
@@ -171,6 +217,8 @@ export const useWebinarState = () => {
     setDateFilter,
     handleSetupZoom,
     handleWizardComplete,
-    errorMessage
+    errorMessage,
+    dismissErrorBanner,
+    errorBannerDismissed
   };
 };
