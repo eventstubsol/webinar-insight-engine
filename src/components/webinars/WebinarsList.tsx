@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { WebinarGridView } from './list/WebinarGridView';
@@ -10,7 +9,7 @@ import { WebinarEmptyState } from './list/WebinarEmptyState';
 import { getPageNumbers } from './list/webinarHelpers';
 import { useWebinarListState } from '@/hooks/webinars/useWebinarListState';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { InfoCircle } from "lucide-react";
+import { Info } from "lucide-react";
 
 interface DateRange {
   from: Date | undefined;
@@ -91,7 +90,7 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
       {showWebinarCountInfo && (
         <Alert variant="default" className="mb-4">
           <div className="flex items-center">
-            <InfoCircle className="h-4 w-4 mr-2" />
+            <Info className="h-4 w-4 mr-2" />
             <AlertDescription>
               Showing {paginatedWebinars.length} of {filteredWebinars.length} webinars. Use pagination to see more.
             </AlertDescription>
