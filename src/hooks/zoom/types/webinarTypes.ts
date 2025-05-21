@@ -28,5 +28,4 @@ export interface UseZoomWebinarsResult {
   syncHistory: SyncHistoryItem[];
   lastSyncTime: Date | null;
   credentialsStatus: any;
-  dateRange: { startDate: Date; endDate: Date }; // Added the dateRange property
 }

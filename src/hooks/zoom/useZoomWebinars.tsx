@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,21 +17,6 @@ import { enhanceErrorMessage } from './utils/errorUtils';
 import { toast } from '@/hooks/use-toast';
 import { UseZoomWebinarsResult } from './types/webinarTypes';
 
-// Calculate date ranges for last 12 months and next 12 months
-function getDateRanges() {
-  const now = new Date();
-  
-  // Last 12 months
-  const startDate = new Date(now);
-  startDate.setMonth(now.getMonth() - 12);
-  
-  // Next 12 months
-  const endDate = new Date(now);
-  endDate.setMonth(now.getMonth() + 12);
-  
-  return { startDate, endDate };
-}
-
 export function useZoomWebinars(): UseZoomWebinarsResult {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -38,32 +24,29 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
   const [isRefetching, setIsRefetching] = useState(false);
   const { credentialsStatus } = useZoomCredentials();
   const [syncHistory, setSyncHistory] = useState<any[]>([]);
-  
-  // Calculate date ranges for filtering (last 12 months and next 12 months)
-  const { startDate, endDate } = getDateRanges();
-  
-  // Main query to fetch webinars with date filtering
+
+  // Main query to fetch webinars
   const { data, error, refetch } = useQuery({
-    queryKey: ['zoom-webinars', user?.id, startDate.toISOString(), endDate.toISOString()],
+    queryKey: ['zoom-webinars', user?.id],
     queryFn: async () => {
       if (!user) return [];
       
       try {
         setIsLoading(true);
-        console.log('[useZoomWebinars] Fetching webinars with date filtering');
+        console.log('[useZoomWebinars] Fetching webinars from database or API');
         
-        // Try to get webinars from database first with date filtering
-        const dbWebinars = await fetchWebinarsFromDatabase(user.id, startDate, endDate);
+        // Try to get webinars from database first
+        const dbWebinars = await fetchWebinarsFromDatabase(user.id);
         
         // If we have webinars in the database, return them immediately
         if (dbWebinars && dbWebinars.length > 0) {
-          console.log(`[useZoomWebinars] Returning ${dbWebinars.length} date-filtered webinars from database`);
+          console.log(`[useZoomWebinars] Returning ${dbWebinars.length} webinars from database`);
           return dbWebinars;
         }
         
-        // If not in database or database fetch failed, try API with date filtering
-        console.log('[useZoomWebinars] No webinars in database, fetching from API with date filtering');
-        return await fetchWebinarsFromAPI(false, startDate, endDate, 2); // Using batch size of 2
+        // If not in database or database fetch failed, try API
+        console.log('[useZoomWebinars] No webinars in database, fetching from API');
+        return await fetchWebinarsFromAPI();
       } catch (err: any) {
         console.error('[useZoomWebinars] Error fetching webinars:', err);
         
@@ -88,12 +71,11 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     gcTime: 10 * 60 * 1000 // 10 minutes
   });
 
-  // Refresh webinars function with date filtering
+  // Refresh webinars function - just wraps the operation function
   const refreshWebinars = async (force: boolean = false): Promise<void> => {
     setIsRefetching(true);
     try {
-      // Use the updated operation with date filtering
-      await refreshWebinarsOperation(user?.id, queryClient, force, startDate, endDate, 2);
+      await refreshWebinarsOperation(user?.id, queryClient, force);
       await refetch();
     } finally {
       setIsRefetching(false);
@@ -137,10 +119,9 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     error: error as Error | null,
     errorDetails,
     refreshWebinars,
-    updateParticipantData: updateParticipantDataOperation.bind(null, user?.id, queryClient),
+    updateParticipantData,
     syncHistory,
     lastSyncTime,
-    credentialsStatus,
-    dateRange: { startDate, endDate }
+    credentialsStatus
   };
 }
