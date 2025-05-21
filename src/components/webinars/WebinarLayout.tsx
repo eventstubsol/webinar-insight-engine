@@ -65,7 +65,7 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>All Webinars</CardTitle>
+            {/* Title and description removed */}
             <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && window.dispatchEvent(new CustomEvent('viewModeChange', { detail: value }))}>
               <ToggleGroupItem value="list" aria-label="List view">
                 <List className="h-4 w-4" />
@@ -75,7 +75,6 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
-          <CardDescription>Manage and view all your Zoom webinar sessions</CardDescription>
           
           {/* Subtle error alert for recoverable errors */}
           {showSubtleError && (
