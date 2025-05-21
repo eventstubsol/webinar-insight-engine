@@ -1,9 +1,10 @@
 
 import { useCallback } from 'react';
+import { ZoomCredentialsStatus } from '@/hooks/zoom';
 
 export function useWebinarSetupActions(
   setShowWizard: (show: boolean) => void,
-  checkCredentialsStatus: () => Promise<void>,
+  checkCredentialsStatus: () => Promise<ZoomCredentialsStatus | null>,
   refreshWebinars: (force?: boolean) => Promise<void>,
   setActiveTab: (tab: string) => void,
   setErrorBannerDismissed: (dismissed: boolean) => void

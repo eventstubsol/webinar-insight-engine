@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useZoomWebinars, useZoomCredentials } from '@/hooks/zoom';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { ZoomCredentialsStatus } from '@/hooks/zoom';
 
 const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
 
