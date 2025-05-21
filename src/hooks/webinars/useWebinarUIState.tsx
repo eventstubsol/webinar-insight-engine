@@ -21,9 +21,11 @@ export function useWebinarUIState() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   
   // Ensure we explicitly type as boolean and convert localStorage string properly
-  const [errorBannerDismissed, setErrorBannerDismissed] = useState<boolean>(
-    localStorage.getItem(ERROR_PERSIST_KEY) === 'true'
-  );
+  const [errorBannerDismissed, setErrorBannerDismissed] = useState<boolean>(() => {
+    // Convert the localStorage string to a proper boolean
+    const storedValue = localStorage.getItem(ERROR_PERSIST_KEY);
+    return storedValue === 'true' ? true : false;
+  });
   
   // Dismiss error banner and remember the choice
   const dismissErrorBanner = useCallback(() => {
