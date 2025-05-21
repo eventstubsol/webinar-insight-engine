@@ -1,5 +1,5 @@
 
-import { tokenCache } from './index.ts';
+import { tokenCache } from './cacheUtils.ts';
 
 // Generate a Server-to-Server OAuth access token
 export async function getZoomJwtToken(accountId: string, clientId: string, clientSecret: string) {
