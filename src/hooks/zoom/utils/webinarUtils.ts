@@ -112,25 +112,30 @@ export async function updateParticipantDataForWebinars(userId: string | undefine
   
   console.log('[updateParticipantDataForWebinars] Updating participant data for webinars');
   
-  const { data, error } = await supabase.functions.invoke('zoom-api', {
-    body: { 
-      action: 'update-webinar-participants'
+  try {
+    const { data, error } = await supabase.functions.invoke('zoom-api', {
+      body: { 
+        action: 'update-webinar-participants'
+      }
+    });
+    
+    if (error) {
+      console.error('[updateParticipantDataForWebinars] Error:', error);
+      throw error;
     }
-  });
-  
-  if (error) {
-    console.error('[updateParticipantDataForWebinars] Error:', error);
-    throw error;
+    
+    console.log('[updateParticipantDataForWebinars] Update completed:', data);
+    
+    // Show toast with results
+    toast({
+      title: 'Participant data updated',
+      description: data.message || `Updated ${data.updated} webinars with participant data`,
+      variant: 'success'
+    });
+  } catch (err) {
+    console.error('[updateParticipantDataForWebinars] Unhandled error:', err);
+    throw err;
   }
-  
-  console.log('[updateParticipantDataForWebinars] Update completed:', data);
-  
-  // Show toast with results
-  toast({
-    title: 'Participant data updated',
-    description: data.message || `Updated ${data.updated} webinars with participant data`,
-    variant: 'success'
-  });
 }
 
 // Fetch sync history

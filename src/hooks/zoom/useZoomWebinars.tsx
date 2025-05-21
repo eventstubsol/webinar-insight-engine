@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +10,6 @@ import {
   fetchWebinarsFromDatabase, 
   fetchWebinarsFromAPI, 
   enhanceErrorMessage,
-  updateParticipantDataForWebinars,
   fetchSyncHistory
 } from './utils/webinarUtils';
 import { UseZoomWebinarsResult, WebinarErrorDetails } from './types/webinarTypes';
@@ -36,10 +36,12 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
         
         // If we have webinars in the database, return them immediately
         if (dbWebinars && dbWebinars.length > 0) {
+          console.log(`[useZoomWebinars] Returning ${dbWebinars.length} webinars from database`);
           return dbWebinars;
         }
         
         // If not in database or database fetch failed, try API
+        console.log('[useZoomWebinars] No webinars in database, fetching from API');
         return await fetchWebinarsFromAPI();
       } catch (err: any) {
         console.error('[useZoomWebinars] Error fetching webinars:', err);
@@ -144,17 +146,51 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
   };
   
   const updateParticipantData = async (): Promise<void> => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'You must be logged in to update participant data',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     try {
-      await updateParticipantDataForWebinars(user?.id);
+      console.log('[updateParticipantData] Updating participant data');
+      
+      const { data, error } = await supabase.functions.invoke('zoom-api', {
+        body: { 
+          action: 'update-webinar-participants'
+        }
+      });
+      
+      if (error) {
+        console.error('[updateParticipantData] Error:', error);
+        toast({
+          title: 'Update failed',
+          description: error.message || 'Failed to update participant data',
+          variant: 'destructive'
+        });
+        throw error;
+      }
+      
+      console.log('[updateParticipantData] Update completed:', data);
+      
+      // Show toast with results
+      toast({
+        title: 'Participant data updated',
+        description: data.message || `Updated ${data.updated} webinars with participant data`,
+        variant: 'success'
+      });
       
       // Invalidate the query cache to force a refresh
-      await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', user?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', user.id] });
       
       // Trigger a refetch to get the latest data
       await refetch();
     } catch (err) {
-      console.error('[updateParticipantData] Error:', err);
-      // Error handling already done in the utility function
+      console.error('[updateParticipantData] Unhandled error:', err);
+      // Most error handling already done above
     }
   };
   

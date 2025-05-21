@@ -1,22 +1,35 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
-import { parseISO, format, isValid, subMonths, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
-import { TrendingUp, Users, RefreshCw } from 'lucide-react';
+import { 
+  parseISO, 
+  format, 
+  isValid, 
+  subMonths, 
+  startOfMonth, 
+  endOfMonth, 
+  isSameMonth,
+  isAfter,
+  isBefore,
+  addMonths
+} from 'date-fns';
+import { TrendingUp, Users, RefreshCw, Calendar } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { updateParticipantDataForWebinars } from '@/hooks/zoom/utils/webinarUtils';
 
 export const RegistrationAttendanceChart = () => {
   const { webinars, isLoading, refreshWebinars } = useZoomWebinars();
-  const [updatingParticipantData, setUpdatingParticipantData] = React.useState(false);
+  const [updatingParticipantData, setUpdatingParticipantData] = useState(false);
+  const [debug, setDebug] = useState(false);
   
   // Calculate registrants and attendees aggregated by month for the last 12 months
   const webinarStats = useMemo(() => {
+    const DEBUG = debug;
+    
     // Generate all months for the last 12 months
     const today = new Date();
     const months = Array.from({ length: 12 }, (_, i) => {
@@ -29,20 +42,81 @@ export const RegistrationAttendanceChart = () => {
       };
     });
 
-    if (!webinars || webinars.length === 0) return months;
+    if (!webinars || webinars.length === 0) {
+      if (DEBUG) console.log('No webinars data available');
+      return months;
+    }
+    
+    if (DEBUG) {
+      console.log(`Processing ${webinars.length} webinars for chart data`);
+      console.log('Generated month ranges:', months.map(m => m.name));
+    }
+    
+    // Filter webinars to get only past webinars (end date in the past)
+    const pastWebinars = webinars.filter(webinar => {
+      if (!webinar.start_time) return false;
+      
+      try {
+        const startDate = parseISO(webinar.start_time);
+        if (!isValid(startDate)) return false;
+        
+        // Calculate the end time (start time + duration in minutes)
+        const endDate = new Date(startDate.getTime() + (webinar.duration || 0) * 60 * 1000);
+        
+        // Check if webinar has ended (end time is in the past)
+        const hasEnded = isBefore(endDate, new Date());
+        
+        if (DEBUG && hasEnded) {
+          console.log(`Webinar "${webinar.topic}" has ended. Start: ${webinar.start_time}, Duration: ${webinar.duration}min`);
+          console.log(`Participants: ${webinar.participants_count}, Registrants: ${webinar.registrants_count}`);
+        }
+        
+        return hasEnded;
+      } catch (err) {
+        console.error('Error parsing webinar date:', err, webinar);
+        return false;
+      }
+    });
+    
+    if (DEBUG) {
+      console.log(`Found ${pastWebinars.length} past webinars out of ${webinars.length} total`);
+    }
     
     // Iterate through completed webinars and aggregate data by month
-    webinars
-      .filter(webinar => webinar.start_time && new Date(webinar.start_time) < new Date())
-      .forEach(webinar => {
-        if (!webinar.start_time) return;
-        
+    pastWebinars.forEach(webinar => {
+      if (!webinar.start_time) return;
+      
+      try {
         const webinarDate = parseISO(webinar.start_time);
-        if (!isValid(webinarDate)) return;
+        if (!isValid(webinarDate)) {
+          if (DEBUG) console.log(`Invalid webinar date: ${webinar.start_time}`);
+          return;
+        }
         
         // Find the month entry that corresponds to this webinar
-        const monthEntry = months.find(m => isSameMonth(m.month, webinarDate));
-        if (!monthEntry) return;
+        const monthEntry = months.find(m => {
+          const monthStart = m.month;
+          const monthEnd = endOfMonth(m.month);
+          
+          // Check if webinar date is within this month
+          const isInMonth = 
+            isAfter(webinarDate, monthStart) && 
+            isBefore(webinarDate, monthEnd) || 
+            isSameMonth(webinarDate, monthStart);
+          
+          if (DEBUG && isInMonth) {
+            console.log(`Webinar "${webinar.topic}" on ${webinar.start_time} matches month ${m.name}`);
+          }
+          
+          return isInMonth;
+        });
+        
+        if (!monthEntry) {
+          if (DEBUG) {
+            console.log(`No month entry found for webinar "${webinar.topic}" on ${webinar.start_time}`);
+          }
+          return;
+        }
         
         // Extract registrants and attendees data
         let registrants = 0;
@@ -52,19 +126,35 @@ export const RegistrationAttendanceChart = () => {
         if (webinar.raw_data && typeof webinar.raw_data === 'object') {
           registrants = webinar.raw_data.registrants_count || 0;
           attendees = webinar.raw_data.participants_count || 0;
-        } else {
-          // Fallback to direct properties if they exist
-          registrants = webinar.registrants_count || 0;
-          attendees = webinar.participants_count || 0;
+        } 
+        
+        // Fallback to direct properties if raw_data doesn't have the counts
+        if (registrants === 0 && webinar.registrants_count) {
+          registrants = webinar.registrants_count;
+        }
+        
+        if (attendees === 0 && webinar.participants_count) {
+          attendees = webinar.participants_count;
+        }
+        
+        if (DEBUG) {
+          console.log(`Adding to ${monthEntry.name}: ${registrants} registrants, ${attendees} attendees`);
         }
         
         // Add to the month's total
         monthEntry.registrants += registrants;
         monthEntry.attendees += attendees;
-      });
+      } catch (err) {
+        console.error('Error processing webinar for chart:', err, webinar);
+      }
+    });
+    
+    if (DEBUG) {
+      console.log('Final chart data:', months);
+    }
     
     return months;
-  }, [webinars]);
+  }, [webinars, debug]);
 
   // Handle updating webinar participant data
   const handleUpdateParticipantData = async () => {
@@ -72,44 +162,15 @@ export const RegistrationAttendanceChart = () => {
     
     try {
       setUpdatingParticipantData(true);
+      console.log('Starting participant data update');
       
-      toast({
-        title: "Updating participant data",
-        description: "This may take a moment...",
-        duration: 2000,
-      });
-      
-      // Call our new API endpoint
-      const { data, error } = await supabase.functions.invoke('zoom-api', {
-        body: { action: 'update-webinar-participants' }
-      });
-      
-      if (error) {
-        console.error('Error updating participant data:', error);
-        toast({
-          title: "Update failed",
-          description: error.message || "Failed to update participant data",
-          variant: "destructive",
-        });
-        return;
-      }
+      await updateParticipantDataForWebinars();
       
       // Refresh webinars to get updated data
       await refreshWebinars();
       
-      toast({
-        title: "Participant data updated",
-        description: data.message || `Updated ${data.updated} webinars with participant data`,
-        variant: "success",
-      });
-      
     } catch (err) {
       console.error('Error updating participant data:', err);
-      toast({
-        title: "Update failed",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
     } finally {
       setUpdatingParticipantData(false);
     }
@@ -141,6 +202,14 @@ export const RegistrationAttendanceChart = () => {
           <Button 
             size="sm" 
             variant="outline" 
+            onClick={() => setDebug(!debug)}
+            className="flex items-center gap-1"
+          >
+            {debug ? 'Hide Debug' : 'Debug'}
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline" 
             onClick={handleUpdateParticipantData}
             disabled={updatingParticipantData || isLoading}
             className="flex items-center gap-1"
@@ -157,16 +226,40 @@ export const RegistrationAttendanceChart = () => {
           </div>
         ) : !hasData ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <Users className="h-12 w-12 mb-2" />
-            <p className="mb-4">No registration or attendance data available</p>
-            <Button 
-              variant="outline" 
-              onClick={handleUpdateParticipantData}
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Update Participant Data
-            </Button>
+            {debug && webinars && webinars.length > 0 ? (
+              <div className="w-full h-full overflow-auto p-4">
+                <h3 className="font-semibold mb-2">Debug Information:</h3>
+                <p className="mb-2">Found {webinars.length} webinars but no chart data.</p>
+                <div className="space-y-4">
+                  {webinars.slice(0, 5).map(webinar => (
+                    <div key={webinar.id} className="text-xs p-2 border rounded">
+                      <p>Title: {webinar.topic}</p>
+                      <p>Date: {webinar.start_time}</p>
+                      <p>Status: {webinar.status}</p>
+                      <p>Registrants: {webinar.registrants_count || webinar.raw_data?.registrants_count || 0}</p>
+                      <p>Participants: {webinar.participants_count || webinar.raw_data?.participants_count || 0}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <Calendar className="h-12 w-12 mb-2" />
+                <p className="mb-4">No registration or attendance data available</p>
+                <p className="mb-4 text-sm max-w-md text-center">
+                  This chart displays data from completed webinars. Make sure you have past webinars 
+                  with registration and attendance records.
+                </p>
+                <Button 
+                  variant="outline" 
+                  onClick={handleUpdateParticipantData}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Update Participant Data
+                </Button>
+              </>
+            )}
           </div>
         ) : (
           <ChartContainer config={chartConfig}>
