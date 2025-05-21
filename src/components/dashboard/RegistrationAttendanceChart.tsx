@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -65,8 +64,11 @@ export const RegistrationAttendanceChart = () => {
     for (let i = 0; i < 12; i++) {
       const month = subMonths(new Date(), i);
       const monthKey = format(month, 'MMMyy');
+      const monthDate = startOfMonth(month); // Store the actual date object for proper sorting
+      
       monthlyData.set(monthKey, { 
         month: monthKey,
+        monthDate: monthDate, // Store the actual date object
         registrants: 0, 
         attendees: 0
       });
@@ -110,13 +112,9 @@ export const RegistrationAttendanceChart = () => {
       });
     });
     
-    // Convert map to array and sort by date
+    // Convert map to array and sort by date using the stored date object
     return Array.from(monthlyData.values())
-      .sort((a, b) => {
-        const dateA = new Date(a.month);
-        const dateB = new Date(b.month);
-        return dateA.getTime() - dateB.getTime();
-      });
+      .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime());
   }, [webinars, isLoading, debug]);
   
   const CustomTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
