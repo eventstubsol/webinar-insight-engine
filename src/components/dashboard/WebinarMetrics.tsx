@@ -88,13 +88,9 @@ export const WebinarMetrics = () => {
                   }}
                 />
                 <Legend iconType="circle" />
-                <Bar dataKey="questions" name="Questions" fill="hsl(var(--chart-completed))" radius={[4, 4, 0, 0]}>
-                  {engagementData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLOR_PALETTE[index % COLOR_PALETTE.length]} />
-                  ))}
-                </Bar>
-                <Bar dataKey="chat" name="Chat Messages" fill="hsl(var(--chart-registrants))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="polls" name="Poll Responses" fill="hsl(var(--chart-attendees))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="questions" name="Questions" fill="#9b87f5" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="chat" name="Chat Messages" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="polls" name="Poll Responses" fill="#10B981" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </TabsContent>
