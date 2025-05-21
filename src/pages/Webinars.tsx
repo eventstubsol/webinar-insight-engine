@@ -8,6 +8,7 @@ import { WebinarAlerts } from '@/components/webinars/WebinarAlerts';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
 import { useWebinarState } from '@/hooks/webinars/useWebinarState';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Webinars = () => {
   const {
@@ -35,6 +36,13 @@ const Webinars = () => {
     errorMessage
   } = useWebinarState();
 
+  // Only show the full error banner when there's a confirmed error after initial loading
+  const showErrorBanner = !isLoading && !isFirstLoad && 
+    (error || errorDetails.isMissingCredentials || errorDetails.isScopesError);
+
+  // Determine if we should show the tabs or layout
+  const showTabs = showErrorBanner || activeTab === "setup";
+
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
@@ -58,14 +66,27 @@ const Webinars = () => {
           </DialogContent>
         </Dialog>
 
-        <WebinarAlerts
-          credentialsStatus={credentialsStatus}
-          verified={verified}
-          showWizard={showWizard}
-          onSetupZoom={handleSetupZoom}
-        />
+        {/* Only show WebinarAlerts when first connecting, not during normal loading */}
+        {!verified && !isFirstLoad && (
+          <WebinarAlerts
+            credentialsStatus={credentialsStatus}
+            verified={verified}
+            showWizard={showWizard}
+            onSetupZoom={handleSetupZoom}
+          />
+        )}
 
-        {errorDetails.isMissingCredentials || errorDetails.isScopesError || error ? (
+        {isFirstLoad ? (
+          // Show loading skeletons during first load instead of error state
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-64" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-60 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        ) : showTabs ? (
           <WebinarTabs 
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -85,7 +106,7 @@ const Webinars = () => {
         ) : (
           <WebinarLayout 
             webinars={webinars} 
-            isLoading={isLoading || isFirstLoad} 
+            isLoading={isLoading} 
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}

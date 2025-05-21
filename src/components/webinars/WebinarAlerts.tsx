@@ -22,26 +22,23 @@ export const WebinarAlerts: React.FC<WebinarAlertsProps> = ({
 }) => {
   if (!credentialsStatus) return null;
   
+  // Only show the alert when credentials are missing and the wizard is not open
+  if (credentialsStatus.hasCredentials || showWizard) return null;
+
+  // Use a more subtle alert style
   return (
-    <>
-      {/* Show First Time Setup Alert when no credentials exist but wizard is closed */}
-      {credentialsStatus && !credentialsStatus.hasCredentials && !showWizard && (
-        <Alert className="bg-blue-50 border-blue-200 mb-4">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertTitle className="text-blue-800">Connect Your Zoom Account</AlertTitle>
-          <AlertDescription className="text-blue-700">
-            <p>You need to connect your Zoom account to view your webinars.</p>
-            <Button 
-              onClick={onSetupZoom} 
-              className="mt-2 bg-blue-600 hover:bg-blue-700"
-            >
-              Connect Zoom Account
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {/* Success banner removed - now showing in TopNav as a badge */}
-    </>
+    <Alert className="bg-blue-50 border-blue-200 mb-4 max-w-2xl mx-auto">
+      <Info className="h-4 w-4 text-blue-600" />
+      <AlertTitle className="text-blue-800 text-sm">Connect Zoom Account</AlertTitle>
+      <AlertDescription className="text-blue-700 text-xs">
+        <Button 
+          onClick={onSetupZoom} 
+          size="sm"
+          className="mt-1 bg-blue-600 hover:bg-blue-700"
+        >
+          Connect Zoom
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 };

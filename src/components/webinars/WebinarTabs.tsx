@@ -11,6 +11,7 @@ import { WebinarSetupGuide } from '@/components/webinars/WebinarSetupGuide';
 import { WebinarLayout } from '@/components/webinars/WebinarLayout';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface WebinarTabsProps {
   activeTab: string;
@@ -50,6 +51,9 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
   viewMode,
   filterTab
 }) => {
+  // Only show error when there's a confirmed error after loading
+  const showError = !isLoading && (error || errorDetails.isMissingCredentials || errorDetails.isScopesError);
+
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="mb-4">
@@ -57,18 +61,32 @@ export const WebinarTabs: React.FC<WebinarTabsProps> = ({
         <TabsTrigger value="setup">API Setup</TabsTrigger>
       </TabsList>
       <TabsContent value="webinars">
-        <WebinarError 
-          errorMessage={errorMessage}
-          errorDetails={errorDetails}
-          onSetupClick={() => setActiveTab("setup")}
-        />
-        <WebinarLayout 
-          webinars={webinars}
-          isLoading={isLoading || isFirstLoad}
-          error={error}
-          viewMode={viewMode}
-          filterTab={filterTab}
-        />
+        {showError ? (
+          <WebinarError 
+            errorMessage={errorMessage}
+            errorDetails={errorDetails}
+            onSetupClick={() => setActiveTab("setup")}
+          />
+        ) : isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-64" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-60 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        
+        {!showError && !isLoading && (
+          <WebinarLayout 
+            webinars={webinars}
+            isLoading={isLoading}
+            error={null} // Don't pass error if we're already handling it above
+            viewMode={viewMode}
+            filterTab={filterTab}
+          />
+        )}
       </TabsContent>
       <TabsContent value="setup">
         <WebinarSetupGuide 
