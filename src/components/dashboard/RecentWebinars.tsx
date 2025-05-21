@@ -15,9 +15,8 @@ import {
   CardHeader, 
   CardTitle 
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChartBar, Download, Eye, Loader2 } from 'lucide-react';
+import { Calendar, ChevronRight } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
 import { parseISO, format, isValid } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -48,45 +47,39 @@ export const RecentWebinars = () => {
       .slice(0, 5); // Show only the 5 most recent webinars
   }, [webinars]);
 
-  const getWebinarStatus = (webinar: any) => {
-    if (!webinar.status) return 'unknown';
-    
-    if (webinar.status.toLowerCase().includes('started') || 
-        webinar.status.toLowerCase().includes('waiting')) {
-      return 'live';
-    }
-    
-    if (webinar.status.toLowerCase().includes('ended')) {
-      return 'completed';
-    }
-    
-    return webinar.status.toLowerCase();
-  }
-
-  const formatDate = (dateString: string | null) => {
+  const formatDateTime = (dateString: string | null) => {
     if (!dateString) return 'Unknown';
     try {
       const date = parseISO(dateString);
       if (!isValid(date)) return 'Invalid date';
-      return format(date, 'MMM d, yyyy');
+      return format(date, "MMM d, yyyy, h:mm a");
     } catch (e) {
       return 'Error parsing date';
     }
   };
 
+  const getTimezone = (webinar: any) => {
+    return webinar.timezone || 'UTC';
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>Recent Webinars</CardTitle>
-          <CardDescription>Completed webinars from your Zoom account</CardDescription>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <CardTitle>Recent Webinars</CardTitle>
+            <CardDescription>Completed webinars from your Zoom account</CardDescription>
+          </div>
         </div>
         <Button 
-          variant="outline" 
+          variant="ghost" 
           size="sm" 
+          className="gap-1 text-primary"
           onClick={() => navigate('/webinars')}
         >
           View all
+          <ChevronRight className="h-4 w-4" />
         </Button>
       </CardHeader>
       <CardContent>
@@ -111,42 +104,23 @@ export const RecentWebinars = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Webinar</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="hidden md:table-cell">Host</TableHead>
-                <TableHead className="hidden lg:table-cell">Duration</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Date & Time</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Duration</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {recentWebinars.map((webinar) => (
-                <TableRow key={webinar.id}>
-                  <TableCell className="font-medium">{webinar.topic}</TableCell>
-                  <TableCell>{formatDate(webinar.start_time)}</TableCell>
-                  <TableCell className="hidden md:table-cell">{webinar.host_email || 'Unknown'}</TableCell>
-                  <TableCell className="hidden lg:table-cell">{webinar.duration ? `${webinar.duration} min` : '—'}</TableCell>
+                <TableRow key={webinar.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/webinars/${webinar.id}`)}>
+                  <TableCell className="min-w-[200px]">
+                    <div className="font-medium">{formatDateTime(webinar.start_time)}</div>
+                    <div className="text-xs text-muted-foreground">{getTimezone(webinar)}</div>
+                  </TableCell>
                   <TableCell>
-                    <Badge variant={
-                      getWebinarStatus(webinar) === 'completed' ? 'default' :
-                      getWebinarStatus(webinar) === 'live' ? 'destructive' : 'outline'
-                    }>
-                      {getWebinarStatus(webinar).charAt(0).toUpperCase() + getWebinarStatus(webinar).slice(1)}
-                    </Badge>
+                    <div className="font-medium">{webinar.topic}</div>
+                    <div className="text-xs text-muted-foreground">ID: {webinar.id}</div>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end items-center gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChartBar className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  <TableCell>{webinar.duration ? `${webinar.duration} min` : '—'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
