@@ -24,11 +24,14 @@ export const WebinarAlerts: React.FC<WebinarAlertsProps> = ({
   onDismissError,
   errorBannerDismissed = false // Default value if none provided
 }) => {
+  // Ensure it's always a boolean
+  const dismissedAsBool: boolean = Boolean(errorBannerDismissed);
+  
   if (!credentialsStatus) return null;
   
   // Only show the alert when credentials are missing, the wizard is not open,
   // and the user hasn't dismissed the error banner
-  if (credentialsStatus.hasCredentials || showWizard || errorBannerDismissed) return null;
+  if (credentialsStatus.hasCredentials || showWizard || dismissedAsBool) return null;
 
   // Use a more subtle alert style
   return (
