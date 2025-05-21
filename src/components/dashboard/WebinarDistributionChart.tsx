@@ -1,64 +1,91 @@
+
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
-import { parseISO, format, isValid } from 'date-fns';
+import { parseISO, format, isValid, subMonths, startOfMonth } from 'date-fns';
 import { BarChartIcon, Calendar } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Cell } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// Color palette for the bars - 12 different colors
+const COLOR_PALETTE = [
+  '#9b87f5', // Primary Purple
+  '#7E69AB', // Secondary Purple
+  '#6E59A5', // Tertiary Purple
+  '#8B5CF6', // Vivid Purple
+  '#D946EF', // Magenta Pink
+  '#F97316', // Bright Orange
+  '#0EA5E9', // Ocean Blue
+  '#1EAEDB', // Bright Blue
+  '#33C3F0', // Sky Blue
+  '#ea384c', // Red
+  '#6366F1', // Indigo
+  '#10B981'  // Emerald
+];
 
 export const WebinarDistributionChart = () => {
   const { webinars, isLoading } = useZoomWebinars();
   
   const monthlyDistribution = useMemo(() => {
-    if (!webinars || webinars.length === 0) return [];
-    
-    const distribution = new Map();
-    
-    // Group webinars by month
-    webinars.forEach(webinar => {
-      if (!webinar.start_time) return;
+    // Generate the last 12 months regardless of data
+    const today = new Date();
+    const last12Months = Array.from({ length: 12 }, (_, i) => {
+      const date = subMonths(today, 11 - i); // Start from 11 months ago
+      const monthStart = startOfMonth(date);
+      const monthKey = format(monthStart, 'MMM yyyy');
+      const month = format(monthStart, 'MMM');
+      const year = format(monthStart, 'yyyy');
       
-      try {
-        const date = parseISO(webinar.start_time);
-        if (!isValid(date)) return;
-        
-        // Use only month name for display, but keep full month+year as key
-        const monthKey = format(date, 'MMM yyyy');
-        const month = format(date, 'MMM');
-        const year = format(date, 'yyyy');
-        
-        if (!distribution.has(monthKey)) {
-          distribution.set(monthKey, { 
-            month,
-            year,
-            monthYear: month, // Only show month name in chart
-            total: 0
-          });
-        }
-        
-        const entry = distribution.get(monthKey);
-        entry.total += 1;
-      } catch (error) {
-        console.error('Error parsing date:', webinar.start_time, error);
-      }
+      return {
+        date: monthStart,
+        monthKey,
+        month,
+        year,
+        monthYear: month, // Only show month name in chart
+        total: 0
+      };
     });
     
-    // Convert to array and sort by date
-    return Array.from(distribution.values())
-      .sort((a, b) => {
-        const dateA = new Date(`${a.month} 1, ${a.year}`);
-        const dateB = new Date(`${b.month} 1, ${b.year}`);
-        return dateA.getTime() - dateB.getTime();
-      })
-      .slice(-12); // Show last 12 months
+    // Create a map for fast lookup
+    const distributionMap = new Map(
+      last12Months.map(item => [item.monthKey, item])
+    );
+    
+    // If we have webinar data, update the counts
+    if (webinars && webinars.length > 0) {
+      webinars.forEach(webinar => {
+        if (!webinar.start_time) return;
+        
+        try {
+          const date = parseISO(webinar.start_time);
+          if (!isValid(date)) return;
+          
+          const monthKey = format(date, 'MMM yyyy');
+          
+          // Only update if this month is in our 12-month window
+          if (distributionMap.has(monthKey)) {
+            const entry = distributionMap.get(monthKey);
+            if (entry) {
+              entry.total += 1;
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing date:', webinar.start_time, error);
+        }
+      });
+    }
+    
+    // Convert map back to array and ensure it's sorted by date
+    return Array.from(distributionMap.values())
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [webinars]);
 
   const chartConfig = {
     total: { 
       label: "Webinars", 
       theme: {
-        light: "#0EA5E9", // Ocean blue color for the bars
+        light: "#0EA5E9",
         dark: "#0EA5E9"
       }
     }
@@ -127,9 +154,15 @@ export const WebinarDistributionChart = () => {
                 <Bar 
                   dataKey="total" 
                   name="Total Webinars" 
-                  fill="#0EA5E9" 
-                  radius={[4, 4, 0, 0]} 
-                />
+                  radius={[4, 4, 0, 0]}
+                >
+                  {monthlyDistribution.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>

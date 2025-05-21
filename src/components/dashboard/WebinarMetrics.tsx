@@ -8,7 +8,8 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Legend
+  Legend,
+  Cell
 } from 'recharts';
 import { 
   Card, 
@@ -18,6 +19,22 @@ import {
   CardTitle 
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// Shared color palette for consistency across charts
+const COLOR_PALETTE = [
+  '#9b87f5', // Primary Purple
+  '#7E69AB', // Secondary Purple
+  '#6E59A5', // Tertiary Purple
+  '#8B5CF6', // Vivid Purple
+  '#D946EF', // Magenta Pink
+  '#F97316', // Bright Orange
+  '#0EA5E9', // Ocean Blue
+  '#1EAEDB', // Bright Blue
+  '#33C3F0', // Sky Blue
+  '#ea384c', // Red
+  '#6366F1', // Indigo
+  '#10B981'  // Emerald
+];
 
 const engagementData = [
   { name: 'Webinar 1', questions: 24, chat: 156, polls: 32, attendance: 85 },
@@ -71,7 +88,11 @@ export const WebinarMetrics = () => {
                   }}
                 />
                 <Legend iconType="circle" />
-                <Bar dataKey="questions" name="Questions" fill="hsl(var(--chart-completed))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="questions" name="Questions" fill="hsl(var(--chart-completed))" radius={[4, 4, 0, 0]}>
+                  {engagementData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLOR_PALETTE[index % COLOR_PALETTE.length]} />
+                  ))}
+                </Bar>
                 <Bar dataKey="chat" name="Chat Messages" fill="hsl(var(--chart-registrants))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="polls" name="Poll Responses" fill="hsl(var(--chart-attendees))" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -99,7 +120,11 @@ export const WebinarMetrics = () => {
                     boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)"
                   }}
                 />
-                <Bar dataKey="attendees" name="Attendees" fill="hsl(var(--chart-completed))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="attendees" name="Attendees" radius={[4, 4, 0, 0]}>
+                  {durationData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLOR_PALETTE[index % COLOR_PALETTE.length]} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </TabsContent>
