@@ -1,11 +1,10 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
-import { parseISO, format, startOfMonth, isValid } from 'date-fns';
+import { parseISO, format, isValid } from 'date-fns';
 import { BarChartIcon, Calendar } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const WebinarDistributionChart = () => {
@@ -24,6 +23,7 @@ export const WebinarDistributionChart = () => {
         const date = parseISO(webinar.start_time);
         if (!isValid(date)) return;
         
+        // Use only month name for display, but keep full month+year as key
         const monthKey = format(date, 'MMM yyyy');
         const month = format(date, 'MMM');
         const year = format(date, 'yyyy');
@@ -32,21 +32,13 @@ export const WebinarDistributionChart = () => {
           distribution.set(monthKey, { 
             month,
             year,
-            monthYear: monthKey,
-            total: 0,
-            completed: 0,
-            upcoming: 0
+            monthYear: month, // Only show month name in chart
+            total: 0
           });
         }
         
         const entry = distribution.get(monthKey);
         entry.total += 1;
-        
-        if (date < new Date()) {
-          entry.completed += 1;
-        } else {
-          entry.upcoming += 1;
-        }
       } catch (error) {
         console.error('Error parsing date:', webinar.start_time, error);
       }
@@ -59,22 +51,15 @@ export const WebinarDistributionChart = () => {
         const dateB = new Date(`${b.month} 1, ${b.year}`);
         return dateA.getTime() - dateB.getTime();
       })
-      .slice(-12); // Show last 12 months instead of 6
+      .slice(-12); // Show last 12 months
   }, [webinars]);
 
   const chartConfig = {
-    completed: { 
-      label: "Completed", 
+    total: { 
+      label: "Webinars", 
       theme: {
-        light: "hsl(var(--chart-completed))",
-        dark: "hsl(var(--chart-completed))"
-      }
-    },
-    upcoming: { 
-      label: "Upcoming", 
-      theme: {
-        light: "hsl(var(--chart-upcoming))",
-        dark: "hsl(var(--chart-upcoming))"
+        light: "#0EA5E9", // Ocean blue color for the bars
+        dark: "#0EA5E9"
       }
     }
   };
@@ -108,16 +93,15 @@ export const WebinarDistributionChart = () => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={monthlyDistribution}
-                margin={{ top: 5, right: 30, left: 20, bottom: 15 }}
+                margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
+                barSize={40}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                 <XAxis 
                   dataKey="monthYear" 
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 12 }}
                   tickLine={false}
-                  angle={-15}
-                  textAnchor="end"
-                  height={50}
+                  axisLine={false}
                 />
                 <YAxis 
                   allowDecimals={false}
@@ -126,31 +110,25 @@ export const WebinarDistributionChart = () => {
                   tick={{ fontSize: 12 }}
                 />
                 <Tooltip
+                  cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
                         <ChartTooltipContent
                           payload={payload}
                           active={active}
-                          label={payload[0]?.payload.monthYear}
+                          label={`${payload[0]?.payload.month} ${payload[0]?.payload.year}`}
                         />
                       );
                     }
                     return null;
                   }}
                 />
-                <Legend />
                 <Bar 
-                  dataKey="completed" 
-                  stackId="a" 
-                  name="Completed" 
-                  fill="var(--color-completed)" 
-                />
-                <Bar 
-                  dataKey="upcoming" 
-                  stackId="a" 
-                  name="Upcoming" 
-                  fill="var(--color-upcoming)" 
+                  dataKey="total" 
+                  name="Total Webinars" 
+                  fill="#0EA5E9" 
+                  radius={[4, 4, 0, 0]} 
                 />
               </BarChart>
             </ResponsiveContainer>
