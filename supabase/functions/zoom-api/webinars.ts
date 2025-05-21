@@ -1,24 +1,49 @@
-
 import { corsHeaders } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
 
-// Handle listing webinars
+// Handle listing webinars with date filtering and batch processing
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
   console.log(`[zoom-api][list-webinars] Starting action for user: ${user.id}, force_sync: ${force_sync}`);
   
   try {
-    // If not forcing sync, first try to get webinars from database
+    // Parse request body to get date range and batch size parameters
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      body = {};
+    }
+    
+    const startDate = body.start_date;
+    const endDate = body.end_date;
+    const batchSize = body.batch_size || 2; // Default to batch size of 2 if not specified
+    
+    console.log(`[zoom-api][list-webinars] Date range filter: ${startDate} to ${endDate}, batch size: ${batchSize}`);
+    
+    // If not forcing sync, first try to get webinars from database with date filtering
     if (!force_sync) {
-      console.log('[zoom-api][list-webinars] Checking database first for webinars');
-      const { data: dbWebinars, error: dbError } = await supabase
+      console.log('[zoom-api][list-webinars] Checking database first for webinars with date filtering');
+      
+      let query = supabase
         .from('zoom_webinars')
         .select('*')
         .eq('user_id', user.id)
         .order('start_time', { ascending: false });
-        
+      
+      // Apply date range filtering if provided
+      if (startDate) {
+        query = query.gte('start_time', startDate);
+      }
+      
+      if (endDate) {
+        query = query.lte('start_time', endDate);
+      }
+      
+      const { data: dbWebinars, error: dbError } = await query;
+      
       // If we have webinars in the database and not forcing a refresh, return them
       if (!dbError && dbWebinars && dbWebinars.length > 0) {
-        console.log(`[zoom-api][list-webinars] Found ${dbWebinars.length} webinars in database, returning cached data`);
+        console.log(`[zoom-api][list-webinars] Found ${dbWebinars.length} webinars in database with date filtering, returning cached data`);
         return new Response(JSON.stringify({ 
           webinars: dbWebinars.map(w => ({
             id: w.webinar_id,
@@ -42,7 +67,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       } else {
-        console.log('[zoom-api][list-webinars] No webinars found in database or forcing refresh');
+        console.log('[zoom-api][list-webinars] No webinars found in database with date filtering or forcing refresh');
       }
     } else {
       console.log('[zoom-api][list-webinars] Force sync requested, bypassing database cache');
@@ -50,7 +75,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     // Get token and fetch from Zoom API
     const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
-    console.log('[zoom-api][list-webinars] Got Zoom token, fetching webinars directly from Zoom');
+    console.log('[zoom-api][list-webinars] Got Zoom token, fetching webinars directly from Zoom with date filtering');
     
     // First try to get the user's email
     const meResponse = await fetch('https://api.zoom.us/v2/users/me', {
@@ -82,7 +107,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     const meData = await meResponse.json();
     console.log(`[zoom-api][list-webinars] Got user info for: ${meData.email}`);
 
-    // Now fetch all webinars with pagination
+    // Now fetch all webinars with pagination and date filtering
     let allWebinars: any[] = [];
     let nextPageToken = '';
     let currentPage = 1;
@@ -93,7 +118,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       console.log(`[zoom-api][list-webinars] Fetching page ${currentPage} of webinars${nextPageToken ? ' with token' : ''}`);
       
       // Build the URL with pagination parameters
-      let apiUrl = `https://api.zoom.us/v2/users/${meData.id}/webinars?page_size=300`;
+      let apiUrl = `https://api.zoom.us/v2/users/${meData.id}/webinars?page_size=${batchSize}`; // Using smaller batch size
       if (nextPageToken) {
         apiUrl += `&next_page_token=${encodeURIComponent(nextPageToken)}`;
       }
@@ -120,9 +145,32 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       }
       
       // Add the current page's webinars to our collection
-      if (responseData.webinars && responseData.webinars.length > 0) {
-        console.log(`[zoom-api][list-webinars] Found ${responseData.webinars.length} webinars on page ${currentPage}`);
-        allWebinars = [...allWebinars, ...responseData.webinars];
+      let pageWebinars = responseData.webinars || [];
+      
+      // Apply date filtering if provided
+      if (startDate || endDate) {
+        pageWebinars = pageWebinars.filter((webinar: any) => {
+          if (!webinar.start_time) return true; // Include webinars without start time (drafts)
+          
+          const webinarDate = new Date(webinar.start_time);
+          
+          // Check if webinar is after start date
+          if (startDate && webinarDate < new Date(startDate)) {
+            return false;
+          }
+          
+          // Check if webinar is before end date
+          if (endDate && webinarDate > new Date(endDate)) {
+            return false;
+          }
+          
+          return true;
+        });
+      }
+      
+      if (pageWebinars.length > 0) {
+        console.log(`[zoom-api][list-webinars] Found ${pageWebinars.length} webinars on page ${currentPage} after date filtering`);
+        allWebinars = [...allWebinars, ...pageWebinars];
       }
       
       // Get the next page token if it exists
@@ -136,24 +184,33 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       }
     } while (nextPageToken);
     
-    console.log(`[zoom-api][list-webinars] Successfully fetched ${allWebinars.length} webinars from Zoom API across ${currentPage-1} pages`);
+    console.log(`[zoom-api][list-webinars] Successfully fetched ${allWebinars.length} webinars from Zoom API across ${currentPage-1} pages with date filtering`);
     
     let itemsUpdated = 0;
     let existingWebinars = [];
     
     // If there are webinars, compare with existing data to detect changes
     if (allWebinars.length > 0) {
-      // Get existing webinars for comparison
-      const { data: existingData } = await supabase
+      // Get existing webinars for comparison with date filtering
+      let query = supabase
         .from('zoom_webinars')
         .select('*')
         .eq('user_id', user.id);
-        
+      
+      // Apply date range filtering if provided
+      if (startDate) {
+        query = query.gte('start_time', startDate);
+      }
+      
+      if (endDate) {
+        query = query.lte('start_time', endDate);
+      }
+      
+      const { data: existingData } = await query;
       existingWebinars = existingData || [];
       
-      // For each webinar, get participant counts for completed webinars
-      // Process in batches to avoid timeouts
-      const BATCH_SIZE = 10;
+      // Process in smaller batches to avoid timeouts
+      const BATCH_SIZE = batchSize; // Using requested batch size
       const webinarsWithParticipantData = [];
       
       for (let i = 0; i < allWebinars.length; i += BATCH_SIZE) {

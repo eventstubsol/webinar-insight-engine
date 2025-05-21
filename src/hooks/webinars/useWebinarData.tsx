@@ -19,7 +19,8 @@ export function useWebinarData() {
     errorDetails, 
     refreshWebinars, 
     lastSyncTime, 
-    credentialsStatus 
+    credentialsStatus,
+    dateRange 
   } = useZoomWebinars();
   
   // We no longer need useZoomCredentialsVerification since we're relying on 
@@ -89,7 +90,7 @@ export function useWebinarData() {
       setIsRefreshError(false);
       
       try {
-        console.log('[useWebinarData] Starting manual refresh');
+        console.log('[useWebinarData] Starting manual refresh with date filtering');
         await refreshWebinars(force);
         
         // Reset any previous refresh errors
@@ -97,7 +98,7 @@ export function useWebinarData() {
         
         toast({
           title: 'Webinars synced',
-          description: 'Webinar data has been updated from Zoom',
+          description: 'Webinar data has been updated from Zoom for the last 12 months and next 12 months',
           variant: 'default'
         });
       } catch (err) {
@@ -186,12 +187,15 @@ export function useWebinarData() {
     refreshWebinars: handleRefresh, // Use our wrapper
     lastSyncTime,
     credentialsStatus,
-    isVerifying,
-    verified,
-    scopesError, // Now explicitly a boolean
+    isVerifying: isLoading && !isRefetching,
+    verified: credentialsStatus?.hasCredentials && 
+              !errorDetails.isMissingCredentials && 
+              !errorDetails.isScopesError,
+    scopesError: Boolean(errorDetails.isScopesError), // Now explicitly a boolean
     checkCredentialsStatus,
     isRefreshError,
     verificationDetails: credentialsStatus,
-    handleAutoRefresh
+    handleAutoRefresh: handleAutoRefresh,
+    dateRange // Add the date range to the return value
   };
 }

@@ -3,16 +3,35 @@ import { toast } from '@/hooks/use-toast';
 import { ZoomWebinar } from '../types';
 
 /**
- * Fetch webinars from database
+ * Fetch webinars from database with date range filtering
  */
-export async function fetchWebinarsFromDatabase(userId: string): Promise<ZoomWebinar[] | null> {
-  console.log('[fetchWebinarsFromDatabase] Fetching webinars from database');
+export async function fetchWebinarsFromDatabase(
+  userId: string, 
+  startDate?: Date | string, 
+  endDate?: Date | string
+): Promise<ZoomWebinar[] | null> {
+  console.log('[fetchWebinarsFromDatabase] Fetching webinars from database with date filtering');
   
-  const { data: dbWebinars, error: dbError } = await supabase
+  let query = supabase
     .from('zoom_webinars')
     .select('*')
     .eq('user_id', userId)
     .order('start_time', { ascending: false });
+  
+  // Apply date range filtering if provided
+  if (startDate) {
+    const formattedStartDate = typeof startDate === 'string' ? startDate : startDate.toISOString();
+    query = query.gte('start_time', formattedStartDate);
+    console.log(`[fetchWebinarsFromDatabase] Filtering webinars after: ${formattedStartDate}`);
+  }
+  
+  if (endDate) {
+    const formattedEndDate = typeof endDate === 'string' ? endDate : endDate.toISOString();
+    query = query.lte('start_time', formattedEndDate);
+    console.log(`[fetchWebinarsFromDatabase] Filtering webinars before: ${formattedEndDate}`);
+  }
+  
+  const { data: dbWebinars, error: dbError } = await query;
   
   if (dbError) {
     console.error('[fetchWebinarsFromDatabase] Error:', dbError);
@@ -20,11 +39,11 @@ export async function fetchWebinarsFromDatabase(userId: string): Promise<ZoomWeb
   }
   
   if (!dbWebinars || dbWebinars.length === 0) {
-    console.log('[fetchWebinarsFromDatabase] No webinars found in database');
+    console.log('[fetchWebinarsFromDatabase] No webinars found in database with date range filter');
     return [];
   }
   
-  console.log(`[fetchWebinarsFromDatabase] Found ${dbWebinars.length} webinars in database`);
+  console.log(`[fetchWebinarsFromDatabase] Found ${dbWebinars.length} webinars in database with date range filter`);
   
   return transformDatabaseWebinars(dbWebinars);
 }
@@ -107,15 +126,27 @@ function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
 }
 
 /**
- * Fetch webinars from API
+ * Fetch webinars from API with date range filtering
  */
-export async function fetchWebinarsFromAPI(forceSync: boolean = false): Promise<ZoomWebinar[]> {
-  console.log(`[fetchWebinarsFromAPI] Fetching webinars from API with force_sync=${forceSync}`);
+export async function fetchWebinarsFromAPI(
+  forceSync: boolean = false,
+  startDate?: Date | string,
+  endDate?: Date | string,
+  batchSize: number = 2
+): Promise<ZoomWebinar[]> {
+  console.log(`[fetchWebinarsFromAPI] Fetching webinars from API with force_sync=${forceSync}, date range filtering, and batch size ${batchSize}`);
+  
+  // Convert dates to ISO strings if they're Date objects
+  const startDateStr = startDate ? (typeof startDate === 'string' ? startDate : startDate.toISOString()) : undefined;
+  const endDateStr = endDate ? (typeof endDate === 'string' ? endDate : endDate.toISOString()) : undefined;
   
   const { data, error } = await supabase.functions.invoke('zoom-api', {
     body: { 
       action: 'list-webinars',
-      force_sync: forceSync 
+      force_sync: forceSync,
+      start_date: startDateStr,
+      end_date: endDateStr,
+      batch_size: batchSize
     }
   });
   
@@ -133,16 +164,29 @@ export async function fetchWebinarsFromAPI(forceSync: boolean = false): Promise<
 }
 
 /**
- * Refresh webinars from API with force option
+ * Refresh webinars from API with force option and date filtering
  */
-export async function refreshWebinarsFromAPI(userId: string, force: boolean = false): Promise<any> {
-  console.log(`[refreshWebinarsFromAPI] Starting refresh with force=${force}`);
+export async function refreshWebinarsFromAPI(
+  userId: string, 
+  force: boolean = false,
+  startDate?: Date | string,
+  endDate?: Date | string,
+  batchSize: number = 2
+): Promise<any> {
+  console.log(`[refreshWebinarsFromAPI] Starting refresh with force=${force} and date filtering`);
+  
+  // Convert dates to ISO strings if they're Date objects
+  const startDateStr = startDate ? (typeof startDate === 'string' ? startDate : startDate.toISOString()) : undefined;
+  const endDateStr = endDate ? (typeof endDate === 'string' ? endDate : endDate.toISOString()) : undefined;
   
   // Make the API call to fetch fresh data from Zoom
   const { data: refreshData, error: refreshError } = await supabase.functions.invoke('zoom-api', {
     body: { 
       action: 'list-webinars',
-      force_sync: force 
+      force_sync: force,
+      start_date: startDateStr,
+      end_date: endDateStr,
+      batch_size: batchSize
     }
   });
   
