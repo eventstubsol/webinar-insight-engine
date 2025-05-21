@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, CheckCircle2 } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface WebinarAlertsProps {
@@ -40,17 +40,8 @@ export const WebinarAlerts: React.FC<WebinarAlertsProps> = ({
           </AlertDescription>
         </Alert>
       )}
-
-      {/* Show credential verification success message */}
-      {credentialsStatus?.hasCredentials && credentialsStatus.isVerified && verified && (
-        <Alert className="bg-green-50 border-green-200 mb-4">
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-800">Zoom Account Connected</AlertTitle>
-          <AlertDescription className="text-green-700">
-            Your Zoom account is successfully connected. You can now manage and analyze your webinars.
-          </AlertDescription>
-        </Alert>
-      )}
+      
+      {/* Success banner removed - now showing in TopNav as a badge */}
     </>
   );
 };

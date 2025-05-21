@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Bell, Search, RefreshCw } from 'lucide-react';
+import { Bell, Search, RefreshCw, CheckCircle2, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -22,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 
 export const TopNav = () => {
   const { user } = useAuth();
@@ -63,11 +64,44 @@ export const TopNav = () => {
       </div>
       
       <div className="flex items-center gap-3">
+        {/* Zoom Connection Status Badge */}
+        {user && !isLoadingCredentials && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2">
+                  <Badge 
+                    variant={credentialsStatus?.hasCredentials ? "success" : "warning"}
+                    className="flex items-center gap-1 px-2 py-1 text-xs"
+                  >
+                    {credentialsStatus?.hasCredentials ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3" />
+                        <span>Zoom: Connected</span>
+                      </>
+                    ) : (
+                      <>
+                        <WifiOff className="h-3 w-3" />
+                        <span>Zoom: Not Connected</span>
+                      </>
+                    )}
+                  </Badge>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {credentialsStatus?.hasCredentials 
+                  ? "Your Zoom account is connected" 
+                  : "Connect your Zoom account to view webinars"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        
         {needsZoomSetup && (
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/webinars')}
           >
             Connect Zoom
           </Button>
