@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -14,6 +14,11 @@ import { Grid, List, Info, X, Video } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
 
 interface WebinarLayoutProps {
   webinars: any[];
@@ -41,8 +46,8 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
   onDismissError,
   errorBannerDismissed = false
 }) => {
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [dateFilter, setDateFilter] = React.useState<Date | undefined>(undefined);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   
   // Show a subtle error only for non-critical errors
   const showSubtleError = !errorBannerDismissed && 
@@ -111,7 +116,8 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
             <WebinarFilters 
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              onDateFilterChange={setDateFilter}
+              dateRange={dateRange}
+              onDateRangeChange={setDateRange}
             />
           </div>
         </CardHeader>
@@ -122,6 +128,8 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
             error={error}
             viewMode={viewMode}
             filterTab={filterTab}
+            searchQuery={searchQuery}
+            dateRange={dateRange}
           />
         </CardContent>
       </Card>

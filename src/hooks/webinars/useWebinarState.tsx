@@ -18,8 +18,8 @@ export const useWebinarState = () => {
     filterTab,
     searchQuery,
     setSearchQuery,
-    dateFilter,
-    setDateFilter,
+    dateRange,
+    setDateRange,
     errorBannerDismissed,
     dismissErrorBanner
   } = useWebinarUIState();
@@ -113,8 +113,8 @@ export const useWebinarState = () => {
     filterTab,
     searchQuery,
     setSearchQuery,
-    dateFilter,
-    setDateFilter,
+    dateRange,
+    setDateRange,
     handleSetupZoom,
     handleWizardComplete,
     errorMessage,

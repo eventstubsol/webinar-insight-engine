@@ -2,6 +2,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ViewMode, FilterTab } from './WebinarContext';
 
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
+
 const ERROR_PERSIST_KEY = 'zoom-webinar-error-dismissed';
 
 export function useWebinarUIState() {
@@ -13,7 +18,7 @@ export function useWebinarUIState() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   
   // Track if user has dismissed the error banner
   const [errorBannerDismissed, setErrorBannerDismissed] = useState(
@@ -60,8 +65,8 @@ export function useWebinarUIState() {
     setFilterTab,
     searchQuery,
     setSearchQuery,
-    dateFilter,
-    setDateFilter,
+    dateRange,
+    setDateRange,
     errorBannerDismissed,
     dismissErrorBanner
   };

@@ -10,12 +10,19 @@ import { WebinarEmptyState } from './list/WebinarEmptyState';
 import { getPageNumbers } from './list/webinarHelpers';
 import { useWebinarListState } from '@/hooks/webinars/useWebinarListState';
 
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
+
 interface WebinarsListProps {
   webinars: ZoomWebinar[];
   isLoading: boolean;
   error?: Error | null;
   viewMode: 'list' | 'grid';
   filterTab: string;
+  searchQuery: string;
+  dateRange: DateRange;
 }
 
 export const WebinarsList: React.FC<WebinarsListProps> = ({ 
@@ -23,7 +30,9 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
   isLoading, 
   error, 
   viewMode, 
-  filterTab 
+  filterTab,
+  searchQuery,
+  dateRange
 }) => {
   const {
     currentPage,
@@ -35,7 +44,13 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
     handleSelectAll,
     itemsPerPage,
     filteredWebinars
-  } = useWebinarListState({ webinars, filterTab, viewMode });
+  } = useWebinarListState({ 
+    webinars, 
+    filterTab, 
+    viewMode, 
+    searchQuery,
+    dateRange 
+  });
 
   // If loading, show loading state
   if (isLoading) {

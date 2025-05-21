@@ -1,31 +1,70 @@
-
 import { useState, useMemo } from 'react';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { isWebinarLive, isWebinarUpcoming, isWebinarPast } from '@/components/webinars/list/webinarHelpers';
+
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
 
 interface UseWebinarListStateProps {
   webinars: ZoomWebinar[];
   filterTab: string;
   viewMode: 'list' | 'grid';
+  searchQuery: string;
+  dateRange: DateRange;
 }
 
-export const useWebinarListState = ({ webinars = [], filterTab, viewMode }: UseWebinarListStateProps) => {
-  const [searchQuery, setSearchQuery] = useState('');
+export const useWebinarListState = ({ 
+  webinars = [], 
+  filterTab, 
+  viewMode, 
+  searchQuery, 
+  dateRange 
+}: UseWebinarListStateProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([]);
   const itemsPerPage = viewMode === 'grid' ? 12 : 10;
 
-  // Filter webinars based on search query and tab selection
+  // Filter webinars based on search query, date range, and tab selection
   const filteredWebinars = useMemo(() => {
     // Reset to page 1 when filters change
     if (currentPage !== 1) {
       setCurrentPage(1);
     }
     
-    let filtered = webinars.filter(webinar => 
-      webinar.topic?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      webinar.host_email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    let filtered = webinars;
+    
+    // Apply search filter if query exists
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(webinar => 
+        (webinar.topic?.toLowerCase().includes(query)) || 
+        (webinar.host_email?.toLowerCase().includes(query))
+      );
+    }
+    
+    // Apply date range filter if dates are selected
+    if (dateRange.from) {
+      const startDate = new Date(dateRange.from);
+      startDate.setHours(0, 0, 0, 0);
+      
+      filtered = filtered.filter(webinar => {
+        if (!webinar.start_time) return false;
+        
+        const webinarDate = new Date(webinar.start_time);
+        
+        // If only start date is selected, filter for webinars on or after that date
+        if (!dateRange.to) {
+          return webinarDate >= startDate;
+        }
+        
+        // If both start and end dates are selected, filter for webinars within that range
+        const endDate = new Date(dateRange.to);
+        endDate.setHours(23, 59, 59, 999);
+        return webinarDate >= startDate && webinarDate <= endDate;
+      });
+    }
     
     // Filter webinars based on the selected tab
     if (filterTab !== 'all') {
@@ -47,7 +86,7 @@ export const useWebinarListState = ({ webinars = [], filterTab, viewMode }: UseW
     }
     
     return filtered;
-  }, [webinars, searchQuery, filterTab, currentPage]);
+  }, [webinars, searchQuery, dateRange, filterTab, currentPage]);
 
   // Calculate pagination
   const totalPages = Math.max(1, Math.ceil(filteredWebinars.length / itemsPerPage));
@@ -78,7 +117,6 @@ export const useWebinarListState = ({ webinars = [], filterTab, viewMode }: UseW
 
   return {
     searchQuery,
-    setSearchQuery,
     currentPage,
     setCurrentPage,
     selectedWebinars,
