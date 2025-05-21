@@ -44,7 +44,7 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
   filterTab,
   errorDetails,
   onDismissError,
-  errorBannerDismissed = false
+  errorBannerDismissed = false // Default value if none provided
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });

@@ -13,7 +13,7 @@ interface WebinarAlertsProps {
   showWizard: boolean;
   onSetupZoom: () => void;
   onDismissError?: () => void;
-  errorBannerDismissed?: boolean;
+  errorBannerDismissed: boolean; // Explicitly typed as boolean, not optional
 }
 
 export const WebinarAlerts: React.FC<WebinarAlertsProps> = ({
@@ -22,7 +22,7 @@ export const WebinarAlerts: React.FC<WebinarAlertsProps> = ({
   showWizard,
   onSetupZoom,
   onDismissError,
-  errorBannerDismissed = false
+  errorBannerDismissed = false // Default value if none provided
 }) => {
   if (!credentialsStatus) return null;
   
