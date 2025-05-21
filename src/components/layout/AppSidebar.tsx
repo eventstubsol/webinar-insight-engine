@@ -48,7 +48,7 @@ export function AppSidebar() {
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'User';
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader className="py-4">
         <div className="px-4 flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-teal-500 flex items-center justify-center">
