@@ -11,7 +11,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
 import { useZoomCredentials } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
+import { Info, ArrowRight, Loader2 } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
 
 const Dashboard = () => {
@@ -32,10 +32,6 @@ const Dashboard = () => {
     await checkCredentialsStatus();
   };
 
-  const handleRefreshData = () => {
-    refreshWebinars(true); // Force refresh from API
-  };
-
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
@@ -47,29 +43,7 @@ const Dashboard = () => {
           
           {hasZoomCredentials && (
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefreshData}
-                disabled={isRefetching}
-              >
-                {isRefetching ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Syncing...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Sync Zoom Data
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={() => navigate('/webinars')}
-              >
-                View Webinars
-              </Button>
+              {/* Buttons removed here */}
             </div>
           )}
         </div>
