@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useZoomWebinars, useZoomCredentialsVerification, useZoomCredentials } from '@/hooks/zoom';
 import { useToast } from '@/hooks/use-toast';
@@ -150,7 +149,7 @@ export const useWebinarState = () => {
     refreshWebinars,
     lastSyncTime,
     credentialsStatus,
-    verifyCredentials,
+    verifyCredentials, // This now returns Promise<void> which matches the WebinarTabs component's expectation
     isVerifying,
     verified,
     scopesError,

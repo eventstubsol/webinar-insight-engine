@@ -18,7 +18,9 @@ interface WebinarTabsProps {
   errorMessage: string;
   errorDetails: {
     isMissingCredentials: boolean;
+    isCapabilitiesError: boolean;
     isScopesError: boolean;
+    missingSecrets: string[];
   };
   verified: boolean;
   verifyCredentials: () => Promise<void>;
