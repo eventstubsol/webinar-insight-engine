@@ -1,4 +1,3 @@
-
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ZoomWebinar } from '../types';
@@ -104,18 +103,25 @@ export function enhanceErrorMessage(err: any): string {
   return errorMessage;
 }
 
-// Update participant data for webinars - return void instead of any
+// Update participant data for webinars
 export async function updateParticipantDataForWebinars(userId: string | undefined): Promise<void> {
   if (!userId) {
+    console.log('[updateParticipantDataForWebinars] No userId provided');
+    toast({
+      title: 'Authentication required',
+      description: 'You must be logged in to update participant data',
+      variant: 'destructive'
+    });
     throw new Error('Authentication Required: You must be logged in to update participant data');
   }
   
-  console.log('[updateParticipantDataForWebinars] Updating participant data for webinars');
+  console.log(`[updateParticipantDataForWebinars] Updating participant data for user ${userId}`);
   
   try {
     const { data, error } = await supabase.functions.invoke('zoom-api', {
       body: { 
-        action: 'update-webinar-participants'
+        action: 'update-webinar-participants',
+        user_id: userId // Pass userId to Edge Function
       }
     });
     
@@ -132,8 +138,16 @@ export async function updateParticipantDataForWebinars(userId: string | undefine
       description: data.message || `Updated ${data.updated} webinars with participant data`,
       variant: 'success'
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[updateParticipantDataForWebinars] Unhandled error:', err);
+    
+    // Show error toast with enhanced message
+    toast({
+      title: 'Update failed',
+      description: enhanceErrorMessage(err),
+      variant: 'destructive'
+    });
+    
     throw err;
   }
 }

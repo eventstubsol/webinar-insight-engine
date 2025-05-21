@@ -20,11 +20,13 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tool
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { updateParticipantDataForWebinars } from '@/hooks/zoom/utils/webinarUtils';
+import { useAuth } from '@/hooks/useAuth';
 
 export const RegistrationAttendanceChart = () => {
   const { webinars, isLoading, refreshWebinars } = useZoomWebinars();
   const [updatingParticipantData, setUpdatingParticipantData] = useState(false);
   const [debug, setDebug] = useState(false);
+  const { user } = useAuth(); // Get the current user
   
   // Calculate registrants and attendees aggregated by month for the last 12 months
   const webinarStats = useMemo(() => {
@@ -164,7 +166,8 @@ export const RegistrationAttendanceChart = () => {
       setUpdatingParticipantData(true);
       console.log('Starting participant data update');
       
-      await updateParticipantDataForWebinars();
+      // Pass the user.id to the function - this fixes the TypeScript error
+      await updateParticipantDataForWebinars(user?.id);
       
       // Refresh webinars to get updated data
       await refreshWebinars();
