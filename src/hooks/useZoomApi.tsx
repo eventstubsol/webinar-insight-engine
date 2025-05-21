@@ -6,7 +6,6 @@ import {
   ZoomParticipants,
   ZoomCredentialsStatus,
   useZoomCredentials,
-  useZoomCredentialsVerification,
   useZoomWebinars,
   useZoomWebinarDetails,
   useZoomWebinarParticipants
@@ -20,7 +19,6 @@ export type {
 
 export {
   useZoomCredentials,
-  useZoomCredentialsVerification,
   useZoomWebinars,
   useZoomWebinarDetails,
   useZoomWebinarParticipants
