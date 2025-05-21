@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Video, Calendar, CheckCircle, XCircle } from 'lucide-react';
+import { Video, Calendar, CheckCircle, XCircle, Repeat } from 'lucide-react';
 
 export interface WebinarStatus {
   value: string;
@@ -34,6 +34,12 @@ export const statusMap: Record<string, WebinarStatus> = {
     label: 'Canceled', 
     variant: 'destructive',
     icon: XCircle
+  },
+  'recurring': { 
+    value: 'recurring', 
+    label: 'Recurring', 
+    variant: 'secondary',
+    icon: Repeat
   },
 };
 

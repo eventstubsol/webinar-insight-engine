@@ -120,6 +120,119 @@ export type Database = {
         }
         Relationships: []
       }
+      zoom_webinar_instance_participants: {
+        Row: {
+          created_at: string
+          duration: number | null
+          email: string | null
+          id: string
+          instance_id: string
+          join_time: string | null
+          leave_time: string | null
+          name: string | null
+          participant_id: string | null
+          participant_type: string
+          raw_data: Json
+          updated_at: string
+          user_id: string
+          webinar_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration?: number | null
+          email?: string | null
+          id?: string
+          instance_id: string
+          join_time?: string | null
+          leave_time?: string | null
+          name?: string | null
+          participant_id?: string | null
+          participant_type: string
+          raw_data: Json
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+        }
+        Update: {
+          created_at?: string
+          duration?: number | null
+          email?: string | null
+          id?: string
+          instance_id?: string
+          join_time?: string | null
+          leave_time?: string | null
+          name?: string | null
+          participant_id?: string | null
+          participant_type?: string
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_instance_participants_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_webinar_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_webinar_instances: {
+        Row: {
+          created_at: string
+          duration: number | null
+          end_time: string | null
+          id: string
+          instance_id: string
+          participants_count: number | null
+          raw_data: Json
+          registrants_count: number | null
+          start_time: string | null
+          status: string | null
+          topic: string
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          webinar_uuid: string
+        }
+        Insert: {
+          created_at?: string
+          duration?: number | null
+          end_time?: string | null
+          id?: string
+          instance_id: string
+          participants_count?: number | null
+          raw_data: Json
+          registrants_count?: number | null
+          start_time?: string | null
+          status?: string | null
+          topic: string
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          webinar_uuid: string
+        }
+        Update: {
+          created_at?: string
+          duration?: number | null
+          end_time?: string | null
+          id?: string
+          instance_id?: string
+          participants_count?: number | null
+          raw_data?: Json
+          registrants_count?: number | null
+          start_time?: string | null
+          status?: string | null
+          topic?: string
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          webinar_uuid?: string
+        }
+        Relationships: []
+      }
       zoom_webinar_participants: {
         Row: {
           created_at: string

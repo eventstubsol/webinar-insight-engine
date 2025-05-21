@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { ZoomWebinar } from '../types';
@@ -28,6 +27,40 @@ export async function fetchWebinarsFromDatabase(userId: string): Promise<ZoomWeb
   console.log(`[fetchWebinarsFromDatabase] Found ${dbWebinars.length} webinars in database`);
   
   return transformDatabaseWebinars(dbWebinars);
+}
+
+/**
+ * Fetch webinar instances from database
+ */
+export async function fetchWebinarInstancesFromDatabase(userId: string, webinarId?: string): Promise<any[] | null> {
+  console.log('[fetchWebinarInstancesFromDatabase] Fetching webinar instances from database');
+  
+  let query = supabase
+    .from('zoom_webinar_instances')
+    .select('*')
+    .eq('user_id', userId)
+    .order('start_time', { ascending: false });
+    
+  // If a specific webinar ID is provided, filter for just that webinar
+  if (webinarId) {
+    query = query.eq('webinar_id', webinarId);
+  }
+  
+  const { data: dbInstances, error: dbError } = await query;
+  
+  if (dbError) {
+    console.error('[fetchWebinarInstancesFromDatabase] Error:', dbError);
+    return null;
+  }
+  
+  if (!dbInstances || dbInstances.length === 0) {
+    console.log('[fetchWebinarInstancesFromDatabase] No webinar instances found in database');
+    return [];
+  }
+  
+  console.log(`[fetchWebinarInstancesFromDatabase] Found ${dbInstances.length} webinar instances in database`);
+  
+  return dbInstances;
 }
 
 /**
@@ -147,6 +180,53 @@ export async function updateParticipantDataAPI(): Promise<any> {
   
   console.log('[updateParticipantDataAPI] Update completed:', data);
   return data;
+}
+
+/**
+ * Fetch webinar instances from API
+ */
+export async function fetchWebinarInstancesAPI(webinarId: string): Promise<any> {
+  console.log(`[fetchWebinarInstancesAPI] Fetching instances for webinar ID: ${webinarId}`);
+  
+  const { data, error } = await supabase.functions.invoke('zoom-api', {
+    body: { 
+      action: 'get-webinar-instances',
+      webinar_id: webinarId
+    }
+  });
+  
+  if (error) {
+    console.error('[fetchWebinarInstancesAPI] Error:', error);
+    throw error;
+  }
+  
+  console.log(`[fetchWebinarInstancesAPI] Retrieved ${data.instances?.length || 0} instances`);
+  return data.instances || [];
+}
+
+/**
+ * Fetch instance participants from API
+ */
+export async function fetchInstanceParticipantsAPI(webinarId: string, instanceId: string): Promise<any> {
+  console.log(`[fetchInstanceParticipantsAPI] Fetching participants for webinar ID: ${webinarId}, instance ID: ${instanceId}`);
+  
+  const { data, error } = await supabase.functions.invoke('zoom-api', {
+    body: { 
+      action: 'get-instance-participants',
+      webinar_id: webinarId,
+      instance_id: instanceId
+    }
+  });
+  
+  if (error) {
+    console.error('[fetchInstanceParticipantsAPI] Error:', error);
+    throw error;
+  }
+  
+  return {
+    registrants: data.registrants || [],
+    attendees: data.attendees || []
+  };
 }
 
 /**
