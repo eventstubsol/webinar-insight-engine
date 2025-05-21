@@ -182,6 +182,56 @@ export function useZoomWebinars() {
     }
   };
   
+  const updateParticipantData = async () => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'You must be logged in to update participant data',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    console.log('[updateParticipantData] Updating participant data for webinars');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('zoom-api', {
+        body: { 
+          action: 'update-webinar-participants'
+        }
+      });
+      
+      if (error) {
+        console.error('[updateParticipantData] Error:', error);
+        toast({
+          title: 'Update failed',
+          description: error.message || 'Failed to update participant data',
+          variant: 'destructive'
+        });
+        throw error;
+      }
+      
+      console.log('[updateParticipantData] Update completed:', data);
+      
+      // Show toast with results
+      toast({
+        title: 'Participant data updated',
+        description: data.message || `Updated ${data.updated} webinars with participant data`,
+        variant: 'success'
+      });
+      
+      // Invalidate the query cache to force a refresh
+      await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', user.id] });
+      
+      // Trigger a refetch to get the latest data
+      const refetchResult = await refetch();
+      return refetchResult.data;
+    } catch (err) {
+      console.error('[updateParticipantData] Error:', err);
+      // Error handling already done above
+    }
+  };
+  
   // Get user's sync history
   const [syncHistory, setSyncHistory] = useState<any[]>([]);
   
@@ -231,6 +281,7 @@ export function useZoomWebinars() {
     error,
     errorDetails,
     refreshWebinars,
+    updateParticipantData,
     syncHistory,
     lastSyncTime,
     credentialsStatus

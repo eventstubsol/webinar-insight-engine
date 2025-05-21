@@ -3,13 +3,17 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
 import { parseISO, format, isValid, subMonths, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
-import { TrendingUp, Users } from 'lucide-react';
+import { TrendingUp, Users, RefreshCw } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export const RegistrationAttendanceChart = () => {
-  const { webinars, isLoading } = useZoomWebinars();
+  const { webinars, isLoading, refreshWebinars } = useZoomWebinars();
+  const [updatingParticipantData, setUpdatingParticipantData] = React.useState(false);
   
   // Calculate registrants and attendees aggregated by month for the last 12 months
   const webinarStats = useMemo(() => {
@@ -34,6 +38,8 @@ export const RegistrationAttendanceChart = () => {
         if (!webinar.start_time) return;
         
         const webinarDate = parseISO(webinar.start_time);
+        if (!isValid(webinarDate)) return;
+        
         // Find the month entry that corresponds to this webinar
         const monthEntry = months.find(m => isSameMonth(m.month, webinarDate));
         if (!monthEntry) return;
@@ -42,12 +48,14 @@ export const RegistrationAttendanceChart = () => {
         let registrants = 0;
         let attendees = 0;
         
-        if (webinar.raw_data) {
-          // Try to get values from raw_data
-          if (typeof webinar.raw_data === 'object') {
-            registrants = webinar.raw_data.registrants_count || 0;
-            attendees = webinar.raw_data.participants_count || 0;
-          }
+        // Try to get data from raw_data first
+        if (webinar.raw_data && typeof webinar.raw_data === 'object') {
+          registrants = webinar.raw_data.registrants_count || 0;
+          attendees = webinar.raw_data.participants_count || 0;
+        } else {
+          // Fallback to direct properties if they exist
+          registrants = webinar.registrants_count || 0;
+          attendees = webinar.participants_count || 0;
         }
         
         // Add to the month's total
@@ -57,6 +65,55 @@ export const RegistrationAttendanceChart = () => {
     
     return months;
   }, [webinars]);
+
+  // Handle updating webinar participant data
+  const handleUpdateParticipantData = async () => {
+    if (updatingParticipantData) return;
+    
+    try {
+      setUpdatingParticipantData(true);
+      
+      toast({
+        title: "Updating participant data",
+        description: "This may take a moment...",
+        duration: 2000,
+      });
+      
+      // Call our new API endpoint
+      const { data, error } = await supabase.functions.invoke('zoom-api', {
+        body: { action: 'update-webinar-participants' }
+      });
+      
+      if (error) {
+        console.error('Error updating participant data:', error);
+        toast({
+          title: "Update failed",
+          description: error.message || "Failed to update participant data",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Refresh webinars to get updated data
+      await refreshWebinars();
+      
+      toast({
+        title: "Participant data updated",
+        description: data.message || `Updated ${data.updated} webinars with participant data`,
+        variant: "success",
+      });
+      
+    } catch (err) {
+      console.error('Error updating participant data:', err);
+      toast({
+        title: "Update failed",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingParticipantData(false);
+    }
+  };
 
   // Format the chart data with proper colors and stacked areas
   const chartConfig = {
@@ -70,6 +127,9 @@ export const RegistrationAttendanceChart = () => {
     }
   };
 
+  // Check if we have any data to display (at least one month with non-zero registrants or attendees)
+  const hasData = webinarStats.some(month => month.registrants > 0 || month.attendees > 0);
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -77,24 +137,39 @@ export const RegistrationAttendanceChart = () => {
           <CardTitle className="text-base font-semibold">Registration vs Attendance</CardTitle>
           <CardDescription>Monthly trends for the last 12 months</CardDescription>
         </div>
-        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-          <TrendingUp className="h-4 w-4" />
+        <div className="flex items-center gap-2">
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={handleUpdateParticipantData}
+            disabled={updatingParticipantData || isLoading}
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className={`h-3 w-3 ${updatingParticipantData ? 'animate-spin' : ''}`} />
+            {updatingParticipantData ? 'Updating...' : 'Update Data'}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="w-full h-80">
-        {isLoading ? (
+        {isLoading || updatingParticipantData ? (
           <div className="flex items-center justify-center h-full w-full">
             <Skeleton className="h-64 w-full" />
           </div>
-        ) : webinarStats.length === 0 ? (
+        ) : !hasData ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <Users className="h-12 w-12 mb-2" />
-            <p>No attendance data available</p>
+            <p className="mb-4">No registration or attendance data available</p>
+            <Button 
+              variant="outline" 
+              onClick={handleUpdateParticipantData}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Update Participant Data
+            </Button>
           </div>
         ) : (
-          <ChartContainer
-            config={chartConfig}
-          >
+          <ChartContainer config={chartConfig}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                 data={webinarStats}

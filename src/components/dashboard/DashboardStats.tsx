@@ -10,7 +10,6 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Video, Users, Activity, Clock } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
-import { useZoomWebinarParticipants } from '@/hooks/zoom';
 import { format, parseISO } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -50,16 +49,36 @@ export const DashboardStats = () => {
   // Calculate stats from real data
   const getTotalWebinars = () => webinars.length;
   
-  // Calculate total registrants from webinar participants
+  // Calculate total registrants from webinar data
   const getTotalRegistrants = () => {
-    // This would ideally come from the API but for now we'll return a placeholder
-    return 0;
+    return webinars.reduce((total, webinar) => {
+      // Try to get registrants from different possible locations in the data
+      let registrantCount = 0;
+      
+      if (webinar.raw_data && typeof webinar.raw_data === 'object') {
+        registrantCount = webinar.raw_data?.registrants_count || 0;
+      } else if (webinar.registrants_count !== undefined) {
+        registrantCount = webinar.registrants_count;
+      }
+      
+      return total + registrantCount;
+    }, 0);
   };
   
   // Calculate total attendees
   const getTotalAttendees = () => {
-    // This would ideally come from the API but for now we'll return a placeholder
-    return 0;
+    return webinars.reduce((total, webinar) => {
+      // Try to get attendees from different possible locations in the data
+      let attendeeCount = 0;
+      
+      if (webinar.raw_data && typeof webinar.raw_data === 'object') {
+        attendeeCount = webinar.raw_data?.participants_count || 0;
+      } else if (webinar.participants_count !== undefined) {
+        attendeeCount = webinar.participants_count;
+      }
+      
+      return total + attendeeCount;
+    }, 0);
   };
   
   // Calculate attendance rate

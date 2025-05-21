@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8'
 import { corsHeaders, handleCors } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
@@ -9,7 +10,8 @@ import {
 import { 
   handleListWebinars, 
   handleGetWebinar, 
-  handleGetParticipants 
+  handleGetParticipants,
+  handleUpdateWebinarParticipants
 } from './webinars.ts';
 import { createErrorResponse } from './utils.ts';
 
@@ -99,6 +101,9 @@ Deno.serve(async (req) => {
       
       case 'get-participants':
         return await handleGetParticipants(req, supabase, user, credentials, id);
+      
+      case 'update-webinar-participants':
+        return await handleUpdateWebinarParticipants(req, supabase, user, credentials);
       
       default:
         return new Response(JSON.stringify({ error: 'Invalid action' }), {

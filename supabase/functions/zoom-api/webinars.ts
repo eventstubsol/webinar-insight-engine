@@ -1,4 +1,3 @@
-
 import { corsHeaders } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
 
@@ -118,6 +117,61 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         .eq('user_id', user.id);
         
       existingWebinars = existingData || [];
+      
+      // For each webinar, get participant counts for completed webinars
+      const webinarsWithParticipantData = await Promise.all(
+        responseData.webinars.map(async (webinar: any) => {
+          // Only fetch participant data for completed webinars
+          const webinarStartTime = new Date(webinar.start_time);
+          const isCompleted = webinar.status === 'ended' || 
+                             (webinarStartTime < new Date() && 
+                              new Date().getTime() - webinarStartTime.getTime() > webinar.duration * 60 * 1000);
+          
+          if (isCompleted) {
+            try {
+              console.log(`[zoom-api][list-webinars] Fetching participants for webinar: ${webinar.id}`);
+              
+              // Make parallel requests for registrants and attendees
+              const [registrantsRes, attendeesRes] = await Promise.all([
+                fetch(`https://api.zoom.us/v2/webinars/${webinar.id}/registrants?page_size=1`, {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                }),
+                fetch(`https://api.zoom.us/v2/past_webinars/${webinar.id}/participants?page_size=1`, {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                })
+              ]);
+              
+              const [registrantsData, attendeesData] = await Promise.all([
+                registrantsRes.ok ? registrantsRes.json() : { total_records: 0 },
+                attendeesRes.ok ? attendeesRes.json() : { total_records: 0 }
+              ]);
+              
+              // Enhance webinar object with participant counts
+              return {
+                ...webinar,
+                registrants_count: registrantsData.total_records || 0,
+                participants_count: attendeesData.total_records || 0
+              };
+            } catch (err) {
+              console.error(`[zoom-api][list-webinars] Error fetching participants for webinar ${webinar.id}:`, err);
+              // Continue with the original webinar data if there's an error
+              return webinar;
+            }
+          } else {
+            // Return original webinar data for upcoming webinars
+            return webinar;
+          }
+        })
+      );
+      
+      // Update the responseData with enhanced webinars
+      responseData.webinars = webinarsWithParticipantData;
       
       // Compare and detect changes
       for (const webinar of responseData.webinars) {
@@ -368,4 +422,151 @@ export async function handleGetParticipants(req: Request, supabase: any, user: a
   }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
+}
+
+// New function to update participant counts for all webinars
+export async function handleUpdateWebinarParticipants(req: Request, supabase: any, user: any, credentials: any) {
+  console.log(`[zoom-api][update-participants] Starting action for user: ${user.id}`);
+  
+  try {
+    // Get the webinar ID from request body (if provided)
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      // If no body, just continue with all webinars
+      body = {};
+    }
+    
+    const specificWebinarId = body.webinar_id;
+    
+    // Get token for API calls
+    const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
+    
+    // Get webinars from database
+    const { data: webinars, error: webinarsError } = await supabase
+      .from('zoom_webinars')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('start_time', { ascending: false })
+      .is('status', 'ended'); // Only process ended webinars
+      
+    if (webinarsError || !webinars || webinars.length === 0) {
+      console.log('[zoom-api][update-participants] No ended webinars found in database');
+      return new Response(JSON.stringify({ 
+        message: 'No ended webinars found to update', 
+        updated: 0,
+        skipped: 0,
+        errors: 0 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Filter by specific webinar ID if provided
+    const webinarsToProcess = specificWebinarId 
+      ? webinars.filter(w => w.webinar_id === specificWebinarId) 
+      : webinars;
+      
+    console.log(`[zoom-api][update-participants] Processing ${webinarsToProcess.length} webinars`);
+    
+    // Process each webinar to get participant counts
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+    
+    for (const webinar of webinarsToProcess) {
+      try {
+        // Make parallel requests for registrants and attendees
+        const [registrantsRes, attendeesRes] = await Promise.all([
+          fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/registrants?page_size=1`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }),
+          fetch(`https://api.zoom.us/v2/past_webinars/${webinar.webinar_id}/participants?page_size=1`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+        ]);
+        
+        const [registrantsData, attendeesData] = await Promise.all([
+          registrantsRes.ok ? registrantsRes.json() : { total_records: 0 },
+          attendeesRes.ok ? attendeesRes.json() : { total_records: 0 }
+        ]);
+        
+        // Update raw_data with participant counts
+        const updatedRawData = {
+          ...webinar.raw_data,
+          registrants_count: registrantsData.total_records || 0,
+          participants_count: attendeesData.total_records || 0
+        };
+        
+        // Only update if counts have changed
+        if (webinar.raw_data.registrants_count !== updatedRawData.registrants_count || 
+            webinar.raw_data.participants_count !== updatedRawData.participants_count) {
+          
+          // Update the database with new participant counts
+          const { error: updateError } = await supabase
+            .from('zoom_webinars')
+            .update({
+              raw_data: updatedRawData
+            })
+            .eq('id', webinar.id);
+          
+          if (updateError) {
+            console.error(`[zoom-api][update-participants] Error updating webinar ${webinar.webinar_id}:`, updateError);
+            errors++;
+          } else {
+            console.log(`[zoom-api][update-participants] Updated webinar ${webinar.webinar_id} with registrants: ${updatedRawData.registrants_count}, participants: ${updatedRawData.participants_count}`);
+            updated++;
+          }
+        } else {
+          console.log(`[zoom-api][update-participants] No changes for webinar ${webinar.webinar_id}`);
+          skipped++;
+        }
+      } catch (err) {
+        console.error(`[zoom-api][update-participants] Error processing webinar ${webinar.webinar_id}:`, err);
+        errors++;
+      }
+    }
+    
+    // Record action in sync history
+    await supabase
+      .from('zoom_sync_history')
+      .insert({
+        user_id: user.id,
+        sync_type: 'participants_count',
+        status: errors === 0 ? 'success' : 'partial',
+        items_synced: updated,
+        message: `Updated participant counts for ${updated} webinars, skipped ${skipped}, with ${errors} errors`
+      });
+    
+    return new Response(JSON.stringify({ 
+      message: `Updated participant counts for ${updated} webinars, skipped ${skipped}, with ${errors} errors`,
+      updated,
+      skipped,
+      errors
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('[zoom-api][update-participants] Error:', error);
+    
+    // Record failed sync in history
+    await supabase
+      .from('zoom_sync_history')
+      .insert({
+        user_id: user.id,
+        sync_type: 'participants_count',
+        status: 'error',
+        items_synced: 0,
+        message: error.message || 'Unknown error'
+      });
+    
+    throw error;
+  }
 }
