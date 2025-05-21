@@ -18,3 +18,34 @@ export async function handleCors(req: Request) {
   }
   return null;
 }
+
+// Helper to ensure all responses include CORS headers
+export function addCorsHeaders(response: Response): Response {
+  // Create new headers merging the original headers with CORS headers
+  const newHeaders = new Headers(response.headers);
+  
+  // Add CORS headers
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    newHeaders.set(key, value);
+  });
+  
+  // Create a new response with the merged headers
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders
+  });
+}
+
+// Helper to create error responses with CORS headers
+export function createErrorResponse(message: string, status: number = 400): Response {
+  return new Response(
+    JSON.stringify({ 
+      error: message 
+    }),
+    {
+      status: status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  );
+}

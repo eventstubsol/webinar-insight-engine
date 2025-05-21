@@ -14,7 +14,7 @@ interface WebinarHeaderProps {
   };
   isRefetching: boolean;
   isLoading: boolean;
-  refreshWebinars: () => Promise<void>;
+  refreshWebinars: (force?: boolean) => Promise<void>;
   lastSyncTime: Date | null;
   onSetupZoom: () => void;
   credentialsStatus: {
@@ -43,6 +43,11 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
     setTimeout(() => setIsCreateLoading(false), 1000);
   };
 
+  const handleForceSync = async () => {
+    // Pass true to force a full sync from the Zoom API
+    await refreshWebinars(true);
+  };
+
   return (
     <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
       <div>
@@ -63,7 +68,7 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
                 <TooltipTrigger asChild>
                   <Button 
                     variant="outline" 
-                    onClick={refreshWebinars}
+                    onClick={handleForceSync}
                     disabled={isLoading || isRefetching}
                   >
                     {isRefetching ? (
@@ -71,7 +76,7 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
                     ) : (
                       <RefreshCw className="h-4 w-4 mr-2" />
                     )}
-                    Refresh
+                    {isRefetching ? 'Syncing...' : 'Sync Now'}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
