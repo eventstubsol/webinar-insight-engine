@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Video, Calendar, CheckCircle, XCircle, Repeat } from 'lucide-react';
+import { Video, Calendar, CheckCircle, XCircle, Repeat, Clock } from 'lucide-react';
 
 export interface WebinarStatus {
   value: string;
@@ -41,13 +41,18 @@ export const statusMap: Record<string, WebinarStatus> = {
     variant: 'secondary',
     icon: Repeat
   },
-  // Add any other status types that might be missing
   'pending': {
     value: 'pending',
     label: 'Pending',
     variant: 'warning',
-    icon: Calendar
+    icon: Clock
   },
+  'processing': {
+    value: 'processing',
+    label: 'Processing',
+    variant: 'warning',
+    icon: Clock
+  }
 };
 
 // Default status if the status doesn't match any in our map

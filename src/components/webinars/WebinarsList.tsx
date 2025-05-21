@@ -18,6 +18,7 @@ interface DateRange {
 interface WebinarsListProps {
   webinars: ZoomWebinar[];
   isLoading: boolean;
+  isRefetching?: boolean;
   error?: Error | null;
   viewMode: 'list' | 'grid';
   filterTab: string;
@@ -28,6 +29,7 @@ interface WebinarsListProps {
 export const WebinarsList: React.FC<WebinarsListProps> = ({ 
   webinars = [], 
   isLoading, 
+  isRefetching = false,
   error, 
   viewMode, 
   filterTab,
@@ -40,10 +42,10 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
     selectedWebinars,
     paginatedWebinars,
     totalPages,
+    filteredWebinars,
     handleWebinarSelection,
     handleSelectAll,
-    itemsPerPage,
-    filteredWebinars
+    itemsPerPage
   } = useWebinarListState({ 
     webinars, 
     filterTab, 
@@ -57,9 +59,24 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
     return <WebinarLoading />;
   }
 
-  // If no webinars after filtering, show empty state
+  // If no webinars at all, show empty state
+  if (webinars.length === 0) {
+    return <WebinarEmptyState 
+      isEmpty={true} 
+      isFiltered={false} 
+      isRefetching={isRefetching}
+      message="No webinars found. Connect your Zoom account to sync your webinars."
+    />;
+  }
+  
+  // If filtered down to zero webinars, show filtered empty state
   if (filteredWebinars.length === 0) {
-    return <WebinarEmptyState isEmpty={webinars.length === 0} isFiltered={webinars.length > 0} />;
+    return <WebinarEmptyState 
+      isEmpty={false}
+      isFiltered={true} 
+      isRefetching={isRefetching}
+      message="No webinars match your current filters. Try adjusting your search or filter criteria."
+    />;
   }
 
   return (
@@ -71,6 +88,7 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
           webinars={paginatedWebinars} 
           selectedWebinars={selectedWebinars}
           handleWebinarSelection={handleWebinarSelection}
+          isRefetching={isRefetching}
         />
       ) : (
         <WebinarListView 
@@ -78,6 +96,7 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
           selectedWebinars={selectedWebinars}
           handleWebinarSelection={handleWebinarSelection}
           handleSelectAll={handleSelectAll}
+          isRefetching={isRefetching}
         />
       )}
       
