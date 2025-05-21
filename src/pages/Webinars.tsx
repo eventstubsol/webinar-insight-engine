@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarsList } from '@/components/webinars/WebinarsList';
+import { WebinarFilters } from '@/components/webinars/WebinarFilters';
 import { WebinarHeader } from '@/components/webinars/WebinarHeader';
 import { WebinarError } from '@/components/webinars/WebinarError';
 import { WebinarSetupGuide } from '@/components/webinars/WebinarSetupGuide';
@@ -8,6 +10,13 @@ import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWiza
 import { useZoomWebinars, useZoomCredentials, useZoomCredentialsVerification } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
+} from '@/components/ui/card';
 import {
   Tabs,
   TabsContent,
@@ -21,7 +30,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Clock, Info } from 'lucide-react';
+import { 
+  ToggleGroup, 
+  ToggleGroupItem 
+} from "@/components/ui/toggle-group";
+import { CheckCircle2, Clock, Info, Grid, List } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -36,6 +49,12 @@ const Webinars = () => {
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("webinars");
   const [showWizard, setShowWizard] = useState(false);
+  
+  // New state variables for the UI redesign
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [filterTab, setFilterTab] = useState('all'); // 'all', 'upcoming', 'past', 'drafts'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   
   // Memoize the refresh function to prevent unnecessary recreations
   const handleAutoRefresh = useCallback(async () => {
@@ -185,7 +204,50 @@ const Webinars = () => {
                 onSetupClick={() => setActiveTab("setup")}
               />
               <div className="grid gap-6 mt-4">
-                <WebinarsList webinars={webinars} isLoading={isLoading || isFirstLoad} error={error} />
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>All Webinars</CardTitle>
+                      <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as 'list' | 'grid')}>
+                        <ToggleGroupItem value="list" aria-label="List view">
+                          <List className="h-4 w-4" />
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="grid" aria-label="Grid view">
+                          <Grid className="h-4 w-4" />
+                        </ToggleGroupItem>
+                      </ToggleGroup>
+                    </div>
+                    <CardDescription>Manage and view all your Zoom webinar sessions</CardDescription>
+                    
+                    {/* Webinar Type Tabs */}
+                    <Tabs value={filterTab} onValueChange={setFilterTab} className="mt-6">
+                      <TabsList className="mb-4">
+                        <TabsTrigger value="all">All Webinars</TabsTrigger>
+                        <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                        <TabsTrigger value="past">Past</TabsTrigger>
+                        <TabsTrigger value="drafts">Drafts</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    
+                    {/* Search and Filter */}
+                    <div className="mt-4">
+                      <WebinarFilters 
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        onDateFilterChange={setDateFilter}
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <WebinarsList 
+                      webinars={webinars} 
+                      isLoading={isLoading || isFirstLoad} 
+                      error={error}
+                      viewMode={viewMode}
+                      filterTab={filterTab}
+                    />
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
             <TabsContent value="setup">
@@ -206,21 +268,51 @@ const Webinars = () => {
               )}
             </TabsContent>
           </Tabs>
-        ) : error ? (
-          <>
-            <WebinarError 
-              errorMessage={errorMessage}
-              errorDetails={errorDetails}
-              onSetupClick={() => {}}
-            />
-            <div className="grid gap-6">
-              <WebinarsList webinars={webinars} isLoading={isLoading || isFirstLoad} error={error} />
-            </div>
-          </>
         ) : (
-          <div className="grid gap-6">
-            <WebinarsList webinars={webinars} isLoading={isLoading || isFirstLoad} error={error} />
-          </div>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>All Webinars</CardTitle>
+                <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as 'list' | 'grid')}>
+                  <ToggleGroupItem value="list" aria-label="List view">
+                    <List className="h-4 w-4" />
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="grid" aria-label="Grid view">
+                    <Grid className="h-4 w-4" />
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              <CardDescription>Manage and view all your Zoom webinar sessions</CardDescription>
+              
+              {/* Webinar Type Tabs */}
+              <Tabs value={filterTab} onValueChange={setFilterTab} className="mt-6">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="all">All Webinars</TabsTrigger>
+                  <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                  <TabsTrigger value="past">Past</TabsTrigger>
+                  <TabsTrigger value="drafts">Drafts</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              
+              {/* Search and Filter */}
+              <div className="mt-4">
+                <WebinarFilters 
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  onDateFilterChange={setDateFilter}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <WebinarsList 
+                webinars={webinars} 
+                isLoading={isLoading || isFirstLoad} 
+                error={error}
+                viewMode={viewMode}
+                filterTab={filterTab}
+              />
+            </CardContent>
+          </Card>
         )}
       </div>
     </AppLayout>
