@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -18,7 +19,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AlertCircle, ChevronRight } from 'lucide-react';
+import { AlertCircle, ChevronRight, Video } from 'lucide-react';
 import { 
   ChartBar, 
   Download, 
@@ -47,12 +48,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 interface WebinarStatus {
   value: string;
   label: string;
-  variant: 'default' | 'secondary' | 'outline' | 'destructive';
+  variant: 'default' | 'secondary' | 'outline' | 'destructive' | 'success' | 'warning';
+  icon?: React.ElementType;
 }
 
 const statusMap: Record<string, WebinarStatus> = {
-  'available': { value: 'available', label: 'Scheduled', variant: 'outline' },
-  'started': { value: 'started', label: 'Live', variant: 'secondary' },
+  'available': { value: 'available', label: 'Scheduled', variant: 'success' },
+  'started': { 
+    value: 'started', 
+    label: 'Live', 
+    variant: 'destructive',
+    icon: Video
+  },
   'ended': { value: 'ended', label: 'Completed', variant: 'default' },
   'cancelled': { value: 'cancelled', label: 'Canceled', variant: 'destructive' },
 };
@@ -88,6 +95,18 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoa
     }
   };
   
+  // Render a status badge with optional icon
+  const renderStatusBadge = (status: WebinarStatus) => {
+    const StatusIcon = status.icon;
+    
+    return (
+      <Badge variant={status.variant} className="flex items-center gap-1">
+        {StatusIcon && <StatusIcon className="h-3 w-3" />}
+        <span>{status.label}</span>
+      </Badge>
+    );
+  };
+
   // Filter webinars based on search query
   let filteredWebinars = webinars.filter(webinar => 
     webinar.topic?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -198,9 +217,9 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoa
                     onCheckedChange={() => handleWebinarSelection(webinar.id)}
                     className="mr-2 mt-1"
                   />
-                  <Badge variant={status.variant} className="ml-auto">
-                    {status.label}
-                  </Badge>
+                  <div className="ml-auto">
+                    {renderStatusBadge(status)}
+                  </div>
                 </div>
                 <CardTitle className="text-lg mt-2 line-clamp-2">
                   {webinar.topic}
@@ -305,9 +324,7 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({ webinars = [], isLoa
                     <TableCell className="hidden md:table-cell">{webinar.host_email}</TableCell>
                     <TableCell className="hidden lg:table-cell">{webinar.duration} mins</TableCell>
                     <TableCell>
-                      <Badge variant={status.variant}>
-                        {status.label}
-                      </Badge>
+                      {renderStatusBadge(status)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
