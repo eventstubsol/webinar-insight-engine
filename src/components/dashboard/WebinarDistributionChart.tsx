@@ -5,7 +5,7 @@ import { WebinarDistributionHeader } from './charts/WebinarDistributionHeader';
 import { WebinarDistributionContent } from './charts/WebinarDistributionContent';
 import { useWebinarDistribution } from '@/hooks/useWebinarDistribution';
 
-export const WebinarDistributionChart = () => {
+export const WebinarDistributionChart: React.FC = () => {
   const { 
     monthlyDistribution, 
     isLoading, 
@@ -15,7 +15,7 @@ export const WebinarDistributionChart = () => {
   } = useWebinarDistribution();
 
   return (
-    <Card className="col-span-1">
+    <Card className="col-span-1 h-full">
       <CardHeader className="pb-0">
         <WebinarDistributionHeader
           description={getCardDescription()}
@@ -33,3 +33,5 @@ export const WebinarDistributionChart = () => {
     </Card>
   );
 };
+
+export default WebinarDistributionChart;
