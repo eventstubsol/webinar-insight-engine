@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { 
   Table, 
@@ -21,24 +20,20 @@ import { useZoomWebinars } from '@/hooks/zoom';
 import { parseISO, format, isValid } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
+import { isWebinarPast, isWebinarLive } from '@/components/webinars/list/webinarHelpers';
 
 export const RecentWebinars = () => {
   const { webinars, isLoading } = useZoomWebinars();
   const navigate = useNavigate();
 
-  // Get recent past webinars (completed)
+  // Get recent past webinars (completed, not live)
   const recentWebinars = React.useMemo(() => {
     if (!webinars || webinars.length === 0) return [];
     
     return webinars
       .filter(webinar => {
-        if (!webinar.start_time) return false;
-        try {
-          const startTime = parseISO(webinar.start_time);
-          return isValid(startTime) && startTime < new Date();
-        } catch (e) {
-          return false;
-        }
+        // Only include past webinars, exclude live webinars
+        return isWebinarPast(webinar) && !isWebinarLive(webinar);
       })
       .sort((a, b) => {
         if (!a.start_time || !b.start_time) return 0;

@@ -1,65 +1,36 @@
 
-import React, { createContext, useContext, ReactNode } from 'react';
-import { ZoomWebinar, ZoomCredentialsStatus } from '@/hooks/zoom';
+import React, { createContext, useContext } from 'react';
 
-type ViewMode = 'list' | 'grid';
-type FilterTab = 'all' | 'upcoming' | 'past' | 'drafts' | string;
+// Type definitions
+export type ViewMode = 'list' | 'grid';
+export type FilterTab = 'all' | 'live' | 'upcoming' | 'past' | 'drafts';
 
-// Define the context shape
-export interface WebinarContextState {
-  webinars: ZoomWebinar[];
-  isLoading: boolean;
-  isRefetching: boolean;
-  error: Error | null;
-  errorDetails: {
-    isMissingCredentials: boolean;
-    isCapabilitiesError: boolean;
-    isScopesError: boolean;
-    missingSecrets: string[];
-  };
-  refreshWebinars: (force?: boolean) => Promise<void>;
-  lastSyncTime: Date | null;
-  credentialsStatus: ZoomCredentialsStatus | null;
-  isVerifying: boolean;
-  verified: boolean;
-  scopesError: boolean;
-  verificationDetails: ZoomCredentialsStatus | null;
-  isFirstLoad: boolean;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  showWizard: boolean;
-  setShowWizard: (show: boolean) => void;
+interface WebinarContextType {
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   filterTab: FilterTab;
   setFilterTab: (tab: FilterTab) => void;
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
-  dateFilter: Date | undefined;
-  setDateFilter: (date: Date | undefined) => void;
-  handleSetupZoom: () => void;
-  handleWizardComplete: () => Promise<void>;
-  errorMessage: string;
-  dismissErrorBanner: () => void;
-  errorBannerDismissed: boolean;
 }
 
-// Create the context with default values
-const WebinarContext = createContext<WebinarContextState | undefined>(undefined);
+// Create context with default values
+export const WebinarContext = createContext<WebinarContextType>({
+  viewMode: 'grid',
+  setViewMode: () => {},
+  filterTab: 'all',
+  setFilterTab: () => {}
+});
 
-// Provider props type
-interface WebinarProviderProps {
-  children: ReactNode;
-}
+// Context provider component
+export const WebinarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [viewMode, setViewMode] = React.useState<ViewMode>('grid');
+  const [filterTab, setFilterTab] = React.useState<FilterTab>('all');
 
-// Provide a hook to use the webinar context
-export const useWebinarContext = () => {
-  const context = useContext(WebinarContext);
-  if (context === undefined) {
-    throw new Error('useWebinarContext must be used within a WebinarProvider');
-  }
-  return context;
+  return (
+    <WebinarContext.Provider value={{ viewMode, setViewMode, filterTab, setFilterTab }}>
+      {children}
+    </WebinarContext.Provider>
+  );
 };
 
-export { WebinarContext };
-export type { ViewMode, FilterTab };
+// Hook for using the webinar context
+export const useWebinarContext = () => useContext(WebinarContext);

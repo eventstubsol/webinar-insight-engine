@@ -32,7 +32,8 @@ export async function refreshWebinarsOperation(
   
   try {
     // Make the API call to fetch fresh data from Zoom
-    const refreshData = await refreshWebinarsFromAPI(userId, force);
+    // Pass force=true to ensure we get the latest status from Zoom API
+    const refreshData = await refreshWebinarsFromAPI(userId, true);
     
     // Show appropriate toast based on sync results
     if (refreshData.syncResults) {
@@ -42,6 +43,14 @@ export async function refreshWebinarsOperation(
         title: 'Webinars synced',
         description: 'Webinar data has been updated from Zoom'
       });
+    }
+
+    // Also update participant data for completed webinars
+    try {
+      await updateParticipantDataOperation(userId, queryClient);
+    } catch (err) {
+      console.error('[refreshWebinarsOperation] Error updating participant data:', err);
+      // Don't throw here, as we want the main sync to succeed even if participant data fails
     }
 
     // Invalidate the query cache to force a refresh

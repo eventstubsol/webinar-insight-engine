@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Video } from 'lucide-react';
+import { Video, Calendar, CheckCircle, XCircle } from 'lucide-react';
 
 export interface WebinarStatus {
   value: string;
@@ -11,15 +11,30 @@ export interface WebinarStatus {
 }
 
 export const statusMap: Record<string, WebinarStatus> = {
-  'available': { value: 'available', label: 'Scheduled', variant: 'success' },
+  'available': { 
+    value: 'available', 
+    label: 'Scheduled', 
+    variant: 'success',
+    icon: Calendar 
+  },
   'started': { 
     value: 'started', 
     label: 'Live', 
     variant: 'destructive',
     icon: Video
   },
-  'ended': { value: 'ended', label: 'Completed', variant: 'default' },
-  'cancelled': { value: 'cancelled', label: 'Canceled', variant: 'destructive' },
+  'ended': { 
+    value: 'ended', 
+    label: 'Completed', 
+    variant: 'default',
+    icon: CheckCircle
+  },
+  'cancelled': { 
+    value: 'cancelled', 
+    label: 'Canceled', 
+    variant: 'destructive',
+    icon: XCircle
+  },
 };
 
 interface WebinarStatusBadgeProps {

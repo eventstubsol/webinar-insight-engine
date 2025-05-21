@@ -1,5 +1,7 @@
+
 import { useState, useMemo } from 'react';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
+import { isWebinarLive, isWebinarUpcoming, isWebinarPast } from '@/components/webinars/list/webinarHelpers';
 
 interface UseWebinarListStateProps {
   webinars: ZoomWebinar[];
@@ -13,8 +15,13 @@ export const useWebinarListState = ({ webinars = [], filterTab, viewMode }: UseW
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([]);
   const itemsPerPage = viewMode === 'grid' ? 12 : 10;
 
-  // Filter webinars based on search query
+  // Filter webinars based on search query and tab selection
   const filteredWebinars = useMemo(() => {
+    // Reset to page 1 when filters change
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+    
     let filtered = webinars.filter(webinar => 
       webinar.topic?.toLowerCase().includes(searchQuery.toLowerCase()) || 
       webinar.host_email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -23,15 +30,13 @@ export const useWebinarListState = ({ webinars = [], filterTab, viewMode }: UseW
     // Filter webinars based on the selected tab
     if (filterTab !== 'all') {
       filtered = filtered.filter(webinar => {
-        const now = new Date();
-        const startTime = new Date(webinar.start_time);
-        const endTime = new Date(startTime.getTime() + webinar.duration * 60000);
-        
         switch(filterTab) {
+          case 'live':
+            return isWebinarLive(webinar);
           case 'upcoming':
-            return now < startTime;
+            return isWebinarUpcoming(webinar);
           case 'past':
-            return now > endTime;
+            return isWebinarPast(webinar);
           case 'drafts':
             // Assuming drafts might be a specific status you want to add
             return false; // Currently no draft status in our data model
@@ -42,7 +47,7 @@ export const useWebinarListState = ({ webinars = [], filterTab, viewMode }: UseW
     }
     
     return filtered;
-  }, [webinars, searchQuery, filterTab]);
+  }, [webinars, searchQuery, filterTab, currentPage]);
 
   // Calculate pagination
   const totalPages = Math.max(1, Math.ceil(filteredWebinars.length / itemsPerPage));

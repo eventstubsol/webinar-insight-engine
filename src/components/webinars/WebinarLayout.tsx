@@ -10,7 +10,7 @@ import {
 import { WebinarsList } from '@/components/webinars/WebinarsList';
 import { WebinarFilters } from '@/components/webinars/WebinarFilters';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Grid, List, Info, X } from 'lucide-react';
+import { Grid, List, Info, X, Video } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -96,6 +96,10 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
           <Tabs value={filterTab} onValueChange={(value) => window.dispatchEvent(new CustomEvent('filterTabChange', { detail: value }))} className="mt-6">
             <TabsList className="mb-4">
               <TabsTrigger value="all">All Webinars</TabsTrigger>
+              <TabsTrigger value="live" className="flex items-center gap-1">
+                <Video className="h-3 w-3" />
+                Live
+              </TabsTrigger>
               <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
               <TabsTrigger value="past">Past</TabsTrigger>
               <TabsTrigger value="drafts">Drafts</TabsTrigger>
