@@ -51,7 +51,10 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
   const dismissedAsBool: boolean = Boolean(errorBannerDismissed);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [dateRange, setDateRange] = useState<DateRange>({ 
+    from: undefined, 
+    to: undefined
+  });
   
   // Show a subtle error only for non-critical errors
   const showSubtleError = !dismissedAsBool && 
@@ -59,6 +62,9 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
     errorDetails && 
     !errorDetails.isMissingCredentials && 
     !errorDetails.isScopesError;
+  
+  // For debugging only - remove in production
+  const availableWebinars = webinars?.length || 0;
   
   return (
     <div className="grid gap-6 mt-4">
@@ -69,7 +75,7 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
             {/* Webinar Type Tabs - moved here and removed mt-6 class */}
             <Tabs value={filterTab} onValueChange={(value) => window.dispatchEvent(new CustomEvent('filterTabChange', { detail: value }))}>
               <TabsList>
-                <TabsTrigger value="all">All Webinars</TabsTrigger>
+                <TabsTrigger value="all">All Webinars ({availableWebinars})</TabsTrigger>
                 <TabsTrigger value="live" className="flex items-center gap-1">
                   <Video className="h-3 w-3" />
                   Live

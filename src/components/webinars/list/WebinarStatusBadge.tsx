@@ -41,19 +41,43 @@ export const statusMap: Record<string, WebinarStatus> = {
     variant: 'secondary',
     icon: Repeat
   },
+  // Add any other status types that might be missing
+  'pending': {
+    value: 'pending',
+    label: 'Pending',
+    variant: 'warning',
+    icon: Calendar
+  },
+};
+
+// Default status if the status doesn't match any in our map
+const defaultStatus: WebinarStatus = {
+  value: 'unknown',
+  label: 'Unknown',
+  variant: 'outline',
+  icon: Calendar
 };
 
 interface WebinarStatusBadgeProps {
-  status: WebinarStatus;
+  status: WebinarStatus | string;
 }
 
 export const WebinarStatusBadge: React.FC<WebinarStatusBadgeProps> = ({ status }) => {
-  const StatusIcon = status.icon;
+  // If we receive a string instead of a WebinarStatus object, look it up in the map
+  let statusObj: WebinarStatus;
+  
+  if (typeof status === 'string') {
+    statusObj = statusMap[status.toLowerCase()] || defaultStatus;
+  } else {
+    statusObj = status;
+  }
+  
+  const StatusIcon = statusObj.icon;
   
   return (
-    <Badge variant={status.variant} className="flex items-center gap-1">
+    <Badge variant={statusObj.variant} className="flex items-center gap-1">
       {StatusIcon && <StatusIcon className="h-3 w-3" />}
-      <span>{status.label}</span>
+      <span>{statusObj.label}</span>
     </Badge>
   );
 };

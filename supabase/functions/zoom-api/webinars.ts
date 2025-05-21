@@ -1,3 +1,4 @@
+
 import { corsHeaders } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
 
@@ -814,60 +815,85 @@ export async function handleUpdateWebinarParticipants(req: Request, supabase: an
       
     console.log(`[zoom-api][update-participants] Processing ${webinarsToProcess.length} webinars`);
     
-    // Process each webinar to get participant counts
+    // NEW: Process webinars in smaller batches to avoid timeouts
+    const BATCH_SIZE = 5;
     let updated = 0;
     let skipped = 0;
     let errors = 0;
     
-    for (const webinar of webinarsToProcess) {
-      try {
-        // Make parallel requests for registrants and attendees - FIX URL FROM OPENAI TO ZOOM API
-        const [registrantsRes, attendeesRes] = await Promise.all([
-          fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/registrants?page_size=1`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
+    // Process in batches
+    for (let i = 0; i < webinarsToProcess.length; i += BATCH_SIZE) {
+      const batch = webinarsToProcess.slice(i, i + BATCH_SIZE);
+      console.log(`[zoom-api][update-participants] Processing batch ${i/BATCH_SIZE + 1} of ${Math.ceil(webinarsToProcess.length/BATCH_SIZE)}, size: ${batch.length}`);
+      
+      // Process each webinar in the batch in parallel
+      const batchResults = await Promise.allSettled(
+        batch.map(async (webinar) => {
+          try {
+            // Make parallel requests for registrants and attendees
+            const [registrantsRes, attendeesRes] = await Promise.all([
+              fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/registrants?page_size=1`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }),
+              fetch(`https://api.zoom.us/v2/past_webinars/${webinar.webinar_id}/participants?page_size=1`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              })
+            ]);
+            
+            const [registrantsData, attendeesData] = await Promise.all([
+              registrantsRes.ok ? registrantsRes.json() : { total_records: 0 },
+              attendeesRes.ok ? attendeesRes.json() : { total_records: 0 }
+            ]);
+            
+            // Update raw_data with participant counts and ensure status is set to "ended" for past webinars
+            const updatedRawData = {
+              ...webinar.raw_data,
+              registrants_count: registrantsData.total_records || 0,
+              participants_count: attendeesData.total_records || 0
+            };
+            
+            // Update both the raw_data and set status to "ended" for past webinars
+            const { error: updateError } = await supabase
+              .from('zoom_webinars')
+              .update({
+                raw_data: updatedRawData,
+                status: 'ended' // Explicitly set status to ended for past webinars
+              })
+              .eq('id', webinar.id);
+            
+            if (updateError) {
+              console.error(`[zoom-api][update-participants] Error updating webinar ${webinar.webinar_id}:`, updateError);
+              return { result: 'error' };
+            } else {
+              console.log(`[zoom-api][update-participants] Updated webinar ${webinar.webinar_id} with registrants: ${updatedRawData.registrants_count}, participants: ${updatedRawData.participants_count}`);
+              return { result: 'updated' };
             }
-          }),
-          fetch(`https://api.zoom.us/v2/past_webinars/${webinar.webinar_id}/participants?page_size=1`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          })
-        ]);
-        
-        const [registrantsData, attendeesData] = await Promise.all([
-          registrantsRes.ok ? registrantsRes.json() : { total_records: 0 },
-          attendeesRes.ok ? attendeesRes.json() : { total_records: 0 }
-        ]);
-        
-        // Update raw_data with participant counts and ensure status is set to "ended" for past webinars
-        const updatedRawData = {
-          ...webinar.raw_data,
-          registrants_count: registrantsData.total_records || 0,
-          participants_count: attendeesData.total_records || 0
-        };
-        
-        // Update both the raw_data and set status to "ended" for past webinars
-        const { error: updateError } = await supabase
-          .from('zoom_webinars')
-          .update({
-            raw_data: updatedRawData,
-            status: 'ended' // Explicitly set status to ended for past webinars
-          })
-          .eq('id', webinar.id);
-        
-        if (updateError) {
-          console.error(`[zoom-api][update-participants] Error updating webinar ${webinar.webinar_id}:`, updateError);
-          errors++;
+          } catch (err) {
+            console.error(`[zoom-api][update-participants] Error processing webinar ${webinar.webinar_id}:`, err);
+            return { result: 'error' };
+          }
+        })
+      );
+      
+      // Count the results
+      batchResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          if (result.value.result === 'updated') updated++;
+          else if (result.value.result === 'error') errors++;
         } else {
-          console.log(`[zoom-api][update-participants] Updated webinar ${webinar.webinar_id} with registrants: ${updatedRawData.registrants_count}, participants: ${updatedRawData.participants_count}`);
-          updated++;
+          errors++;
         }
-      } catch (err) {
-        console.error(`[zoom-api][update-participants] Error processing webinar ${webinar.webinar_id}:`, err);
-        errors++;
+      });
+      
+      // Add a small delay between batches to prevent rate limiting
+      if (i + BATCH_SIZE < webinarsToProcess.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     

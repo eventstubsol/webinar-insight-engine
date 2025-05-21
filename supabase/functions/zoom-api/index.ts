@@ -160,9 +160,10 @@ serve(async (req: Request) => {
               break;
               
             case "update-webinar-participants":
+              // Increased timeout for this operation specifically
               response = await executeWithTimeout(
                 () => handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials),
-                OPERATION_TIMEOUT
+                OPERATION_TIMEOUT * 1.5  // 45 seconds instead of 30
               );
               break;
               

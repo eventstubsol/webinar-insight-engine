@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from 'react';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { isWebinarLive, isWebinarUpcoming, isWebinarPast } from '@/components/webinars/list/webinarHelpers';
@@ -33,7 +34,10 @@ export const useWebinarListState = ({
       setCurrentPage(1);
     }
     
-    let filtered = webinars;
+    // Make a copy of webinars to avoid mutating original array
+    let filtered = [...webinars];
+    
+    console.log(`[useWebinarListState] Starting with ${filtered.length} webinars`);
     
     // Apply search filter if query exists
     if (searchQuery.trim()) {
@@ -42,6 +46,7 @@ export const useWebinarListState = ({
         (webinar.topic?.toLowerCase().includes(query)) || 
         (webinar.host_email?.toLowerCase().includes(query))
       );
+      console.log(`[useWebinarListState] After search filter: ${filtered.length} webinars`);
     }
     
     // Apply date range filter if dates are selected
@@ -50,8 +55,10 @@ export const useWebinarListState = ({
       startDate.setHours(0, 0, 0, 0);
       
       filtered = filtered.filter(webinar => {
+        // Skip if webinar doesn't have a start_time
         if (!webinar.start_time) return false;
         
+        // Ensure we're working with a proper Date object
         const webinarDate = new Date(webinar.start_time);
         
         // If only start date is selected, filter for webinars on or after that date
@@ -64,6 +71,8 @@ export const useWebinarListState = ({
         endDate.setHours(23, 59, 59, 999);
         return webinarDate >= startDate && webinarDate <= endDate;
       });
+      
+      console.log(`[useWebinarListState] After date filter: ${filtered.length} webinars`);
     }
     
     // Filter webinars based on the selected tab
@@ -78,12 +87,24 @@ export const useWebinarListState = ({
             return isWebinarPast(webinar);
           case 'drafts':
             // Assuming drafts might be a specific status you want to add
-            return false; // Currently no draft status in our data model
+            return webinar.status === 'draft' || webinar.status === 'pending';
           default:
             return true;
         }
       });
+      
+      console.log(`[useWebinarListState] After tab filter (${filterTab}): ${filtered.length} webinars`);
     }
+    
+    // Ensure webinars are sorted by start_time
+    filtered.sort((a, b) => {
+      // Put webinars without start_time at the end
+      if (!a.start_time) return 1;
+      if (!b.start_time) return -1;
+      
+      // Sort by start_time (newest first)
+      return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
+    });
     
     return filtered;
   }, [webinars, searchQuery, dateRange, filterTab, currentPage]);
