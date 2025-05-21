@@ -18,14 +18,14 @@ interface WebinarTabsProps {
   verified: boolean | undefined;
   isVerifying: boolean;
   verificationDetails: any;
-  scopesError: string | null;
+  scopesError: boolean; // Changed from string | null to boolean
   webinars: ZoomWebinar[];
   isLoading: boolean;
   isFirstLoad: boolean;
   error: Error | null;
   viewMode: 'list' | 'grid';
   filterTab: string;
-  errorBannerDismissed: boolean; // Changed from string to boolean
+  errorBannerDismissed: boolean;
   onDismissError: () => void;
 }
 
