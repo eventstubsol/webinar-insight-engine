@@ -47,11 +47,14 @@ export const WebinarLayout: React.FC<WebinarLayoutProps> = ({
   onDismissError,
   errorBannerDismissed = false // Default value if none provided
 }) => {
+  // Ensure it's always a boolean
+  const dismissedAsBool: boolean = Boolean(errorBannerDismissed);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   
   // Show a subtle error only for non-critical errors
-  const showSubtleError = !errorBannerDismissed && 
+  const showSubtleError = !dismissedAsBool && 
     error && 
     errorDetails && 
     !errorDetails.isMissingCredentials && 
