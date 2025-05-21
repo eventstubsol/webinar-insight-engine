@@ -1,3 +1,4 @@
+
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ZoomWebinar } from '../types';
@@ -24,26 +25,43 @@ export async function fetchWebinarsFromDatabase(userId: string): Promise<ZoomWeb
   
   console.log(`[fetchWebinarsFromDatabase] Found ${dbWebinars.length} webinars in database`);
   
-  // Transform to ZoomWebinar format
-  return dbWebinars.map(item => ({
-    id: item.webinar_id,
-    uuid: item.webinar_uuid,
-    topic: item.topic,
-    start_time: item.start_time,
-    duration: item.duration,
-    timezone: item.timezone,
-    agenda: item.agenda,
-    host_email: item.host_email,
-    status: item.status,
-    type: item.type,
-    // Add registrants_count and participants_count properties
-    registrants_count: item.raw_data?.registrants_count || 0,
-    participants_count: item.raw_data?.participants_count || 0,
-    // Include raw_data
-    raw_data: item.raw_data,
-    // Fix the spread operator issue by ensuring raw_data is an object
-    ...(typeof item.raw_data === 'object' ? item.raw_data : {})
-  }));
+  // Transform to ZoomWebinar format with proper type handling
+  return dbWebinars.map(item => {
+    // Parse the raw_data if it's a string, use as-is if it's already an object
+    let parsedRawData: Record<string, any> = {};
+    
+    if (item.raw_data) {
+      if (typeof item.raw_data === 'string') {
+        try {
+          parsedRawData = JSON.parse(item.raw_data);
+        } catch (e) {
+          console.error('Failed to parse raw_data:', e);
+        }
+      } else {
+        // Assume it's already an object
+        parsedRawData = item.raw_data as Record<string, any>;
+      }
+    }
+    
+    // Create a properly typed ZoomWebinar object
+    const webinar: ZoomWebinar = {
+      id: item.webinar_id,
+      uuid: item.webinar_uuid,
+      topic: item.topic,
+      start_time: item.start_time,
+      duration: item.duration,
+      timezone: item.timezone,
+      agenda: item.agenda || '',
+      host_email: item.host_email,
+      status: item.status,
+      type: item.type,
+      registrants_count: parsedRawData?.registrants_count || 0,
+      participants_count: parsedRawData?.participants_count || 0,
+      raw_data: parsedRawData
+    };
+    
+    return webinar;
+  });
 }
 
 // Fetch webinars from API
