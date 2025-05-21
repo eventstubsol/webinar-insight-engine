@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useZoomWebinars } from '@/hooks/zoom';
@@ -122,18 +123,18 @@ export const WebinarDistributionChart = () => {
                 margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
                 barSize={40}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" opacity={0.7} />
                 <XAxis 
                   dataKey="monthYear" 
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
                   tickLine={false}
-                  axisLine={false}
+                  axisLine={{ stroke: '#cbd5e1' }}
                 />
                 <YAxis 
                   allowDecimals={false}
                   tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 12 }}
+                  axisLine={{ stroke: '#cbd5e1' }}
+                  tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
                 />
                 <Tooltip
                   cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}

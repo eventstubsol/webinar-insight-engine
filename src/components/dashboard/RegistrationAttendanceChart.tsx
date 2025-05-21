@@ -128,7 +128,6 @@ export const RegistrationAttendanceChart = () => {
           <p className="text-blue-600">{`Registrants: ${payload[0]?.value || 0}`}</p>
           <p className="text-green-600">{`Attendees: ${payload[1]?.value || 0}`}</p>
           
-          // Calculate attendance rate for the tooltip
           {(() => {
             const registrants = payload[0]?.value as number || 0;
             const attendees = payload[1]?.value as number || 0;
@@ -249,15 +248,17 @@ export const RegistrationAttendanceChart = () => {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" opacity={0.7} />
                 <XAxis 
                   dataKey="month" 
                   tickLine={false}
-                  axisLine={false}
+                  axisLine={{ stroke: '#cbd5e1' }}
+                  tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
                 />
                 <YAxis 
                   tickLine={false}
-                  axisLine={false}
+                  axisLine={{ stroke: '#cbd5e1' }}
+                  tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
