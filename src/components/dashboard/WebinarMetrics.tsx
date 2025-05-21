@@ -7,7 +7,8 @@ import {
   CardHeader, 
   CardTitle 
 } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs } from '@/components/ui/tabs';
+import { WebinarMetricsTabs } from './tabs/WebinarMetricsTabs';
 import { EngagementTab } from './tabs/EngagementTab';
 import { DurationTab } from './tabs/DurationTab';
 import { ConversionTab } from './tabs/ConversionTab';
@@ -21,11 +22,7 @@ export const WebinarMetrics = () => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="engagement">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="engagement">Engagement</TabsTrigger>
-            <TabsTrigger value="duration">Attendance Duration</TabsTrigger>
-            <TabsTrigger value="conversion">Registration Conversion</TabsTrigger>
-          </TabsList>
+          <WebinarMetricsTabs />
           <EngagementTab />
           <DurationTab />
           <ConversionTab />
