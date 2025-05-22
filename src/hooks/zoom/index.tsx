@@ -18,6 +18,5 @@ export * from './utils/webinarUtils';
 export * from './utils/errorUtils';
 
 // Export services and operations for direct access
-export * from './services/webinarApiService';
+export * from './services';
 export * from './webinarOperations';
-export * from './services/ZoomDataService';
