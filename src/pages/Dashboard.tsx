@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
@@ -18,9 +19,31 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [showWizard, setShowWizard] = useState(false);
   const { credentialsStatus, checkCredentialsStatus, isLoading: credentialsLoading } = useZoomCredentials();
-  const { refreshWebinars, isRefetching } = useZoomWebinars();
+  const { refreshWebinars, isRefetching, webinars } = useZoomWebinars();
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
+
+  // Prepare sample data for the registration & attendance chart
+  const registrationAttendanceData = React.useMemo(() => {
+    // If we have webinars, calculate total registrants and attendees
+    if (webinars && webinars.length > 0) {
+      const totalRegistrants = webinars.reduce((sum, webinar) => 
+        sum + (webinar.raw_data?.registrants_count || 0), 0);
+      const totalAttendees = webinars.reduce((sum, webinar) => 
+        sum + (webinar.raw_data?.participants_count || 0), 0);
+      
+      return [
+        { name: 'Registrants', value: totalRegistrants },
+        { name: 'Attendees', value: totalAttendees }
+      ];
+    }
+    
+    // Default sample data if no webinars are available
+    return [
+      { name: 'Registrants', value: 0 },
+      { name: 'Attendees', value: 0 }
+    ];
+  }, [webinars]);
   
   const handleConnectZoom = () => {
     setShowWizard(true);
@@ -97,7 +120,7 @@ const Dashboard = () => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WebinarDistributionChart />
-            <RegistrationAttendanceChart />
+            <RegistrationAttendanceChart data={registrationAttendanceData} />
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
