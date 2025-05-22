@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarDashboardHeader } from '@/components/webinars/dashboard/WebinarDashboardHeader';
+import { WebinarMetadataHeader } from '@/components/webinars/dashboard/WebinarMetadataHeader';
 import { WebinarDashboardTabs } from '@/components/webinars/dashboard/WebinarDashboardTabs';
 import { WebinarDashboardSkeleton } from '@/components/webinars/dashboard/WebinarDashboardSkeleton';
 import { useZoomWebinarDetails, useZoomWebinarParticipants, ZoomParticipants } from '@/hooks/zoom';
@@ -89,6 +90,7 @@ const WebinarDashboard = () => {
     <AppLayout>
       <div className="space-y-6">
         <WebinarDashboardHeader webinar={webinar} />
+        <WebinarMetadataHeader webinar={webinar} participants={participants} />
         <WebinarDashboardTabs 
           webinar={webinar}
           participants={participants}
