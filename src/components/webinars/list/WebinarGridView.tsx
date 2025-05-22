@@ -16,6 +16,7 @@ import { getWebinarStatus } from './webinarHelpers';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
 import { Calendar, Clock, Users, Eye, Download, ChartBar } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface WebinarGridViewProps {
   webinars: ZoomWebinar[];
@@ -28,9 +29,16 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
   selectedWebinars,
   handleWebinarSelection
 }) => {
+  const navigate = useNavigate();
+
   if (webinars.length === 0) {
     return <WebinarEmptyState isEmpty={true} isFiltered={false} />;
   }
+
+  const handleViewWebinar = (webinarId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/webinars/${webinarId}`);
+  };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -39,13 +47,18 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
         const webinarDate = new Date(webinar.start_time);
         
         return (
-          <Card key={webinar.id} className="relative h-full">
+          <Card 
+            key={webinar.id} 
+            className="relative h-full cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => navigate(`/webinars/${webinar.id}`)}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
                 <Checkbox 
                   checked={selectedWebinars.includes(webinar.id)}
                   onCheckedChange={() => handleWebinarSelection(webinar.id)}
                   className="mr-2 mt-1"
+                  onClick={(e) => e.stopPropagation()}
                 />
                 <div className="ml-auto">
                   <WebinarStatusBadge status={status} />
@@ -75,15 +88,20 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
               </div>
             </CardContent>
             <CardFooter className="pt-2 flex justify-end">
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0"
+                onClick={(e) => handleViewWebinar(webinar.id, e)}
+              >
                 <Eye className="h-4 w-4" />
               </Button>
               {status.value === 'ended' && (
                 <>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                     <Download className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                     <ChartBar className="h-4 w-4" />
                   </Button>
                 </>

@@ -15,6 +15,7 @@ import { getWebinarStatus } from './webinarHelpers';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
 import { Clock, Download, ChartBar, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface WebinarListViewProps {
   webinars: ZoomWebinar[];
@@ -29,6 +30,8 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
   handleWebinarSelection,
   handleSelectAll
 }) => {
+  const navigate = useNavigate();
+
   return (
     <div className="rounded-md border overflow-hidden">
       <Table>
@@ -64,8 +67,12 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
               const webinarDate = new Date(webinar.start_time);
               
               return (
-                <TableRow key={webinar.id}>
-                  <TableCell>
+                <TableRow 
+                  key={webinar.id} 
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/webinars/${webinar.id}`)}
+                >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox 
                       checked={selectedWebinars.includes(webinar.id)}
                       onCheckedChange={() => handleWebinarSelection(webinar.id)}
@@ -88,7 +95,7 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
                   <TableCell>
                     <WebinarStatusBadge status={status} />
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end items-center gap-2">
                       {status.value === 'ended' && (
                         <>
@@ -100,7 +107,12 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
                           </Button>
                         </>
                       )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => navigate(`/webinars/${webinar.id}`)}
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
                     </div>

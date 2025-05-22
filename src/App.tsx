@@ -14,6 +14,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Webinars from "./pages/Webinars";
+import WebinarDashboard from "./pages/WebinarDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,11 @@ const App = () => (
             <Route path="/webinars" element={
               <ProtectedRoute>
                 <Webinars />
+              </ProtectedRoute>
+            } />
+            <Route path="/webinars/:webinarId" element={
+              <ProtectedRoute>
+                <WebinarDashboard />
               </ProtectedRoute>
             } />
             <Route path="/analytics" element={

@@ -107,7 +107,11 @@ export const RecentWebinars = () => {
             </TableHeader>
             <TableBody>
               {recentWebinars.map((webinar) => (
-                <TableRow key={webinar.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/webinars/${webinar.id}`)}>
+                <TableRow 
+                  key={webinar.id} 
+                  className="cursor-pointer hover:bg-muted/50" 
+                  onClick={() => navigate(`/webinars/${webinar.id}`)}
+                >
                   <TableCell className="min-w-[200px]">
                     <div className="font-medium">{formatDateTime(webinar.start_time)}</div>
                     <div className="text-xs text-muted-foreground">{getTimezone(webinar)}</div>
