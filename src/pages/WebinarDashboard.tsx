@@ -9,6 +9,33 @@ import { useZoomWebinarDetails, useZoomWebinarParticipants, ZoomParticipants } f
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
+// Define helper function to type check and safely cast participants
+const safeParticipantsCast = (participants: any): ZoomParticipants => {
+  return {
+    registrants: Array.isArray(participants.registrants) 
+      ? participants.registrants.map((r: any) => ({
+          id: r.id || '',
+          email: r.email || '',
+          first_name: r.first_name || '',
+          last_name: r.last_name || '',
+          create_time: r.create_time || '',
+          join_url: r.join_url || '',
+          status: r.status || ''
+        }))
+      : [],
+    attendees: Array.isArray(participants.attendees) 
+      ? participants.attendees.map((a: any) => ({
+          id: a.id || '',
+          name: a.name || '',
+          user_email: a.user_email || '',
+          join_time: a.join_time || '',
+          leave_time: a.leave_time || '',
+          duration: Number(a.duration || 0)
+        }))
+      : []
+  };
+};
+
 const WebinarDashboard = () => {
   const { webinarId } = useParams<{ webinarId: string }>();
   const navigate = useNavigate();
@@ -20,17 +47,14 @@ const WebinarDashboard = () => {
   } = useZoomWebinarDetails(webinarId || null);
   
   const { 
-    participants, 
+    participants: rawParticipants, 
     isLoading: isParticipantsLoading 
   } = useZoomWebinarParticipants(webinarId || null);
   
   const isLoading = isWebinarLoading || isParticipantsLoading;
 
-  // Ensure participants matches the expected ZoomParticipants type
-  const typedParticipants: ZoomParticipants = {
-    registrants: participants.registrants || [],
-    attendees: participants.attendees || []
-  };
+  // Safely cast participants to the expected ZoomParticipants type
+  const participants: ZoomParticipants = safeParticipantsCast(rawParticipants);
 
   // If webinar doesn't exist and loading is complete, redirect to webinars list
   useEffect(() => {
@@ -67,7 +91,7 @@ const WebinarDashboard = () => {
         <WebinarDashboardHeader webinar={webinar} />
         <WebinarDashboardTabs 
           webinar={webinar}
-          participants={typedParticipants}
+          participants={participants}
         />
       </div>
     </AppLayout>

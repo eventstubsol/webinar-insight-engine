@@ -31,6 +31,19 @@ export const WebinarAnalyticsTab: React.FC<WebinarAnalyticsTabProps> = ({
     );
   }
   
+  // Prepare the data for the registration & attendance chart
+  const registrationAttendanceData = [
+    { name: 'Registrants', value: webinar.raw_data?.registrants_count || 0 },
+    { name: 'Attendees', value: webinar.raw_data?.participants_count || 0 }
+  ];
+
+  // Prepare the data for the attendance distribution chart
+  const attendanceDistributionData = [
+    { name: 'Attended Full', value: Math.floor((participants.attendees?.length || 0) * 0.6) },
+    { name: 'Attended Partial', value: Math.floor((participants.attendees?.length || 0) * 0.4) },
+    { name: 'Registered Only', value: (participants.registrants?.length || 0) - (participants.attendees?.length || 0) }
+  ];
+  
   return (
     <div>
       <h2 className="text-xl font-semibold mb-6">Webinar Analytics</h2>
@@ -44,10 +57,7 @@ export const WebinarAnalyticsTab: React.FC<WebinarAnalyticsTabProps> = ({
           <CardContent>
             <div className="h-[300px]">
               <RegistrationAttendanceChart 
-                data={[
-                  { name: 'Registrants', value: webinar.raw_data?.registrants_count || 0 },
-                  { name: 'Attendees', value: webinar.raw_data?.participants_count || 0 }
-                ]} 
+                data={registrationAttendanceData} 
               />
             </div>
           </CardContent>
@@ -61,11 +71,7 @@ export const WebinarAnalyticsTab: React.FC<WebinarAnalyticsTabProps> = ({
           <CardContent>
             <div className="h-[300px]">
               <AttendanceChart 
-                data={[
-                  { name: 'Attended Full', value: Math.floor((participants.attendees?.length || 0) * 0.6) },
-                  { name: 'Attended Partial', value: Math.floor((participants.attendees?.length || 0) * 0.4) },
-                  { name: 'Registered Only', value: (participants.registrants?.length || 0) - (participants.attendees?.length || 0) }
-                ]}
+                data={attendanceDistributionData}
               />
             </div>
           </CardContent>

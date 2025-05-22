@@ -1,99 +1,46 @@
 
 import React from 'react';
 import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
+  PieChart, 
+  Pie, 
+  Cell, 
   Tooltip, 
+  Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 
-const data = [
-  { name: 'Jan', attendance: 65 },
-  { name: 'Feb', attendance: 72 },
-  { name: 'Mar', attendance: 58 },
-  { name: 'Apr', attendance: 80 },
-  { name: 'May', attendance: 74 },
-  { name: 'Jun', attendance: 62 },
-  { name: 'Jul', attendance: 90 },
-  { name: 'Aug', attendance: 81 },
-];
+interface DataItem {
+  name: string;
+  value: number;
+}
 
-export const AttendanceChart = () => {
+interface AttendanceChartProps {
+  data: DataItem[];
+}
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+export const AttendanceChart: React.FC<AttendanceChartProps> = ({ data }) => {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <div className="flex items-center space-x-2">
-            <CardTitle>Attendance Rate</CardTitle>
-            <Badge variant="secondary">Last 8 months</Badge>
-          </div>
-          <CardDescription>Average webinar attendance rates over time</CardDescription>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            Monthly
-          </Button>
-          <Button variant="ghost" size="sm">
-            Yearly
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart
-            data={data}
-            margin={{
-              top: 5,
-              right: 10,
-              left: 0,
-              bottom: 5,
-            }}
-          >
-            <defs>
-              <linearGradient id="attendanceGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2384ff" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#2384ff" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-            <XAxis dataKey="name" axisLine={false} tickLine={false} />
-            <YAxis 
-              axisLine={false} 
-              tickLine={false}
-              domain={[0, 100]} 
-              tickFormatter={(value) => `${value}%`}
-            />
-            <Tooltip 
-              formatter={(value) => [`${value}%`, 'Attendance Rate']} 
-              contentStyle={{ 
-                backgroundColor: "#ffffff",
-                border: "1px solid #f0f0f0", 
-                borderRadius: "0.5rem",
-                boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)"
-              }}
-            />
-            <Area 
-              type="monotone" 
-              dataKey="attendance" 
-              stroke="#2384ff" 
-              strokeWidth={2}
-              fill="url(#attendanceGradient)" 
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart width={400} height={400}>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          labelLine={false}
+          outerRadius={80}
+          fill="#8884d8"
+          dataKey="value"
+          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+        >
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip formatter={(value) => [`${value}`, 'Count']} />
+        <Legend />
+      </PieChart>
+    </ResponsiveContainer>
   );
 };
