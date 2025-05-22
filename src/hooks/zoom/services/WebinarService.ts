@@ -99,3 +99,7 @@ export class WebinarService extends BaseZoomService {
     return refreshData;
   }
 }
+
+// Export these functions to maintain backward compatibility with webinarUtils.ts
+export const fetchWebinarsFromDatabase = WebinarService.fetchWebinarsFromDatabase;
+export const fetchWebinarsFromAPI = WebinarService.fetchWebinarsFromAPI;

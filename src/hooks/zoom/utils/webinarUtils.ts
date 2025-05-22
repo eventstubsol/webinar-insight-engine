@@ -7,9 +7,12 @@ import { supabase } from '@/integrations/supabase/client';
 // Re-export functions from services
 export { 
   fetchWebinarsFromDatabase,
-  fetchWebinarsFromAPI,
+  fetchWebinarsFromAPI
+} from '../services/WebinarService';
+
+export {
   fetchSyncHistory
-} from '../services/webinarApiService';
+} from '../services/SyncHistoryService';
 
 // Re-export functions from error utilities
 export { 
