@@ -45,12 +45,12 @@ export const getAttendanceRate = (webinars: ZoomWebinar[]): string => {
 
 export const getTotalEngagement = (): string => {
   // This would ideally be calculated from actual engagement metrics
-  return "0h 0m";
+  return "0h 00m";
 };
 
 export const getAverageDuration = (webinars: ZoomWebinar[]): string => {
   const webinarsWithDuration = webinars.filter(w => w.duration);
-  if (webinarsWithDuration.length === 0) return "0h 0m";
+  if (webinarsWithDuration.length === 0) return "0h 00m";
   
   const totalDuration = webinarsWithDuration.reduce((sum, webinar) => sum + (webinar.duration || 0), 0);
   const avgMinutes = Math.round(totalDuration / webinarsWithDuration.length);
@@ -58,5 +58,8 @@ export const getAverageDuration = (webinars: ZoomWebinar[]): string => {
   const hours = Math.floor(avgMinutes / 60);
   const minutes = avgMinutes % 60;
   
-  return `${hours}h ${minutes}m`;
+  // Ensure minutes are always displayed with two digits
+  const formattedMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
+  
+  return `${hours}h ${formattedMinutes}m`;
 };

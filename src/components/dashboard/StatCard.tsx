@@ -28,19 +28,19 @@ export const StatCard = ({
 }: StatCardProps) => {
   return (
     <Card className={cardColor}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-2">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4">
         <CardTitle className="text-xs font-medium sm:text-sm">{title}</CardTitle>
         <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
           {icon}
         </div>
       </CardHeader>
-      <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+      <CardContent className="px-6 pb-4 pt-0">
         {isLoading ? (
-          <Skeleton className="h-6 w-20 mb-1" />
+          <Skeleton className="h-8 w-24 mb-1" />
         ) : (
-          <div className="text-lg sm:text-xl font-bold">{value}</div>
+          <div className="text-xl font-bold h-8 flex items-center">{value}</div>
         )}
-        <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
+        <CardDescription className="text-xs sm:text-sm mt-1">{description}</CardDescription>
       </CardContent>
     </Card>
   );

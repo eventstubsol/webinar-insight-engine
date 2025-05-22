@@ -16,7 +16,7 @@ export const DashboardStats = () => {
   const { webinars, isLoading } = useZoomWebinars();
   
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
       <StatCard
         title="Total Webinars"
         value={isLoading ? undefined : getTotalWebinars(webinars).toString()}
