@@ -21,6 +21,7 @@ export interface WebinarInstance {
 interface UseZoomWebinarInstancesResult {
   instances: WebinarInstance[];
   isLoading: boolean;
+  isRefetching: boolean;
   error: Error | null;
   refetch: () => Promise<any>;
 }
@@ -32,7 +33,8 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
     data: instances,
     isLoading,
     error,
-    refetch
+    refetch,
+    isRefetching
   } = useQuery({
     queryKey: ['zoom-webinar-instances', user?.id, webinarId],
     queryFn: async () => {
@@ -76,6 +78,7 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
   return {
     instances: instances || [],
     isLoading,
+    isRefetching,
     error: error as Error | null,
     refetch
   };
