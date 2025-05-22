@@ -1,9 +1,9 @@
 
 import { QueryClient } from '@tanstack/react-query';
 import { 
-  refreshWebinarsFromAPI, 
-  updateParticipantDataAPI 
-} from './services/webinarApiService';
+  WebinarService, 
+  ParticipantService 
+} from './services';
 import { 
   showSyncSuccessNotification, 
   showErrorNotification,
@@ -74,7 +74,7 @@ export async function refreshWebinarsOperation(
     
     // Make the API call to fetch fresh data from Zoom with timeout protection
     const refreshData = await executeWithTimeout(
-      () => refreshWebinarsFromAPI(userId, force),
+      () => WebinarService.refreshWebinarsFromAPI(userId, force),
       OPERATION_TIMEOUT,
       () => {
         timeoutTriggered = true;
@@ -161,7 +161,7 @@ export async function updateParticipantDataOperation(
   
   try {
     const data = await executeWithTimeout(
-      () => updateParticipantDataAPI(),
+      () => ParticipantService.updateParticipantDataAPI(),
       OPERATION_TIMEOUT,
       () => {
         if (!silent) {

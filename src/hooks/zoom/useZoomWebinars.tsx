@@ -4,10 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useZoomCredentials } from './useZoomCredentials';
 import { 
-  fetchWebinarsFromDatabase, 
-  fetchWebinarsFromAPI,
-  fetchSyncHistory 
-} from './services/webinarApiService';
+  WebinarService,
+  SyncHistoryService 
+} from './services';
 import { 
   refreshWebinarsOperation, 
   updateParticipantDataOperation 
@@ -36,7 +35,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
         console.log('[useZoomWebinars] Fetching webinars from database or API');
         
         // Try to get webinars from database first
-        const dbWebinars = await fetchWebinarsFromDatabase(user.id);
+        const dbWebinars = await WebinarService.fetchWebinarsFromDatabase(user.id);
         
         // If we have webinars in the database, return them immediately
         if (dbWebinars && dbWebinars.length > 0) {
@@ -46,7 +45,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
         
         // If not in database or database fetch failed, try API
         console.log('[useZoomWebinars] No webinars in database, fetching from API');
-        return await fetchWebinarsFromAPI();
+        return await WebinarService.fetchWebinarsFromAPI();
       } catch (err: any) {
         console.error('[useZoomWebinars] Error fetching webinars:', err);
         
@@ -97,7 +96,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     const loadSyncHistory = async () => {
       if (!user) return;
       
-      const history = await fetchSyncHistory(user.id);
+      const history = await SyncHistoryService.fetchSyncHistory(user.id);
       setSyncHistory(history);
     };
     
