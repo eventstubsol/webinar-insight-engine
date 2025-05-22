@@ -44,26 +44,28 @@ export const StatCard = ({
           {icon}
         </div>
       </CardHeader>
-      <CardContent className="px-6 pb-4 pt-0">
-        <div className="flex items-center justify-between">
+      <CardContent className="px-6 pb-4 pt-0 relative">
+        <div className="flex items-center">
           {isLoading ? (
             <Skeleton className="h-8 w-24 mb-1" />
           ) : (
             <div className="text-xl font-bold h-8 flex items-center">{value}</div>
           )}
-          
-          {trend && !isLoading && (
+        </div>
+        <CardDescription className="text-xs sm:text-sm mt-1">{description}</CardDescription>
+        
+        {trend && !isLoading && (
+          <div className="absolute bottom-4 right-6">
             <Badge 
               variant={trend.direction === 'up' ? 'success' : trend.direction === 'down' ? 'destructive' : 'secondary'} 
-              className="ml-2 text-xs font-medium"
+              className="text-xs font-medium"
             >
               {trend.direction === 'up' && <ArrowUp className="mr-1 h-3 w-3" />}
               {trend.direction === 'down' && <ArrowDown className="mr-1 h-3 w-3" />}
               {trend.label}
             </Badge>
-          )}
-        </div>
-        <CardDescription className="text-xs sm:text-sm mt-1">{description}</CardDescription>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
