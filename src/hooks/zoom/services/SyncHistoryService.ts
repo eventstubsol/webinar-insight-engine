@@ -31,3 +31,6 @@ export class SyncHistoryService extends BaseZoomService {
     }
   }
 }
+
+// Export the static method as a standalone function for backward compatibility
+export const fetchSyncHistory = SyncHistoryService.fetchSyncHistory;
