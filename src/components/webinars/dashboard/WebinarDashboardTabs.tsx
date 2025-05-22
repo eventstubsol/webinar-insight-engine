@@ -7,6 +7,7 @@ import { WebinarAnalyticsTab } from "./tabs/WebinarAnalyticsTab";
 import { WebinarReportsTab } from "./tabs/WebinarReportsTab";
 import { WebinarEngagementTab } from "./tabs/WebinarEngagementTab";
 import { WebinarInstancesTab } from "./tabs/WebinarInstancesTab";
+import { WebinarRecordingsTab } from "./tabs/WebinarRecordingsTab";
 import { ZoomWebinar, ZoomParticipants } from "@/hooks/zoom";
 
 interface WebinarDashboardTabsProps {
@@ -26,6 +27,10 @@ export function WebinarDashboardTabs({ webinar, participants, instances = [] }: 
       
       <TabsContent value="participants" className="space-y-4">
         <WebinarParticipantsTab webinar={webinar} participants={participants} />
+      </TabsContent>
+      
+      <TabsContent value="recordings" className="space-y-4">
+        <WebinarRecordingsTab webinar={webinar} />
       </TabsContent>
       
       <TabsContent value="instances" className="space-y-4">

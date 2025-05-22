@@ -7,6 +7,7 @@ export function WebinarTabsList() {
     <TabsList>
       <TabsTrigger value="overview">Overview</TabsTrigger>
       <TabsTrigger value="participants">Participants</TabsTrigger>
+      <TabsTrigger value="recordings">Recordings</TabsTrigger>
       <TabsTrigger value="instances">Instances</TabsTrigger>
       <TabsTrigger value="engagement">Engagement</TabsTrigger>
       <TabsTrigger value="analytics">Analytics</TabsTrigger>
