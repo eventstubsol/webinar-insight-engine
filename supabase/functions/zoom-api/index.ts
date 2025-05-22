@@ -15,7 +15,8 @@ import {
   handleGetParticipants, 
   handleUpdateWebinarParticipants,
   handleGetWebinarInstances,
-  handleGetInstanceParticipants
+  handleGetInstanceParticipants,
+  handleGetWebinarExtendedData
 } from "./webinars.ts";
 
 // Maximum timeout for operations (30 seconds)
@@ -176,6 +177,13 @@ serve(async (req: Request) => {
             case "get-instance-participants":
               response = await executeWithTimeout(
                 () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            case "get-webinar-extended-data":
+              response = await executeWithTimeout(
+                () => handleGetWebinarExtendedData(req, supabaseAdmin, user, credentials, body.webinar_id),
                 OPERATION_TIMEOUT
               );
               break;

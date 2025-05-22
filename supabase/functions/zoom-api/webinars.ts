@@ -907,3 +907,420 @@ export async function handleUpdateWebinarParticipants(req: Request, supabase: an
     throw error;
   }
 }
+
+// Handle getting extended data for a webinar (Q&A, polls, recordings, chat, etc.)
+export async function handleGetWebinarExtendedData(req: Request, supabase: any, user: any, credentials: any, webinarId: string) {
+  if (!webinarId) {
+    throw new Error('Webinar ID is required');
+  }
+  
+  console.log(`[zoom-api][get-webinar-extended-data] Starting full data sync for webinar ID: ${webinarId}`);
+  
+  try {
+    const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
+    
+    // Get the webinar details to ensure it exists and to get its UUID for certain endpoints
+    const webinarResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!webinarResponse.ok) {
+      const errorData = await webinarResponse.json();
+      console.error('[zoom-api][get-webinar-extended-data] Failed to get webinar details:', errorData);
+      throw new Error(`Webinar not found or inaccessible: ${errorData.message || 'Unknown error'}`);
+    }
+    
+    const webinarData = await webinarResponse.json();
+    
+    // Parallel fetch all extended data types
+    const [qaResult, pollsResult, recordingsResult, chatResult] = await Promise.all([
+      fetchAndStoreQAndA(token, webinarId, supabase, user.id),
+      fetchAndStorePolls(token, webinarId, supabase, user.id),
+      fetchAndStoreRecordings(token, webinarId, supabase, user.id),
+      fetchAndStoreChat(token, webinarId, supabase, user.id)
+    ]);
+    
+    // Record sync in history
+    await supabase
+      .from('zoom_sync_history')
+      .insert({
+        user_id: user.id,
+        sync_type: 'extended_data',
+        status: 'success',
+        items_synced: qaResult.count + pollsResult.count + recordingsResult.count + chatResult.count,
+        message: `Synced extended data for webinar ${webinarId}: ${qaResult.count} Q&A items, ${pollsResult.count} polls, ${recordingsResult.count} recordings, ${chatResult.count} chat messages`
+      });
+    
+    return new Response(JSON.stringify({
+      webinar_id: webinarId,
+      qa: qaResult,
+      polls: pollsResult, 
+      recordings: recordingsResult,
+      chat: chatResult
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('[zoom-api][get-webinar-extended-data] Error:', error);
+    
+    // Record failed sync in history
+    await supabase
+      .from('zoom_sync_history')
+      .insert({
+        user_id: user.id,
+        sync_type: 'extended_data',
+        status: 'error',
+        items_synced: 0,
+        message: error.message || 'Unknown error'
+      });
+    
+    throw error;
+  }
+}
+
+// Fetch and store Q&A data
+async function fetchAndStoreQAndA(token: string, webinarId: string, supabase: any, userId: string) {
+  console.log(`[zoom-api][get-webinar-extended-data] Fetching Q&A for webinar ID: ${webinarId}`);
+  
+  try {
+    const response = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}/qa`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // If endpoint returns 404, this webinar might not have Q&A enabled or no questions were asked
+    if (response.status === 404) {
+      console.log(`[zoom-api][get-webinar-extended-data] No Q&A data available for webinar ${webinarId}`);
+      return { count: 0, status: 'not_available' };
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[zoom-api][get-webinar-extended-data] Failed to fetch Q&A:', errorData);
+      return { count: 0, status: 'error', message: errorData.message };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.questions || data.questions.length === 0) {
+      console.log(`[zoom-api][get-webinar-extended-data] No questions found for webinar ${webinarId}`);
+      return { count: 0, status: 'empty' };
+    }
+    
+    // Delete existing questions for this webinar
+    await supabase
+      .from('zoom_webinar_questions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('webinar_id', webinarId);
+    
+    // Insert new questions
+    const questionsToInsert = data.questions.map((question: any) => ({
+      user_id: userId,
+      webinar_id: webinarId,
+      question_id: question.question_id,
+      question: question.question_text,
+      answer: question.answer_text,
+      name: question.asker_name,
+      email: question.asker_email,
+      question_time: question.question_details?.create_time,
+      answer_time: question.answer_details?.create_time,
+      answered: !!question.answer_text,
+      answered_by: question.answer_details?.name,
+      raw_data: question
+    }));
+    
+    const { error: insertError } = await supabase
+      .from('zoom_webinar_questions')
+      .insert(questionsToInsert);
+    
+    if (insertError) {
+      console.error('[zoom-api][get-webinar-extended-data] Error inserting Q&A data:', insertError);
+      return { count: 0, status: 'error', message: insertError.message };
+    }
+    
+    console.log(`[zoom-api][get-webinar-extended-data] Successfully stored ${questionsToInsert.length} Q&A items`);
+    return { count: questionsToInsert.length, status: 'success' };
+  } catch (error) {
+    console.error('[zoom-api][get-webinar-extended-data] Error in Q&A fetch:', error);
+    return { count: 0, status: 'error', message: error.message };
+  }
+}
+
+// Fetch and store Polls data
+async function fetchAndStorePolls(token: string, webinarId: string, supabase: any, userId: string) {
+  console.log(`[zoom-api][get-webinar-extended-data] Fetching polls for webinar ID: ${webinarId}`);
+  
+  try {
+    const response = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}/polls`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // If endpoint returns 404, this webinar might not have polls enabled
+    if (response.status === 404) {
+      console.log(`[zoom-api][get-webinar-extended-data] No polls data available for webinar ${webinarId}`);
+      return { count: 0, status: 'not_available' };
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[zoom-api][get-webinar-extended-data] Failed to fetch polls:', errorData);
+      return { count: 0, status: 'error', message: errorData.message };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.polls || data.polls.length === 0) {
+      console.log(`[zoom-api][get-webinar-extended-data] No polls found for webinar ${webinarId}`);
+      return { count: 0, status: 'empty' };
+    }
+    
+    // Delete existing polls for this webinar
+    await supabase
+      .from('zoom_webinar_polls')
+      .delete()
+      .eq('user_id', userId)
+      .eq('webinar_id', webinarId);
+    
+    let totalPollResponses = 0;
+    const allPollResponses = [];
+    
+    // Process each poll and get its responses
+    for (const poll of data.polls) {
+      // Fetch poll results
+      let pollResponses = [];
+      let participantCount = 0;
+      
+      try {
+        const resultsResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}/polls/${poll.id}/results`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (resultsResponse.ok) {
+          const resultsData = await resultsResponse.json();
+          pollResponses = resultsData.questions || [];
+          participantCount = resultsData.total_participants || 0;
+          
+          // Prepare poll responses for database if there are any
+          if (resultsData.participants && resultsData.participants.length > 0) {
+            for (const participant of resultsData.participants) {
+              allPollResponses.push({
+                user_id: userId,
+                webinar_id: webinarId,
+                poll_id: poll.id,
+                name: participant.name,
+                email: participant.email,
+                response_time: participant.response_time,
+                responses: participant.responses,
+                raw_data: participant
+              });
+            }
+            
+            totalPollResponses += resultsData.participants.length;
+          }
+        } else {
+          console.log(`[zoom-api][get-webinar-extended-data] Could not fetch responses for poll ${poll.id}`);
+        }
+      } catch (resultsError) {
+        console.error(`[zoom-api][get-webinar-extended-data] Error fetching poll results for poll ${poll.id}:`, resultsError);
+      }
+      
+      // Insert poll data
+      await supabase
+        .from('zoom_webinar_polls')
+        .insert({
+          user_id: userId,
+          webinar_id: webinarId,
+          poll_id: poll.id,
+          title: poll.title || 'Untitled Poll',
+          status: poll.status,
+          questions: poll.questions,
+          start_time: poll.start_time,
+          end_time: poll.end_time,
+          total_participants: participantCount,
+          raw_data: poll
+        });
+    }
+    
+    // Insert poll responses if any
+    if (allPollResponses.length > 0) {
+      // Delete existing responses
+      await supabase
+        .from('zoom_webinar_poll_responses')
+        .delete()
+        .eq('user_id', userId)
+        .eq('webinar_id', webinarId);
+      
+      // Insert new responses
+      const { error: responsesError } = await supabase
+        .from('zoom_webinar_poll_responses')
+        .insert(allPollResponses);
+      
+      if (responsesError) {
+        console.error('[zoom-api][get-webinar-extended-data] Error inserting poll responses:', responsesError);
+      }
+    }
+    
+    console.log(`[zoom-api][get-webinar-extended-data] Successfully stored ${data.polls.length} polls with ${totalPollResponses} responses`);
+    return { count: data.polls.length, responsesCount: totalPollResponses, status: 'success' };
+  } catch (error) {
+    console.error('[zoom-api][get-webinar-extended-data] Error in polls fetch:', error);
+    return { count: 0, status: 'error', message: error.message };
+  }
+}
+
+// Fetch and store recordings data
+async function fetchAndStoreRecordings(token: string, webinarId: string, supabase: any, userId: string) {
+  console.log(`[zoom-api][get-webinar-extended-data] Fetching recordings for webinar ID: ${webinarId}`);
+  
+  try {
+    const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/recordings`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // If endpoint returns 404, this webinar might not have recordings available
+    if (response.status === 404) {
+      console.log(`[zoom-api][get-webinar-extended-data] No recordings available for webinar ${webinarId}`);
+      return { count: 0, status: 'not_available' };
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[zoom-api][get-webinar-extended-data] Failed to fetch recordings:', errorData);
+      return { count: 0, status: 'error', message: errorData.message };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.recording_files || data.recording_files.length === 0) {
+      console.log(`[zoom-api][get-webinar-extended-data] No recording files found for webinar ${webinarId}`);
+      return { count: 0, status: 'empty' };
+    }
+    
+    // Delete existing recordings for this webinar
+    await supabase
+      .from('zoom_webinar_recordings')
+      .delete()
+      .eq('user_id', userId)
+      .eq('webinar_id', webinarId);
+    
+    // Insert new recordings
+    const recordingsToInsert = data.recording_files.map((recording: any) => ({
+      user_id: userId,
+      webinar_id: webinarId,
+      instance_id: data.uuid || '',
+      recording_id: recording.id,
+      recording_type: recording.recording_type,
+      recording_start: recording.recording_start,
+      recording_end: recording.recording_end,
+      file_type: recording.file_type,
+      file_size: recording.file_size,
+      play_url: recording.play_url,
+      download_url: recording.download_url,
+      status: recording.status,
+      duration: recording.duration,
+      password: data.password || '',
+      raw_data: recording
+    }));
+    
+    const { error: insertError } = await supabase
+      .from('zoom_webinar_recordings')
+      .insert(recordingsToInsert);
+    
+    if (insertError) {
+      console.error('[zoom-api][get-webinar-extended-data] Error inserting recordings data:', insertError);
+      return { count: 0, status: 'error', message: insertError.message };
+    }
+    
+    console.log(`[zoom-api][get-webinar-extended-data] Successfully stored ${recordingsToInsert.length} recordings`);
+    return { count: recordingsToInsert.length, status: 'success' };
+  } catch (error) {
+    console.error('[zoom-api][get-webinar-extended-data] Error in recordings fetch:', error);
+    return { count: 0, status: 'error', message: error.message };
+  }
+}
+
+// Fetch and store chat messages
+async function fetchAndStoreChat(token: string, webinarId: string, supabase: any, userId: string) {
+  console.log(`[zoom-api][get-webinar-extended-data] Fetching chat for webinar ID: ${webinarId}`);
+  
+  try {
+    const response = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}/chat`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // If endpoint returns 404, this webinar might not have chat enabled
+    if (response.status === 404) {
+      console.log(`[zoom-api][get-webinar-extended-data] No chat data available for webinar ${webinarId}`);
+      return { count: 0, status: 'not_available' };
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[zoom-api][get-webinar-extended-data] Failed to fetch chat:', errorData);
+      return { count: 0, status: 'error', message: errorData.message };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.messages || data.messages.length === 0) {
+      console.log(`[zoom-api][get-webinar-extended-data] No chat messages found for webinar ${webinarId}`);
+      return { count: 0, status: 'empty' };
+    }
+    
+    // Delete existing chat messages for this webinar
+    await supabase
+      .from('zoom_webinar_chat')
+      .delete()
+      .eq('user_id', userId)
+      .eq('webinar_id', webinarId);
+    
+    // Insert new chat messages
+    const messagesToInsert = data.messages.map((message: any) => ({
+      user_id: userId,
+      webinar_id: webinarId,
+      instance_id: message.session_id || '',
+      sender_id: message.sender_id,
+      sender_name: message.sender,
+      sender_email: message.sender_email,
+      recipient_id: message.receiver_id,
+      recipient_name: message.receiver,
+      recipient_type: message.receiver_type,
+      message: message.message,
+      message_time: message.date_time,
+      raw_data: message
+    }));
+    
+    const { error: insertError } = await supabase
+      .from('zoom_webinar_chat')
+      .insert(messagesToInsert);
+    
+    if (insertError) {
+      console.error('[zoom-api][get-webinar-extended-data] Error inserting chat data:', insertError);
+      return { count: 0, status: 'error', message: insertError.message };
+    }
+    
+    console.log(`[zoom-api][get-webinar-extended-data] Successfully stored ${messagesToInsert.length} chat messages`);
+    return { count: messagesToInsert.length, status: 'success' };
+  } catch (error) {
+    console.error('[zoom-api][get-webinar-extended-data] Error in chat fetch:', error);
+    return { count: 0, status: 'error', message: error.message };
+  }
+}

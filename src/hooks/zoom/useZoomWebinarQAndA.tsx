@@ -45,7 +45,9 @@ export function useZoomWebinarQAndA(webinarId: string | null) {
   });
 
   return {
-    qAndA: data || { questions: [], totalQuestions: 0, answeredQuestions: 0 } as ZoomWebinarQAndAResult,
+    questions: data?.questions || [],
+    totalQuestions: data?.totalQuestions || 0,
+    answeredQuestions: data?.answeredQuestions || 0,
     isLoading,
     isRefetching,
     error,
