@@ -19,6 +19,25 @@ interface WebinarParticipantsTabProps {
   participants: ZoomParticipants;
 }
 
+type Registrant = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  create_time: string;
+  join_url: string;
+  status: string;
+};
+
+type Attendee = {
+  id: string;
+  name: string;
+  user_email: string;
+  join_time: string;
+  leave_time: string;
+  duration: number;
+};
+
 export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   webinar,
   participants
@@ -26,16 +45,31 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   const [participantType, setParticipantType] = useState('registrants');
   const [searchQuery, setSearchQuery] = useState('');
   
-  const displayParticipants = participantType === 'registrants' 
-    ? participants.registrants || [] 
-    : participants.attendees || [];
+  // Explicitly type cast to handle each type correctly
+  const registrants = participants.registrants as Registrant[] || [];
+  const attendees = participants.attendees as Attendee[] || [];
+  
+  // Use the appropriate array based on the selected tab
+  const displayParticipants = participantType === 'registrants' ? registrants : attendees;
     
-  const filteredParticipants = displayParticipants.filter(p => 
-    searchQuery === '' || 
-    (p.email && p.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (p.first_name && p.first_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (p.last_name && p.last_name.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredParticipants = displayParticipants.filter(p => {
+    if (searchQuery === '') return true;
+    
+    if (participantType === 'registrants') {
+      const registrant = p as Registrant;
+      return (
+        (registrant.email && registrant.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (registrant.first_name && registrant.first_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (registrant.last_name && registrant.last_name.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    } else {
+      const attendee = p as Attendee;
+      return (
+        (attendee.user_email && attendee.user_email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (attendee.name && attendee.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    }
+  });
   
   return (
     <div>
@@ -58,10 +92,10 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
         >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="registrants">
-              Registrants ({participants.registrants?.length || 0})
+              Registrants ({registrants.length})
             </TabsTrigger>
             <TabsTrigger value="attendees">
-              Attendees ({participants.attendees?.length || 0})
+              Attendees ({attendees.length})
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -110,25 +144,36 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
               filteredParticipants.slice(0, 10).map((participant, index) => (
                 <TableRow key={index}>
                   <TableCell>
-                    {participant.first_name || participant.name || ''} {participant.last_name || ''}
+                    {participantType === 'registrants' 
+                      ? `${(participant as Registrant).first_name || ''} ${(participant as Registrant).last_name || ''}`
+                      : (participant as Attendee).name || 'N/A'
+                    }
                   </TableCell>
-                  <TableCell>{participant.email || 'N/A'}</TableCell>
+                  <TableCell>
+                    {participantType === 'registrants' 
+                      ? (participant as Registrant).email || 'N/A'
+                      : (participant as Attendee).user_email || 'N/A'
+                    }
+                  </TableCell>
                   {participantType === 'registrants' ? (
                     <>
                       <TableCell>
-                        {participant.create_time || 'N/A'}
+                        {(participant as Registrant).create_time || 'N/A'}
                       </TableCell>
                       <TableCell>
-                        {participant.status || 'N/A'}
+                        {(participant as Registrant).status || 'N/A'}
                       </TableCell>
                     </>
                   ) : (
                     <>
                       <TableCell>
-                        {participant.join_time || 'N/A'}
+                        {(participant as Attendee).join_time || 'N/A'}
                       </TableCell>
                       <TableCell>
-                        {participant.duration ? `${Math.floor(participant.duration / 60)} min` : 'N/A'}
+                        {(participant as Attendee).duration 
+                          ? `${Math.floor((participant as Attendee).duration / 60)} min` 
+                          : 'N/A'
+                        }
                       </TableCell>
                     </>
                   )}

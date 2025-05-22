@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { WebinarDashboardHeader } from '@/components/webinars/dashboard/WebinarDashboardHeader';
 import { WebinarDashboardTabs } from '@/components/webinars/dashboard/WebinarDashboardTabs';
 import { WebinarDashboardSkeleton } from '@/components/webinars/dashboard/WebinarDashboardSkeleton';
-import { useZoomWebinarDetails, useZoomWebinarParticipants } from '@/hooks/zoom';
+import { useZoomWebinarDetails, useZoomWebinarParticipants, ZoomParticipants } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -25,6 +25,12 @@ const WebinarDashboard = () => {
   } = useZoomWebinarParticipants(webinarId || null);
   
   const isLoading = isWebinarLoading || isParticipantsLoading;
+
+  // Ensure participants matches the expected ZoomParticipants type
+  const typedParticipants: ZoomParticipants = {
+    registrants: participants.registrants || [],
+    attendees: participants.attendees || []
+  };
 
   // If webinar doesn't exist and loading is complete, redirect to webinars list
   useEffect(() => {
@@ -61,7 +67,7 @@ const WebinarDashboard = () => {
         <WebinarDashboardHeader webinar={webinar} />
         <WebinarDashboardTabs 
           webinar={webinar}
-          participants={participants}
+          participants={typedParticipants}
         />
       </div>
     </AppLayout>
