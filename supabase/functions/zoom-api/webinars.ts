@@ -1,5 +1,6 @@
 import { corsHeaders } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
+import { recordSyncHistory, sleep } from './helpers.ts';
 
 // Handle listing webinars
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
