@@ -18,6 +18,8 @@ export const WebinarRecordingsTab: React.FC<WebinarRecordingsTabProps> = ({
 }) => {
   const { 
     recordings, 
+    totalRecordings,
+    totalDuration,
     isLoading, 
     isRefetching,
     refetch,
@@ -58,6 +60,7 @@ export const WebinarRecordingsTab: React.FC<WebinarRecordingsTabProps> = ({
             <CardTitle>Webinar Recordings</CardTitle>
             <CardDescription>
               Access and manage recordings for this webinar
+              {totalRecordings > 0 && ` (${totalRecordings} recordings, ${Math.round(totalDuration / 60)} minutes total)`}
             </CardDescription>
           </div>
           <Button 

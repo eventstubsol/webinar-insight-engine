@@ -20,11 +20,17 @@ export interface WebinarRecording {
   password?: string;
 }
 
+export interface WebinarRecordingsData {
+  recordings: WebinarRecording[];
+  totalRecordings: number;
+  totalDuration: number;
+}
+
 export function useZoomWebinarRecordings(webinarId: string | null) {
   const { user } = useAuth();
   
   const {
-    data: recordings,
+    data,
     isLoading,
     error,
     refetch,
@@ -32,7 +38,7 @@ export function useZoomWebinarRecordings(webinarId: string | null) {
   } = useQuery({
     queryKey: ['zoom-webinar-recordings', user?.id, webinarId],
     queryFn: async () => {
-      if (!user || !webinarId) return [];
+      if (!user || !webinarId) return { recordings: [], totalRecordings: 0, totalDuration: 0 };
       
       try {
         return await ZoomDataService.fetchWebinarRecordings(user.id, webinarId);
@@ -46,8 +52,17 @@ export function useZoomWebinarRecordings(webinarId: string | null) {
     staleTime: 5 * 60 * 1000 // 5 minutes
   });
   
+  // Ensure we always return a consistent structure
+  const recordingsData: WebinarRecordingsData = data || { 
+    recordings: [], 
+    totalRecordings: 0, 
+    totalDuration: 0 
+  };
+  
   return {
-    recordings: recordings || [],
+    recordings: recordingsData.recordings || [],
+    totalRecordings: recordingsData.totalRecordings || 0,
+    totalDuration: recordingsData.totalDuration || 0,
     isLoading,
     isRefetching,
     error,

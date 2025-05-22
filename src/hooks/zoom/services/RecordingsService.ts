@@ -1,6 +1,7 @@
 
 import { BaseZoomService } from './base/BaseZoomService';
 import { supabase } from '@/integrations/supabase/client';
+import { WebinarRecording, WebinarRecordingsData } from '@/hooks/zoom/useZoomWebinarRecordings';
 
 /**
  * RecordingsService - Service for managing recording data
@@ -9,7 +10,7 @@ export class RecordingsService extends BaseZoomService {
   /**
    * Fetch webinar recording data for a specific webinar
    */
-  static async fetchWebinarRecordings(userId: string, webinarId: string) {
+  static async fetchWebinarRecordings(userId: string, webinarId: string): Promise<WebinarRecordingsData> {
     try {
       console.log(`[RecordingsService] Fetching recordings for webinar ID: ${webinarId}`);
       
@@ -22,10 +23,12 @@ export class RecordingsService extends BaseZoomService {
         
       if (error) throw error;
       
+      const recordings = data || [];
+      
       return {
-        recordings: data || [],
-        totalRecordings: data?.length || 0,
-        totalDuration: data?.reduce((acc, rec) => acc + (rec.duration || 0), 0) || 0
+        recordings: recordings,
+        totalRecordings: recordings.length,
+        totalDuration: recordings.reduce((acc, rec) => acc + (rec.duration || 0), 0)
       };
     } catch (error) {
       console.error('[RecordingsService] Error fetching webinar recordings:', error);
