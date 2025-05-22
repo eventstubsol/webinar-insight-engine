@@ -42,13 +42,13 @@ export const DashboardStats = () => {
     ? Math.round((previousTotalAttendees / previousTotalRegistrants) * 100)
     : 0;
   
-  // Calculate percentage changes
+  // Calculate percentage changes using the formatTrendData function that now returns properly typed data
   const webinarsTrend = formatTrendData(calculatePercentageChange(currentTotalWebinars, previousTotalWebinars));
   const registrantsTrend = formatTrendData(calculatePercentageChange(currentTotalRegistrants, previousTotalRegistrants));
   const attendeesTrend = formatTrendData(calculatePercentageChange(currentTotalAttendees, previousTotalAttendees));
   const attendanceRateTrend = formatTrendData(calculatePercentageChange(currentAttendanceRate, previousAttendanceRate));
   
-  // We don't have real data for these metrics, so we'll use flat trends
+  // We don't have real data for these metrics, so we'll use flat trends with proper typing
   const engagementTrend = { value: 0, label: "0%", direction: 'flat' as const };
   const durationTrend = { value: 0, label: "0%", direction: 'flat' as const };
   

@@ -99,9 +99,14 @@ export const calculatePercentageChange = (current: number, previous: number): nu
   return Math.round(((current - previous) / previous) * 100);
 };
 
-// Format trend data
+// Format trend data with proper direction typing
 export const formatTrendData = (percentageChange: number) => {
-  const direction = percentageChange > 0 ? 'up' : percentageChange < 0 ? 'down' : 'flat';
+  // Explicitly type the direction as the union type expected by TrendData
+  const direction: 'up' | 'down' | 'flat' = 
+    percentageChange > 0 ? 'up' : 
+    percentageChange < 0 ? 'down' : 
+    'flat';
+    
   const label = `${percentageChange > 0 ? '+' : ''}${percentageChange}%`;
   
   return {
