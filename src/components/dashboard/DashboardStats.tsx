@@ -9,11 +9,48 @@ import {
   getTotalAttendees,
   getAttendanceRate,
   getTotalEngagement,
-  getAverageDuration
+  getAverageDuration,
+  getCurrentMonthWebinars,
+  getPreviousMonthWebinars,
+  calculatePercentageChange,
+  formatTrendData
 } from './utils/statsUtils';
 
 export const DashboardStats = () => {
   const { webinars, isLoading } = useZoomWebinars();
+  
+  // Calculate current and previous month data
+  const currentMonthWebinars = !isLoading ? getCurrentMonthWebinars(webinars) : [];
+  const previousMonthWebinars = !isLoading ? getPreviousMonthWebinars(webinars) : [];
+  
+  // Calculate metrics for current month
+  const currentTotalWebinars = !isLoading ? currentMonthWebinars.length : 0;
+  const currentTotalRegistrants = !isLoading ? getTotalRegistrants(currentMonthWebinars) : 0;
+  const currentTotalAttendees = !isLoading ? getTotalAttendees(currentMonthWebinars) : 0;
+  
+  // Calculate metrics for previous month
+  const previousTotalWebinars = !isLoading ? previousMonthWebinars.length : 0;
+  const previousTotalRegistrants = !isLoading ? getTotalRegistrants(previousMonthWebinars) : 0;
+  const previousTotalAttendees = !isLoading ? getTotalAttendees(previousMonthWebinars) : 0;
+  
+  // Calculate attendance rates
+  const currentAttendanceRate = currentTotalRegistrants > 0 
+    ? Math.round((currentTotalAttendees / currentTotalRegistrants) * 100)
+    : 0;
+  
+  const previousAttendanceRate = previousTotalRegistrants > 0
+    ? Math.round((previousTotalAttendees / previousTotalRegistrants) * 100)
+    : 0;
+  
+  // Calculate percentage changes
+  const webinarsTrend = formatTrendData(calculatePercentageChange(currentTotalWebinars, previousTotalWebinars));
+  const registrantsTrend = formatTrendData(calculatePercentageChange(currentTotalRegistrants, previousTotalRegistrants));
+  const attendeesTrend = formatTrendData(calculatePercentageChange(currentTotalAttendees, previousTotalAttendees));
+  const attendanceRateTrend = formatTrendData(calculatePercentageChange(currentAttendanceRate, previousAttendanceRate));
+  
+  // We don't have real data for these metrics, so we'll use flat trends
+  const engagementTrend = { value: 0, label: "0%", direction: 'flat' as const };
+  const durationTrend = { value: 0, label: "0%", direction: 'flat' as const };
   
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -24,6 +61,7 @@ export const DashboardStats = () => {
         icon={<Video className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-blue-50 border-blue-200"
+        trend={webinarsTrend}
       />
       <StatCard
         title="Total Registrants"
@@ -32,6 +70,7 @@ export const DashboardStats = () => {
         icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-sky-50 border-sky-200"
+        trend={registrantsTrend}
       />
       <StatCard
         title="Total Attendees"
@@ -40,6 +79,7 @@ export const DashboardStats = () => {
         icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-sky-50 border-sky-200"
+        trend={attendeesTrend}
       />
       <StatCard
         title="Attendance Rate"
@@ -48,6 +88,7 @@ export const DashboardStats = () => {
         icon={<Activity className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-green-50 border-green-200"
+        trend={attendanceRateTrend}
       />
       <StatCard
         title="Total Engagement"
@@ -56,6 +97,7 @@ export const DashboardStats = () => {
         icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-purple-50 border-purple-200"
+        trend={engagementTrend}
       />
       <StatCard
         title="Avg. Duration"
@@ -64,6 +106,7 @@ export const DashboardStats = () => {
         icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-green-50 border-green-200"
+        trend={durationTrend}
       />
     </div>
   );

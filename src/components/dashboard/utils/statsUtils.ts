@@ -1,5 +1,6 @@
 
 import { ZoomWebinar } from '@/hooks/zoom';
+import { startOfMonth, subMonths, isAfter, isBefore } from 'date-fns';
 
 export const getTotalWebinars = (webinars: ZoomWebinar[]): number => webinars.length;
 
@@ -62,4 +63,50 @@ export const getAverageDuration = (webinars: ZoomWebinar[]): string => {
   const formattedMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
   
   return `${hours}h ${formattedMinutes}m`;
+};
+
+// New utility functions for month-over-month comparison
+
+// Filter webinars for current month
+export const getCurrentMonthWebinars = (webinars: ZoomWebinar[]): ZoomWebinar[] => {
+  const now = new Date();
+  const startOfCurrentMonth = startOfMonth(now);
+  
+  return webinars.filter(webinar => {
+    if (!webinar.start_time) return false;
+    const webinarDate = new Date(webinar.start_time);
+    return isAfter(webinarDate, startOfCurrentMonth) || webinar.start_time.startsWith(startOfCurrentMonth.toISOString().substr(0, 7));
+  });
+};
+
+// Filter webinars for previous month
+export const getPreviousMonthWebinars = (webinars: ZoomWebinar[]): ZoomWebinar[] => {
+  const now = new Date();
+  const startOfCurrentMonth = startOfMonth(now);
+  const startOfPreviousMonth = startOfMonth(subMonths(now, 1));
+  
+  return webinars.filter(webinar => {
+    if (!webinar.start_time) return false;
+    const webinarDate = new Date(webinar.start_time);
+    return (isAfter(webinarDate, startOfPreviousMonth) || webinarDate.getTime() === startOfPreviousMonth.getTime()) 
+      && isBefore(webinarDate, startOfCurrentMonth);
+  });
+};
+
+// Calculate percentage change
+export const calculatePercentageChange = (current: number, previous: number): number => {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
+};
+
+// Format trend data
+export const formatTrendData = (percentageChange: number) => {
+  const direction = percentageChange > 0 ? 'up' : percentageChange < 0 ? 'down' : 'flat';
+  const label = `${percentageChange > 0 ? '+' : ''}${percentageChange}%`;
+  
+  return {
+    value: percentageChange,
+    label,
+    direction
+  };
 };
