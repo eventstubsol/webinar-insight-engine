@@ -43,7 +43,7 @@ export function useZoomWebinarPolls(webinarId: string | null) {
   });
 
   return {
-    polls: data || { polls: [], totalPolls: 0, totalParticipants: 0 } as ZoomWebinarPollsResult,
+    polls: data,
     isLoading,
     isRefetching,
     error,
