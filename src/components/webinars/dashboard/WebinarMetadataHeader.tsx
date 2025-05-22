@@ -1,181 +1,124 @@
 
-import React from 'react';
-import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent } from "@/components/ui/card";
+import { ZoomWebinar, ZoomParticipants } from "@/hooks/zoom";
+import { CalendarDays, Clock, Users, UserCheck } from "lucide-react";
 import { format, parseISO } from 'date-fns';
-import {
-  User,
-  Calendar,
-  Hash,
-  Video,
-  Key,
-  Users,
-  Clock,
-  Activity,
-  UserCheck,
-  UserX,
-  UserPlus,
-  Eye
-} from 'lucide-react';
+import { Badge } from "@/components/ui/badge";
 
 interface WebinarMetadataHeaderProps {
   webinar: ZoomWebinar;
   participants: ZoomParticipants;
+  instances?: any[];
 }
 
-export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ webinar, participants }) => {
-  // Calculate registration stats
-  const totalRegistered = participants.registrants.length;
-  const totalCancelled = participants.registrants.filter(r => r.status === 'cancelled').length;
-  const totalApproved = participants.registrants.filter(r => r.status === 'approved').length;
-  const totalDenied = participants.registrants.filter(r => r.status === 'denied').length;
+export function WebinarMetadataHeader({ webinar, participants, instances = [] }: WebinarMetadataHeaderProps) {
+  // Get participant stats
+  const registrantsCount = webinar.registrants_count || participants.registrants.length;
+  const attendeesCount = webinar.participants_count || participants.attendees.length;
   
-  // Calculate viewer stats
-  const uniqueViewers = new Set(participants.attendees.map(a => a.user_email)).size;
-  const totalUsers = participants.attendees.length;
+  // Determine total instances
+  const instancesCount = instances?.length || 0;
+  const pastInstancesCount = instances?.filter(i => 
+    i.status === 'ended' || new Date(i.start_time) < new Date()
+  ).length || 0;
   
-  // Extract presenters and panelists from webinar data if available
-  const presenter = webinar.raw_data?.alternative_host || webinar.host_email;
-  const panelists = webinar.raw_data?.panelists || [];
-  
-  // Format webinar date
-  const webinarDate = webinar.start_time ? 
-    format(parseISO(webinar.start_time), 'EEEE, MMMM d, yyyy • h:mm a') : 
-    'Date not set';
+  // Format the date and time for display
+  const formatDateTime = (dateTimeStr: string) => {
+    try {
+      if (!dateTimeStr) return 'Not scheduled';
+      const date = parseISO(dateTimeStr);
+      return format(date, 'PPpp'); // Format: Mar 14, 2023, 2:30 PM
+    } catch (e) {
+      return 'Invalid date';
+    }
+  };
 
-  // Recording details (placeholder, as this information may not be available in current data model)
-  const recordingLink = webinar.raw_data?.recording_url || 'Not available';
-  const recordingPassword = webinar.raw_data?.recording_password || 'Not available';
-  
-  // Actual start time and duration
-  const actualStart = webinar.raw_data?.actual_start_time ? 
-    format(parseISO(webinar.raw_data.actual_start_time), 'h:mm a') : 
-    format(parseISO(webinar.start_time), 'h:mm a');
-  const actualDuration = webinar.raw_data?.actual_duration || webinar.duration;
-  
-  // Max concurrent views (placeholder, as this information may not be available in current data model)
-  const maxConcurrentViews = webinar.raw_data?.max_concurrent_views || 'Not available';
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'started': return 'bg-green-500';
+      case 'waiting': return 'bg-yellow-500';
+      case 'ended': return 'bg-gray-500';
+      default: return 'bg-blue-500';
+    }
+  };
 
   return (
-    <Card className="mb-6">
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Column 1: Basic webinar information */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-medium">Webinar Information</h3>
-            <Separator />
-            
-            <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
-              <User className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Webinar Host:</span> {webinar.host_email}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-start space-x-4">
+            <CalendarDays className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-muted-foreground">Date & Time</h3>
+              <p className="text-sm">{formatDateTime(webinar.start_time)}</p>
+              <div className="flex items-center space-x-2 mt-1">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  {webinar.duration} minutes
+                </span>
               </div>
-              
-              <Hash className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Webinar ID:</span> {webinar.id}
+              <div className="flex items-center space-x-2 mt-1.5">
+                <div className={`h-2.5 w-2.5 rounded-full ${getStatusColor(webinar.status)}`}></div>
+                <span className="text-sm capitalize">{webinar.status || 'Unknown'}</span>
               </div>
-              
-              <Calendar className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Webinar Date:</span> {webinarDate}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-start space-x-4">
+            <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-muted-foreground">Participation</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-2xl font-bold">{registrantsCount}</p>
+                  <p className="text-xs text-muted-foreground">Registrants</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{attendeesCount}</p>
+                  <p className="text-xs text-muted-foreground">Attendees</p>
+                </div>
               </div>
-              
-              <User className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Presenter:</span> {presenter}
-              </div>
-              
-              {panelists.length > 0 ? (
-                panelists.map((panelist: any, index: number) => (
-                  <React.Fragment key={index}>
-                    <Users className="h-4 w-4 text-muted-foreground mt-1" />
-                    <div>
-                      <span className="font-medium">Panelist:</span> {panelist.name || panelist.email || 'Unknown'}
-                    </div>
-                  </React.Fragment>
-                ))
-              ) : (
-                <>
-                  <Users className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div>
-                    <span className="font-medium">Panelist:</span> None
-                  </div>
-                </>
+              {(registrantsCount > 0) && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {Math.round((attendeesCount / registrantsCount) * 100)}% attendance rate
+                </p>
               )}
-              
-              <Video className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Recording Link:</span> {recordingLink}
-              </div>
-              
-              <Key className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Recording Password:</span> {recordingPassword}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-start space-x-4">
+            <UserCheck className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-muted-foreground">Webinar Details</h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm">Type: {webinar.type === 5 ? 'Webinar' : 'Meeting'}</p>
+                  <p className="text-sm">Host: {webinar.host_email || 'Unknown'}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {instancesCount > 1 && (
+                    <Badge variant="outline">{instancesCount} instances</Badge>
+                  )}
+                  {pastInstancesCount > 0 && (
+                    <Badge variant="outline">{pastInstancesCount} past sessions</Badge>
+                  )}
+                  {webinar.timezone && (
+                    <Badge variant="outline">TZ: {webinar.timezone}</Badge>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-          
-          {/* Column 2: Registration and viewer statistics */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-medium">Registration Stats</h3>
-            <Separator />
-            
-            <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
-              <UserPlus className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Total Registered:</span> {totalRegistered}
-              </div>
-              
-              <UserX className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Total Cancelled:</span> {totalCancelled}
-              </div>
-              
-              <UserCheck className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Total Approved:</span> {totalApproved}
-              </div>
-              
-              <UserX className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Total Denied:</span> {totalDenied}
-              </div>
-              
-              <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Actual Start:</span> {actualStart}
-              </div>
-              
-              <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Actual Duration:</span> {actualDuration} minutes
-              </div>
-            </div>
-            
-            <h3 className="text-lg font-medium mt-4">Viewer Stats</h3>
-            <Separator />
-            
-            <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
-              <Eye className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Unique Viewers:</span> {uniqueViewers}
-              </div>
-              
-              <Users className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Total Users:</span> {totalUsers}
-              </div>
-              
-              <Activity className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Max Concurrent Views:</span> {maxConcurrentViews}
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
-};
+}

@@ -7,48 +7,68 @@ import { ZoomParticipants } from './types';
 export function useZoomWebinarParticipants(webinarId: string | null) {
   const { user } = useAuth();
   
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['zoom-participants', user?.id, webinarId],
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    isRefetching
+  } = useQuery({
+    queryKey: ['zoom-webinar-participants', user?.id, webinarId],
     queryFn: async () => {
       if (!user || !webinarId) return { registrants: [], attendees: [] };
       
-      // Try to get from database first
-      const { data: dbParticipants, error: dbError } = await supabase
+      // First try to get from database
+      const { data: registrants, error: registrantsError } = await supabase
         .from('zoom_webinar_participants')
         .select('*')
         .eq('user_id', user.id)
-        .eq('webinar_id', webinarId);
+        .eq('webinar_id', webinarId)
+        .eq('participant_type', 'registrant');
+        
+      const { data: attendees, error: attendeesError } = await supabase
+        .from('zoom_webinar_participants')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('webinar_id', webinarId)
+        .eq('participant_type', 'attendee');
       
-      if (!dbError && dbParticipants && dbParticipants.length > 0) {
-        // Transform to expected format
-        const registrants = dbParticipants
-          .filter(p => p.participant_type === 'registrant')
-          .map(p => p.raw_data);
-        
-        const attendees = dbParticipants
-          .filter(p => p.participant_type === 'attendee')
-          .map(p => p.raw_data);
-        
-        return { registrants, attendees };
+      // If we have data in the database, use it
+      if (!registrantsError && !attendeesError && 
+          ((registrants && registrants.length > 0) || 
+           (attendees && attendees.length > 0))) {
+        return {
+          registrants: registrants || [],
+          attendees: attendees || []
+        };
       }
       
       // If not in database, fetch from API
       const { data, error } = await supabase.functions.invoke('zoom-api', {
-        body: { action: 'get-participants', id: webinarId }
+        body: { 
+          action: 'get-participants',
+          id: webinarId
+        }
       });
       
       if (error) throw new Error(error.message);
-      return data as ZoomParticipants;
+      
+      return {
+        registrants: data.registrants || [],
+        attendees: data.attendees || []
+      };
     },
     enabled: !!user && !!webinarId,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 15 * 60 * 1000 // 15 minutes
+    gcTime: 30 * 60 * 1000 // 30 minutes
   });
 
   return {
-    participants: data || { registrants: [], attendees: [] },
+    participants: data || { registrants: [], attendees: [] } as ZoomParticipants,
     isLoading,
-    error
+    isRefetching,
+    error,
+    refetch
   };
 }

@@ -6,9 +6,17 @@ import { WebinarDashboardHeader } from '@/components/webinars/dashboard/WebinarD
 import { WebinarMetadataHeader } from '@/components/webinars/dashboard/WebinarMetadataHeader';
 import { WebinarDashboardTabs } from '@/components/webinars/dashboard/WebinarDashboardTabs';
 import { WebinarDashboardSkeleton } from '@/components/webinars/dashboard/WebinarDashboardSkeleton';
-import { useZoomWebinarDetails, useZoomWebinarParticipants, ZoomParticipants } from '@/hooks/zoom';
+import { 
+  useZoomWebinarDetails, 
+  useZoomWebinarParticipants, 
+  useZoomWebinarInstances,
+  ZoomParticipants 
+} from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
 
 // Define helper function to type check and safely cast participants
 const safeParticipantsCast = (participants: any): ZoomParticipants => {
@@ -40,19 +48,28 @@ const safeParticipantsCast = (participants: any): ZoomParticipants => {
 const WebinarDashboard = () => {
   const { webinarId } = useParams<{ webinarId: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   const { 
     webinar, 
     isLoading: isWebinarLoading,
-    error: webinarError
+    error: webinarError,
+    refetch: refetchWebinar
   } = useZoomWebinarDetails(webinarId || null);
   
   const { 
     participants: rawParticipants, 
-    isLoading: isParticipantsLoading 
+    isLoading: isParticipantsLoading,
+    refetch: refetchParticipants 
   } = useZoomWebinarParticipants(webinarId || null);
+
+  const {
+    instances,
+    isLoading: isInstancesLoading,
+    refetch: refetchInstances
+  } = useZoomWebinarInstances(webinarId);
   
-  const isLoading = isWebinarLoading || isParticipantsLoading;
+  const isLoading = isWebinarLoading || isParticipantsLoading || isInstancesLoading;
 
   // Safely cast participants to the expected ZoomParticipants type
   const participants: ZoomParticipants = safeParticipantsCast(rawParticipants);
@@ -63,6 +80,33 @@ const WebinarDashboard = () => {
       navigate('/webinars');
     }
   }, [webinar, isLoading, navigate, webinarId]);
+
+  // Function to refresh all data
+  const refreshAllData = async () => {
+    try {
+      toast({
+        title: "Refreshing webinar data",
+        description: "Please wait while we fetch the latest data..."
+      });
+      
+      await Promise.all([
+        refetchWebinar(),
+        refetchParticipants(),
+        refetchInstances()
+      ]);
+      
+      toast({
+        title: "Data refreshed",
+        description: "Webinar data has been updated successfully"
+      });
+    } catch (error) {
+      toast({
+        title: "Refresh failed",
+        description: "Could not refresh webinar data. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   if (webinarError) {
     return (
@@ -89,11 +133,31 @@ const WebinarDashboard = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <WebinarDashboardHeader webinar={webinar} />
-        <WebinarMetadataHeader webinar={webinar} participants={participants} />
+        <div className="flex justify-between items-center">
+          <WebinarDashboardHeader webinar={webinar} />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={refreshAllData}
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Data
+          </Button>
+        </div>
+        
+        <Separator />
+        
+        <WebinarMetadataHeader 
+          webinar={webinar} 
+          participants={participants}
+          instances={instances} 
+        />
+        
         <WebinarDashboardTabs 
           webinar={webinar}
           participants={participants}
+          instances={instances}
         />
       </div>
     </AppLayout>
