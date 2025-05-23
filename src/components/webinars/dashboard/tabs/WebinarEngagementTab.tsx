@@ -44,6 +44,8 @@ export function WebinarEngagementTab({ webinar, participants }: WebinarEngagemen
   // Fetch Polls data
   const {
     polls,
+    totalPolls,
+    totalParticipants: pollParticipants,
     isLoading: isLoadingPolls,
     isRefetching: isRefetchingPolls,
     error: pollsError,
@@ -54,11 +56,6 @@ export function WebinarEngagementTab({ webinar, participants }: WebinarEngagemen
   const isRefetching = isRefetchingQAndA || isRefetchingPolls;
   const error = qandaError || pollsError;
 
-  // Data for polls
-  const pollsData = polls?.polls || [];
-  const totalPolls = polls?.totalPolls || 0;
-  const pollParticipants = polls?.totalParticipants || 0;
-  
   // Get total attendees
   const totalAttendees = participants?.attendees?.length || 0;
   
@@ -154,7 +151,7 @@ export function WebinarEngagementTab({ webinar, participants }: WebinarEngagemen
                 />
                 
                 <PollsPanel
-                  polls={pollsData}
+                  polls={polls}
                   isLoading={isLoadingPolls}
                 />
               </div>

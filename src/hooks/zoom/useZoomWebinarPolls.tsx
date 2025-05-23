@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-interface PollQuestion {
+export interface PollQuestion {
   name: string;
   type: string;
   answers: string[];
@@ -10,7 +10,7 @@ interface PollQuestion {
   totalAnswers: number;
 }
 
-interface Poll {
+export interface Poll {
   poll_id: string;
   title: string;
   questions: PollQuestion[];
@@ -19,7 +19,7 @@ interface Poll {
   start_time?: string;
 }
 
-interface WebinarPollsData {
+export interface WebinarPollsData {
   polls: Poll[];
   totalPolls: number;
   totalParticipants: number;
@@ -66,7 +66,7 @@ export const useZoomWebinarPolls = (webinarId: string | null) => {
         const rawQuestions = poll.questions || [];
         
         // Process each question to add response stats
-        const questions = rawQuestions.map((q: any) => {
+        const questions = Array.isArray(rawQuestions) ? rawQuestions.map((q: any) => {
           const questionResponses = responsesData?.filter((r: any) => {
             return r.responses?.some((resp: any) => resp.question_id === q.id);
           }) || [];
@@ -95,7 +95,7 @@ export const useZoomWebinarPolls = (webinarId: string | null) => {
             answersCount: (q.options || []).map((opt: string) => answerCounts[opt] || 0),
             totalAnswers
           };
-        });
+        }) : [];
 
         return {
           poll_id: poll.poll_id,
