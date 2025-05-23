@@ -1,15 +1,17 @@
 
 import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
-import { createErrorResponse } from "./cors.ts";
+import { createErrorResponse, createSuccessResponse } from "./cors.ts";
 import { 
-  handleSaveCredentials, 
-  handleCheckCredentialsStatus,
   handleVerifyCredentials,
-  getZoomCredentials,
-  verifyZoomCredentials,
   ZoomApiClient
 } from "./auth.ts";
+import {
+  handleSaveCredentials,
+  handleCheckCredentialsStatus,
+  getZoomCredentials,
+  verifyZoomCredentials
+} from "./credentials.ts";
 import { 
   handleListWebinars, 
   handleGetWebinar, 
