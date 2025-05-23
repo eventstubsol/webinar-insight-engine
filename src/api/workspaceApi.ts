@@ -157,6 +157,7 @@ export async function deleteExistingWorkspace(id: string) {
  * Fetches members of a workspace
  */
 export async function fetchWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
+  // Modify the query to use a different approach for joining profiles data
   const { data, error } = await supabase
     .from('workspace_members')
     .select(`
@@ -164,33 +165,38 @@ export async function fetchWorkspaceMembers(workspaceId: string): Promise<Worksp
       workspace_id,
       user_id,
       role,
-      joined_at,
-      profiles:user_id (
-        display_name,
-        avatar_url
-      )
+      joined_at
     `)
     .eq('workspace_id', workspaceId);
 
   if (error) throw new Error(`Failed to fetch workspace members: ${error.message}`);
 
-  // Transform to match our interface with proper null handling
-  const members: WorkspaceMember[] = data.map(item => {
-    // Fix: Properly handle the profiles data which could be null
-    const profileData = item.profiles || null;
+  // Now fetch profiles separately to avoid the relational query issue
+  const members: WorkspaceMember[] = [];
+  
+  for (const member of data) {
+    // Get profile data for each member
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('display_name, avatar_url')
+      .eq('id', member.user_id)
+      .single();
     
-    return {
-      id: item.id,
-      workspace_id: item.workspace_id,
-      user_id: item.user_id,
-      role: item.role as WorkspaceMemberRole,
-      joined_at: item.joined_at,
+    members.push({
+      id: member.id,
+      workspace_id: member.workspace_id,
+      user_id: member.user_id,
+      role: member.role as WorkspaceMemberRole,
+      joined_at: member.joined_at,
       profile: profileData ? {
         display_name: profileData.display_name || null,
         avatar_url: profileData.avatar_url || null
-      } : undefined
-    };
-  });
+      } : {
+        display_name: null,
+        avatar_url: null
+      }
+    });
+  }
 
   return members;
 }
