@@ -223,4 +223,3 @@ export const usePdfExport = (webinar: ZoomWebinar, participants?: ZoomParticipan
     exportAttendeeReportPdf
   };
 };
-</lov-add-dependency>html2canvas@latest</lov-add-dependency>
