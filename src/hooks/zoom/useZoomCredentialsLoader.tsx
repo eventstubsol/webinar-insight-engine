@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ZoomCredentials } from './types';
+import { toast } from '@/hooks/use-toast';
 
 /**
  * Custom hook to load and manage Zoom credentials
@@ -11,6 +12,7 @@ import { ZoomCredentials } from './types';
 export function useZoomCredentialsLoader() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   const fetchInProgress = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -71,6 +73,7 @@ export function useZoomCredentialsLoader() {
       
       try {
         fetchInProgress.current = true;
+        setLastError(null);
         const signal = prepareNewRequest();
         
         // Set timeout to cancel long-running requests
@@ -86,7 +89,7 @@ export function useZoomCredentialsLoader() {
         // Add delay before actual request to avoid rapid repeated requests
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Fix: Use correct parameter syntax for supabase.functions.invoke
+        // Use correct parameter syntax for supabase.functions.invoke
         const { data, error } = await supabase.functions.invoke('zoom-api', {
           body: { action: 'get-credentials' }
         });
@@ -97,7 +100,19 @@ export function useZoomCredentialsLoader() {
           timeoutRef.current = null;
         }
         
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase function error:', error);
+          setLastError(error.message || 'Failed to fetch credentials');
+          throw error;
+        }
+
+        if (!data) {
+          console.error('No data returned from get-credentials function');
+          setLastError('No credential data returned');
+          throw new Error('No credential data returned');
+        }
+
+        console.log('Credentials data received:', data.hasCredentials ? 'Has credentials' : 'No credentials');
         return data as {
           hasCredentials: boolean;
           credentials?: ZoomCredentials;
@@ -110,6 +125,7 @@ export function useZoomCredentialsLoader() {
         }
         
         console.error('Error fetching saved credentials:', err);
+        setLastError(err.message || 'Failed to fetch credentials');
         throw new Error(err.message || 'Failed to fetch credentials');
       } finally {
         // Set a small delay before allowing another fetch
@@ -138,10 +154,30 @@ export function useZoomCredentialsLoader() {
     
     try {
       setIsLoading(true);
+      setLastError(null);
+      console.log('Fetching saved credentials manually');
       const result = await refetch();
+      
+      if (result.error) {
+        console.error('Error refetching credentials:', result.error);
+        setLastError(result.error.message || 'Failed to fetch credentials');
+        toast({
+          title: 'Failed to fetch Zoom credentials',
+          description: result.error.message || 'Please try again later',
+          variant: 'destructive'
+        });
+        return null;
+      }
+      
       return result.data;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch saved credentials:', err);
+      setLastError(err.message || 'Failed to fetch credentials');
+      toast({
+        title: 'Failed to fetch Zoom credentials',
+        description: err.message || 'Please try again later',
+        variant: 'destructive'
+      });
       return null;
     } finally {
       setIsLoading(false);
@@ -153,6 +189,7 @@ export function useZoomCredentialsLoader() {
     hasCredentials: !!data?.hasCredentials,
     isLoading: isLoading || isInitialLoading,
     error,
+    lastError,
     fetchSavedCredentials
   };
 }

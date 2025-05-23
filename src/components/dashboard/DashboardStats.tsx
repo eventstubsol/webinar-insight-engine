@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Video, Users, Activity, Clock } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
@@ -15,8 +14,13 @@ import {
   calculatePercentageChange,
   formatTrendData
 } from './utils/statsUtils';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export const DashboardStats = () => {
+interface DashboardStatsProps {
+  isRefreshing?: boolean;
+}
+
+export const DashboardStats: React.FC<DashboardStatsProps> = ({ isRefreshing = false }) => {
   const { webinars, isLoading } = useZoomWebinars();
   
   // Calculate current and previous month data
@@ -48,18 +52,49 @@ export const DashboardStats = () => {
   const attendeesTrend = formatTrendData(calculatePercentageChange(currentTotalAttendees, previousTotalAttendees));
   const attendanceRateTrend = formatTrendData(calculatePercentageChange(currentAttendanceRate, previousAttendanceRate));
   
-  // We don't have real data for these metrics, so we'll use flat trends with proper typing
+  // Fixed values for metrics that don't have enough data
   const engagementTrend = { value: 0, label: "0%", direction: 'flat' as const };
   const durationTrend = { value: 0, label: "0%", direction: 'flat' as const };
   
+  // Debug logging
+  console.log('DashboardStats render:', {
+    webinarsCount: webinars.length,
+    currentMonthWebinars: currentMonthWebinars.length,
+    totalRegistrants: getTotalRegistrants(webinars),
+    totalAttendees: getTotalAttendees(webinars),
+    hasRawData: webinars.some(w => !!w.raw_data),
+    hasParticipantsCount: webinars.some(w => w.raw_data && typeof w.raw_data.participants_count !== 'undefined'),
+    hasRegistrantsCount: webinars.some(w => w.raw_data && typeof w.raw_data.registrants_count !== 'undefined'),
+    isLoading,
+    isRefreshing
+  });
+
+  // If refreshing or loading, show skeleton state but keep previous data visible underneath
+  if (isLoading && !isRefreshing && webinars.length === 0) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-32" />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 relative">
+      {/* Overlay for refreshing state */}
+      {isRefreshing && (
+        <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg z-10">
+          <div className="animate-pulse text-sm text-muted-foreground">Refreshing data...</div>
+        </div>
+      )}
+      
       <StatCard
         title="Total Webinars"
         value={isLoading ? undefined : getTotalWebinars(webinars).toString()}
         description="Total webinars"
         icon={<Video className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
+        isLoading={isLoading && !isRefreshing && webinars.length === 0}
         cardColor="bg-blue-50 border-blue-200"
         trend={webinarsTrend}
       />
@@ -68,7 +103,7 @@ export const DashboardStats = () => {
         value={isLoading ? undefined : getTotalRegistrants(webinars).toString()}
         description="Registered participants"
         icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
+        isLoading={isLoading && !isRefreshing && webinars.length === 0}
         cardColor="bg-sky-50 border-sky-200"
         trend={registrantsTrend}
       />
@@ -77,7 +112,7 @@ export const DashboardStats = () => {
         value={isLoading ? undefined : getTotalAttendees(webinars).toString()}
         description="Attended participants"
         icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
+        isLoading={isLoading && !isRefreshing && webinars.length === 0}
         cardColor="bg-sky-50 border-sky-200"
         trend={attendeesTrend}
       />
@@ -86,7 +121,7 @@ export const DashboardStats = () => {
         value={isLoading ? undefined : getAttendanceRate(webinars)}
         description="Attendance percentage"
         icon={<Activity className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
+        isLoading={isLoading && !isRefreshing && webinars.length === 0}
         cardColor="bg-green-50 border-green-200"
         trend={attendanceRateTrend}
       />
@@ -95,7 +130,7 @@ export const DashboardStats = () => {
         value={isLoading ? undefined : getTotalEngagement()}
         description="Total engagement time"
         icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
+        isLoading={isLoading && !isRefreshing && webinars.length === 0}
         cardColor="bg-purple-50 border-purple-200"
         trend={engagementTrend}
       />
@@ -104,7 +139,7 @@ export const DashboardStats = () => {
         value={isLoading ? undefined : getAverageDuration(webinars)}
         description="Average webinar length"
         icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
+        isLoading={isLoading && !isRefreshing && webinars.length === 0}
         cardColor="bg-green-50 border-green-200"
         trend={durationTrend}
       />
