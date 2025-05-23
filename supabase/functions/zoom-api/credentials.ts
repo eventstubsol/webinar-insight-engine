@@ -1,3 +1,4 @@
+
 import { corsHeaders, createErrorResponse, createSuccessResponse } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
 
@@ -59,6 +60,45 @@ export async function handleSaveCredentials(req: Request, supabase: any, user: a
     });
   } catch (error) {
     return createErrorResponse(error.message || 'Failed to save credentials');
+  }
+}
+
+// Handle getting the user's saved credentials
+export async function handleGetCredentials(req: Request, supabase: any, user: any) {
+  try {
+    console.log(`[zoom-api] Getting credentials for user ${user.id}`);
+    
+    // Get the credentials but exclude sensitive fields
+    const { data: credentials, error } = await supabase
+      .from('zoom_credentials')
+      .select('account_id, client_id, client_secret')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching credentials:', error);
+      return createErrorResponse('Failed to retrieve credentials', 400);
+    }
+    
+    if (!credentials) {
+      return createSuccessResponse({
+        hasCredentials: false,
+        message: 'No credentials found for this user'
+      });
+    }
+    
+    // Return the credentials
+    return createSuccessResponse({
+      hasCredentials: true,
+      credentials: {
+        account_id: credentials.account_id,
+        client_id: credentials.client_id,
+        client_secret: credentials.client_secret
+      }
+    });
+  } catch (error) {
+    console.error('Exception fetching credentials:', error);
+    return createErrorResponse(error.message || 'Failed to retrieve credentials');
   }
 }
 

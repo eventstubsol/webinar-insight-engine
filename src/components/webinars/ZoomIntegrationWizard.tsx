@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -28,11 +27,13 @@ import {
   RefreshCw, 
   Copy, 
   ExternalLink, 
-  Settings 
+  Settings,
+  Loader2 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/hooks/useAuth';
+import { useZoomCredentialsLoader } from '@/hooks/zoom/useZoomCredentialsLoader';
 
 interface ZoomIntegrationWizardProps {
   onComplete?: () => void;
@@ -55,6 +56,8 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { savedCredentials, hasCredentials, isLoading: isLoadingCredentials, fetchSavedCredentials } = useZoomCredentialsLoader();
+  
   const [currentStep, setCurrentStep] = useState<WizardStep>(WizardStep.Introduction);
   const [credentials, setCredentials] = useState({
     account_id: '',
@@ -65,6 +68,30 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [scopesError, setScopesError] = useState(false);
   const [verificationDetails, setVerificationDetails] = useState<any>(null);
+
+  // When savedCredentials loads, update the form
+  useEffect(() => {
+    if (savedCredentials) {
+      setCredentials({
+        account_id: savedCredentials.account_id || '',
+        client_id: savedCredentials.client_id || '',
+        client_secret: savedCredentials.client_secret || '',
+      });
+      
+      // If there are saved credentials, show a toast notification
+      toast({
+        title: 'Credentials Pre-filled',
+        description: 'Your previously saved Zoom credentials have been loaded.',
+      });
+    }
+  }, [savedCredentials, toast]);
+
+  // Fetch credentials when the wizard opens
+  useEffect(() => {
+    if (user) {
+      fetchSavedCredentials();
+    }
+  }, [user]);
 
   const handleChangeCredentials = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCredentials({
@@ -198,6 +225,16 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
           </li>
         </ul>
       </div>
+
+      {hasCredentials && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>You already have credentials saved</AlertTitle>
+          <AlertDescription>
+            We found your previously saved Zoom credentials. You can proceed to verify them or edit if needed.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Alert>
         <Info className="h-4 w-4" />
@@ -389,6 +426,13 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
           </ul>
         </AlertDescription>
       </Alert>
+
+      {isLoadingCredentials && (
+        <div className="flex items-center justify-center p-4">
+          <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+          <span>Loading saved credentials...</span>
+        </div>
+      )}
 
       <div className="rounded-md border p-4 space-y-4">
         <div className="space-y-2">

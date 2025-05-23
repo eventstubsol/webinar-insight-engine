@@ -1,3 +1,16 @@
+// Export interfaces for Zoom API types
+
+export interface ZoomCredentialsStatus {
+  hasCredentials: boolean;
+  isVerified: boolean;
+  lastVerified: string | null;
+}
+
+export interface ZoomCredentials {
+  account_id: string;
+  client_id: string;
+  client_secret: string;
+}
 
 export interface ZoomWebinar {
   id: string;
@@ -34,10 +47,4 @@ export interface ZoomParticipants {
     leave_time: string;
     duration: number;
   }>;
-}
-
-export interface ZoomCredentialsStatus {
-  hasCredentials: boolean;
-  isVerified: boolean;
-  lastVerified: string | null;
 }

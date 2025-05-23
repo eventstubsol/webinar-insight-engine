@@ -11,7 +11,8 @@ import {
   handleCheckCredentialsStatus,
   getZoomCredentials,
   verifyZoomCredentials,
-  handleVerifyCredentials
+  handleVerifyCredentials,
+  handleGetCredentials
 } from "./credentials.ts";
 import { 
   handleListWebinars, 
@@ -56,6 +57,13 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
       case "check-credentials-status":
         response = await executeWithTimeout(
           () => handleCheckCredentialsStatus(req, supabaseAdmin, user),
+          OPERATION_TIMEOUT
+        );
+        break;
+      
+      case "get-credentials":
+        response = await executeWithTimeout(
+          () => handleGetCredentials(req, supabaseAdmin, user),
           OPERATION_TIMEOUT
         );
         break;

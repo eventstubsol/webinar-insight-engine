@@ -5,6 +5,7 @@ export * from './types/webinarTypes';
 
 // Export hooks
 export * from './useZoomCredentials';
+export * from './useZoomCredentialsLoader';
 export * from './useZoomWebinars';
 export * from './useZoomWebinarDetails';
 export * from './useZoomWebinarParticipants';
@@ -26,4 +27,3 @@ export * from './useExportData';
 export * from './services';
 export * from './services/index';
 export * from './webinarOperations';
-
