@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -322,10 +321,13 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Handle profiles data with type assertion and nullish checks
         let profileData: { display_name: string | null, avatar_url: string | null } | null = null;
         
-        if (item.profiles && typeof item.profiles === 'object') {
-          // Safe check if it's not an error object
-          if (!('error' in item.profiles)) {
-            profileData = item.profiles as { display_name: string | null, avatar_url: string | null };
+        if (item.profiles) {
+          // Only try to access properties if profiles exists
+          if (typeof item.profiles === 'object' && item.profiles !== null) {
+            // Safe check if it's not an error object
+            if (!('error' in item.profiles)) {
+              profileData = item.profiles as { display_name: string | null, avatar_url: string | null };
+            }
           }
         }
         
@@ -354,7 +356,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
-  const inviteWorkspaceMember = useCallback(async (workspaceId: string, email: string, role: WorkspaceMemberRole) => {
+  const inviteWorkspaceMember = useCallback(async (
+    workspaceId: string, 
+    email: string, 
+    role: 'owner' | 'admin' | 'analyst' | 'viewer'
+  ) => {
     try {
       // First, check if the user exists
       const { data: userData, error: userError } = await supabase
@@ -410,7 +416,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
-  const updateWorkspaceMember = useCallback(async (memberId: string, role: WorkspaceMemberRole) => {
+  const updateWorkspaceMember = useCallback(async (memberId: string, role: WorkspaceMember['role']) => {
     try {
       const { error } = await supabase
         .from('workspace_members')

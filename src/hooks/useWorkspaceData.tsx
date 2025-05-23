@@ -23,7 +23,7 @@ export function useWorkspaceData() {
     }
 
     let query = supabase
-      .from(table as any)
+      .from(table)
       .select(columns)
       .eq('workspace_id', currentWorkspace.id);
     
@@ -38,7 +38,7 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    // Explicitly cast the data to handle type conversion safely
+    // Safe type casting with explicit unknown intermediate step
     return (data as unknown) as T[];
   }, [currentWorkspace]);
 
@@ -62,8 +62,8 @@ export function useWorkspaceData() {
     }));
     
     const query = supabase
-      .from(table as any)
-      .insert(dataWithWorkspace as any);
+      .from(table)
+      .insert(dataWithWorkspace);
     
     if (options?.returning !== false) {
       query.select();
@@ -76,7 +76,7 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    // Explicitly cast the response data to handle type conversion safely
+    // Safe type casting with explicit unknown intermediate step
     return (responseData as unknown) as T[];
   }, [currentWorkspace]);
 
@@ -97,7 +97,7 @@ export function useWorkspaceData() {
     const idField = options?.idField || 'id';
     
     const query = supabase
-      .from(table as any)
+      .from(table)
       .update(updates)
       .eq(idField, id)
       .eq('workspace_id', currentWorkspace.id);
@@ -113,7 +113,7 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    // Explicitly cast the data to handle type conversion safely
+    // Safe type casting with explicit unknown intermediate step
     return (data as unknown) as T;
   }, [currentWorkspace]);
 
@@ -133,7 +133,7 @@ export function useWorkspaceData() {
     const idField = options?.idField || 'id';
     
     const { error } = await supabase
-      .from(table as any)
+      .from(table)
       .delete()
       .eq(idField, id)
       .eq('workspace_id', currentWorkspace.id);
