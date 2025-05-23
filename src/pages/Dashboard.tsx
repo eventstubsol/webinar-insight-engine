@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { WebinarDistributionChart } from '@/components/dashboard/WebinarDistributionChart';
-import { RegistrationAttendanceChart } from '@/components/dashboard/RegistrationAttendanceChart';
+import { RegistrationAttendanceAreaChart } from '@/components/dashboard/RegistrationAttendanceAreaChart';
 import { RecentWebinars } from '@/components/dashboard/RecentWebinars';
 import { UpcomingWebinars } from '@/components/dashboard/UpcomingWebinars';
 import { Button } from '@/components/ui/button';
@@ -22,28 +22,6 @@ const Dashboard = () => {
   const { refreshWebinars, isRefetching, webinars } = useZoomWebinars();
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
-
-  // Prepare sample data for the registration & attendance chart
-  const registrationAttendanceData = React.useMemo(() => {
-    // If we have webinars, calculate total registrants and attendees
-    if (webinars && webinars.length > 0) {
-      const totalRegistrants = webinars.reduce((sum, webinar) => 
-        sum + (webinar.raw_data?.registrants_count || 0), 0);
-      const totalAttendees = webinars.reduce((sum, webinar) => 
-        sum + (webinar.raw_data?.participants_count || 0), 0);
-      
-      return [
-        { name: 'Registrants', value: totalRegistrants },
-        { name: 'Attendees', value: totalAttendees }
-      ];
-    }
-    
-    // Default sample data if no webinars are available
-    return [
-      { name: 'Registrants', value: 0 },
-      { name: 'Attendees', value: 0 }
-    ];
-  }, [webinars]);
   
   const handleConnectZoom = () => {
     setShowWizard(true);
@@ -120,7 +98,7 @@ const Dashboard = () => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WebinarDistributionChart />
-            <RegistrationAttendanceChart data={registrationAttendanceData} />
+            <RegistrationAttendanceAreaChart />
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
