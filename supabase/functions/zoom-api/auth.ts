@@ -1,166 +1,263 @@
+import { RateLimiter } from "./rateLimiter.ts";
+import { createSuccessResponse } from "./cors.ts";
 
-import { tokenCache } from './cacheUtils.ts';
-import { RateLimiter, Queue } from './rateLimiter.ts';
-
-// Rate limiter instances for different API categories
-const rateLimiters = {
-  light: new RateLimiter(100, 1000),   // 100/second
-  medium: new RateLimiter(10, 1000),   // 10/second
-  heavy: new RateLimiter(5, 1000),     // 5/second
-  resource: new RateLimiter(1, 1000)   // 1/second
-};
-
-// Request queues for each category
-const requestQueues = {
-  light: new Queue(),
-  medium: new Queue(),
-  heavy: new Queue(),
-  resource: new Queue()
-};
-
-// Generate a Server-to-Server OAuth access token
-export async function getZoomJwtToken(accountId: string, clientId: string, clientSecret: string) {
-  // For a specific user, create a cache key
-  const cacheKey = `${accountId}:${clientId}`; 
-  
-  // Check cache first
-  const cachedToken = tokenCache.get(cacheKey);
-  if (cachedToken && cachedToken.expires > Date.now()) {
-    console.log('Using cached Zoom token');
-    return cachedToken.token;
-  }
-
-  // Validate Account ID format
-  if (typeof accountId !== 'string' || accountId.trim() === '') {
-    console.error(`Invalid Account ID format: ${accountId}`);
-    throw new Error('Zoom Account ID is invalid or empty');
-  }
-
+// Get JWT token for Zoom API
+export async function getZoomJwtToken(accountId: string, clientId: string, clientSecret: string): Promise<string> {
   try {
-    console.log(`Requesting Zoom token with account_credentials grant type for account ID starting with ${accountId.substring(0, 4)}...`);
+    const tokenEndpoint = 'https://zoom.us/oauth/token';
     
-    // Build the token URL with parameters
-    const tokenUrl = new URL('https://zoom.us/oauth/token');
-    tokenUrl.searchParams.append('grant_type', 'account_credentials');
-    tokenUrl.searchParams.append('account_id', accountId);
+    const base64Credentials = btoa(`${clientId}:${clientSecret}`);
     
-    // Create authorization header with base64 encoded client_id:client_secret
-    const authHeader = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
-    
-    const tokenResponse = await fetch(tokenUrl.toString(), {
+    const response = await fetch(tokenEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${base64Credentials}`
+      },
+      body: new URLSearchParams({
+        'grant_type': 'account_credentials',
+        'account_id': accountId
+      })
     });
     
-    // Log response status for debugging
-    console.log('Token response status:', tokenResponse.status, tokenResponse.statusText);
-    
-    const tokenData = await tokenResponse.json();
-    
-    if (!tokenResponse.ok) {
-      console.error('Zoom token error response:', tokenData);
-      
-      // Provide more specific error messages based on error types
-      if (tokenData.error === 'invalid_client') {
-        throw new Error('Zoom API authentication failed: Invalid client credentials (Client ID or Client Secret)');
-      } else if (tokenData.error === 'invalid_grant') {
-        throw new Error('Zoom API authentication failed: Invalid Account ID or insufficient permissions');
-      } else {
-        throw new Error(`Failed to get Zoom token: ${tokenData.error || 'Unknown error'} - ${tokenData.error_description || ''}`);
-      }
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get token: ${response.status} ${response.statusText} - ${errorText}`);
     }
-
-    // Cache the token (expires in seconds from now)
-    const expiresIn = tokenData.expires_in || 3600; // Default to 1 hour if not specified
-    tokenCache.set(cacheKey, {
-      token: tokenData.access_token,
-      expires: Date.now() + (expiresIn * 1000) - 60000 // Expire 1 minute early to be safe
-    });
-
-    console.log('Successfully obtained Zoom access token');
-    return tokenData.access_token;
+    
+    const data = await response.json();
+    return data.access_token;
   } catch (error) {
-    console.error('Zoom JWT generation error:', error);
+    console.error('Error getting Zoom JWT token:', error);
     throw error;
   }
 }
 
-/**
- * Enhanced API client that handles rate limiting and retries
- */
-export class ZoomApiClient {
-  private baseUrl = 'https://api.zoom.us/v2';
-  
-  constructor(private accessToken: string) {}
-  
-  /**
-   * Makes a rate-limited request to the Zoom API
-   * 
-   * @param endpoint - API endpoint path (e.g., "/users/me/webinars")
-   * @param options - Request options
-   * @param category - Rate limit category (light, medium, heavy, resource)
-   * @returns Promise with the API response
-   */
-  async request(
-    endpoint: string, 
-    options: RequestInit = {}, 
-    category: 'light' | 'medium' | 'heavy' | 'resource' = 'medium'
-  ): Promise<Response> {
-    const limiter = rateLimiters[category];
-    const queue = requestQueues[category];
+// Handle verifying credentials
+export async function handleVerifyCredentials(req: Request, supabase: any, user: any, credentials: any) {
+  try {
+    const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
     
-    let response: Response | null = null;
-    
-    // Queue this operation with rate limiting
-    await queue.enqueue(async () => {
-      // Wait for a token from the rate limiter
-      await limiter.waitForToken();
-      
-      // Make the actual API request
-      const requestOptions: RequestInit = {
-        ...options,
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json',
-          ...(options.headers || {})
-        }
-      };
-      
-      try {
-        response = await fetch(`${this.baseUrl}${endpoint}`, requestOptions);
-        
-        // Handle rate limiting response
-        if (response.status === 429) {
-          const retryAfter = parseInt(response.headers.get('Retry-After') || '60');
-          console.log(`Rate limited by Zoom API. Retrying after ${retryAfter} seconds.`);
-          await this.exponentialBackoff(retryAfter);
-          
-          // Try the request again after waiting
-          response = await fetch(`${this.baseUrl}${endpoint}`, requestOptions);
-        }
-      } catch (error) {
-        console.error(`API request to ${endpoint} failed:`, error);
-        throw error;
+    // Now test if we have the proper scopes by making a simple request
+    console.log('Testing API scopes with a simple request...');
+    const scopeTestResponse = await fetch('https://api.zoom.us/v2/users/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
     });
     
-    if (!response) {
-      throw new Error('Request failed to execute');
+    const scopeTestData = await scopeTestResponse.json();
+    
+    if (!scopeTestResponse.ok) {
+      console.error('Scope test failed:', scopeTestData);
+      
+      if (scopeTestData.code === 4711 || 
+          scopeTestData.message?.includes('scopes')) {
+        
+        // Update credentials in database to mark as not verified
+        await supabase
+          .from('zoom_credentials')
+          .update({ is_verified: false })
+          .eq('user_id', user.id);
+        
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:user:admin, user:read:user:master, webinar:read:webinar:admin, webinar:write:webinar:admin',
+          code: 'missing_scopes',
+          details: scopeTestData
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      
+      throw new Error(`API scope test failed: ${scopeTestData.message || 'Unknown error'}`);
     }
     
-    return response;
+    // Update credentials in database to mark as verified
+    await supabase
+      .from('zoom_credentials')
+      .update({ 
+        is_verified: true,
+        last_verified_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id);
+    
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'Zoom API credentials and scopes validated successfully',
+      user: {
+        email: scopeTestData.email,
+        account_id: scopeTestData.account_id
+      }
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    // Update credentials in database to mark as not verified
+    await supabase
+      .from('zoom_credentials')
+      .update({ is_verified: false })
+      .eq('user_id', user.id);
+    
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error.message 
+    }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// ZoomApiClient for making rate-limited API calls
+export class ZoomApiClient {
+  private token: string;
+  private baseUrl = 'https://api.zoom.us/v2';
+  private rateLimiter: RateLimiter;
+  
+  constructor(token: string) {
+    this.token = token;
+    // Maximum 90 requests per second as per Zoom API rate limits
+    this.rateLimiter = new RateLimiter(90, 1000);
   }
   
-  /**
-   * Implements exponential backoff for retries
-   */
-  private async exponentialBackoff(baseDelay: number, attempt: number = 1): Promise<void> {
-    const maxDelay = 300; // Maximum delay of 5 minutes
-    const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
-    console.log(`Backing off for ${delay} seconds before retry`);
-    await new Promise(resolve => setTimeout(resolve, delay * 1000));
+  async get(endpoint: string, params: Record<string, any> = {}) {
+    await this.rateLimiter.waitForToken();
+    
+    const url = new URL(`${this.baseUrl}${endpoint}`);
+    
+    // Add query parameters
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        url.searchParams.append(key, String(value));
+      }
+    });
+    
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(`Zoom API error: ${response.status} ${response.statusText} - ${errorData.message || JSON.stringify(errorData)}`);
+    }
+    
+    return response.json();
+  }
+  
+  async post(endpoint: string, data: any) {
+    await this.rateLimiter.waitForToken();
+    
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(`Zoom API error: ${response.status} ${response.statusText} - ${errorData.message || JSON.stringify(errorData)}`);
+    }
+    
+    return response.json();
+  }
+  
+  async put(endpoint: string, data: any) {
+    await this.rateLimiter.waitForToken();
+    
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(`Zoom API error: ${response.status} ${response.statusText} - ${errorData.message || JSON.stringify(errorData)}`);
+    }
+    
+    return response.json();
+  }
+  
+  async delete(endpoint: string) {
+    await this.rateLimiter.waitForToken();
+    
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${this.token}`
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(`Zoom API error: ${response.status} ${response.statusText} - ${errorData.message || JSON.stringify(errorData)}`);
+    }
+    
+    return response.status === 204 ? null : response.json();
+  }
+  
+  // Helper method to paginate through all results
+  async getPaginated(endpoint: string, params: Record<string, any> = {}) {
+    let allResults: any[] = [];
+    let page = 1;
+    let pageSize = params.page_size || 300;
+    let hasMorePages = true;
+    
+    while (hasMorePages) {
+      const queryParams = {
+        ...params,
+        page_number: page,
+        page_size: pageSize
+      };
+      
+      const response = await this.get(endpoint, queryParams);
+      
+      // Extract the items based on the endpoint
+      let items: any[] = [];
+      if (endpoint.includes('/webinars')) {
+        items = response.webinars || [];
+      } else if (endpoint.includes('/participants')) {
+        items = response.participants || [];
+      } else if (endpoint.includes('/registrants')) {
+        items = response.registrants || [];
+      } else if (endpoint.includes('/panelists')) {
+        items = response.panelists || [];
+      } else if (endpoint.includes('/instances')) {
+        items = response.webinar_instances || [];
+      } else {
+        // Default case
+        items = response.items || response.meetings || response.webinars || [];
+      }
+      
+      allResults = [...allResults, ...items];
+      
+      // Check if there are more pages
+      const totalRecords = response.total_records || 0;
+      const currentCount = page * pageSize;
+      
+      hasMorePages = currentCount < totalRecords;
+      page++;
+      
+      // Safety check to prevent infinite loops
+      if (page > 100) {
+        console.warn('Reached maximum pagination limit (100 pages)');
+        break;
+      }
+    }
+    
+    return allResults;
   }
 }

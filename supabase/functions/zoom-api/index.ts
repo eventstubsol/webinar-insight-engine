@@ -5,9 +5,10 @@ import { corsHeaders, handleCors, addCorsHeaders, createErrorResponse } from "./
 import { routeRequest } from "./router.ts";
 
 serve(async (req: Request) => {
-  // Handle CORS preflight requests
+  // Handle CORS preflight requests - this must come first
   const corsResponse = await handleCors(req);
   if (corsResponse) {
+    console.log("Returning CORS preflight response");
     return corsResponse;
   }
 
@@ -19,16 +20,21 @@ serve(async (req: Request) => {
       try {
         body = JSON.parse(bodyText);
       } catch (e) {
+        console.error("Failed to parse request body as JSON:", e);
         return createErrorResponse("Invalid JSON in request body", 400);
       }
     } catch (e) {
+      console.error("Failed to read request body:", e);
       return createErrorResponse("Request body timeout or invalid request format", 400);
     }
 
     const action = body?.action;
     if (!action) {
+      console.error("Missing action parameter");
       return createErrorResponse("Missing 'action' parameter", 400);
     }
+
+    console.log(`[zoom-api] Processing action: ${action}`);
 
     // Create client
     let supabaseAdmin;
@@ -37,6 +43,7 @@ serve(async (req: Request) => {
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
       
       if (!supabaseUrl || !serviceRoleKey) {
+        console.error("Missing required environment variables");
         return createErrorResponse("Missing required environment variables", 500);
       }
       
@@ -49,6 +56,7 @@ serve(async (req: Request) => {
     // Get the user from the JWT
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
+      console.error("Missing Authorization header");
       return createErrorResponse("Missing Authorization header", 401);
     }
     
@@ -59,9 +67,11 @@ serve(async (req: Request) => {
     try {
       const { data, error } = await supabaseAdmin.auth.getUser(token);
       if (error || !data.user) {
+        console.error("Invalid token or user not found:", error);
         return createErrorResponse("Invalid token or user not found", 401);
       }
       user = data.user;
+      console.log(`[zoom-api] Authenticated user: ${user.id}`);
     } catch (error) {
       console.error("Error verifying token:", error);
       return createErrorResponse("Authentication failed", 401);

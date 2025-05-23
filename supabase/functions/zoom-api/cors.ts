@@ -8,7 +8,7 @@ export const corsHeaders = {
 
 // Handle CORS preflight requests
 export async function handleCors(req: Request) {
-  // Always respond to OPTIONS requests
+  // Always respond to OPTIONS requests with a 204 No Content
   if (req.method === 'OPTIONS') {
     console.log('Handling CORS preflight request');
     return new Response(null, { 
@@ -39,6 +39,7 @@ export function addCorsHeaders(response: Response): Response {
 
 // Helper to create error responses with CORS headers
 export function createErrorResponse(message: string, status: number = 400): Response {
+  console.error(`Error response (${status}): ${message}`);
   return new Response(
     JSON.stringify({ 
       error: message 

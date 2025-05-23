@@ -25,6 +25,8 @@ export class BaseZoomService {
       // Validate required parameters
       this.validateParams(action, params);
       
+      console.log(`[BaseZoomService] Invoking edge function: ${action}`, params);
+      
       // Make the API call
       const { data, error } = await supabase.functions.invoke('zoom-api', {
         body: { 
@@ -34,9 +36,12 @@ export class BaseZoomService {
       });
       
       if (error) {
+        console.error(`[BaseZoomService] Edge function error:`, error);
         // Categorize and handle error
         this.handleApiError(error, action);
       }
+      
+      console.log(`[BaseZoomService] Edge function response for ${action}:`, data);
       
       // Validate response data
       this.validateResponseData(action, data);

@@ -1,7 +1,5 @@
-
-import { corsHeaders, createErrorResponse } from './cors.ts';
+import { corsHeaders, createErrorResponse, createSuccessResponse } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8'
 
 // Handle saving zoom credentials
 export async function handleSaveCredentials(req: Request, supabase: any, user: any, body: any) {
@@ -41,6 +39,7 @@ export async function handleSaveCredentials(req: Request, supabase: any, user: a
         account_id,
         client_id,
         client_secret,
+        access_token: testToken,
         is_verified: true,
         last_verified_at: new Date().toISOString()
       }, {
@@ -53,22 +52,13 @@ export async function handleSaveCredentials(req: Request, supabase: any, user: a
       throw new Error(`Failed to save credentials: ${upsertError.message}`);
     }
     
-    return new Response(JSON.stringify({
+    return createSuccessResponse({
       success: true,
       message: 'Zoom credentials verified and saved successfully',
       user_email: scopeTestData.email
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return createErrorResponse(error.message || 'Failed to save credentials');
   }
 }
 
@@ -80,13 +70,10 @@ export async function handleCheckCredentialsStatus(req: Request, supabase: any, 
     .eq('user_id', user.id)
     .single();
 
-  return new Response(JSON.stringify({
+  return createSuccessResponse({
     hasCredentials: !!credentials,
     isVerified: credentials?.is_verified || false,
     lastVerified: credentials?.last_verified_at || null
-  }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
 }
 
@@ -118,38 +105,29 @@ export async function handleVerifyCredentials(req: Request, supabase: any, user:
           .update({ is_verified: false })
           .eq('user_id', user.id);
         
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:user:admin, user:read:user:master, webinar:read:webinar:admin, webinar:write:webinar:admin',
-          code: 'missing_scopes',
-          details: scopeTestData
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return createErrorResponse('Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:user:admin, user:read:user:master, webinar:read:webinar:admin, webinar:write:webinar:admin', 400);
       }
       
       throw new Error(`API scope test failed: ${scopeTestData.message || 'Unknown error'}`);
     }
     
-    // Update credentials in database to mark as verified
+    // Update credentials in database to mark as verified and store the token
     await supabase
       .from('zoom_credentials')
       .update({ 
         is_verified: true,
+        access_token: token,
         last_verified_at: new Date().toISOString()
       })
       .eq('user_id', user.id);
     
-    return new Response(JSON.stringify({ 
+    return createSuccessResponse({ 
       success: true, 
       message: 'Zoom API credentials and scopes validated successfully',
       user: {
         email: scopeTestData.email,
         account_id: scopeTestData.account_id
       }
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
     // Update credentials in database to mark as not verified
@@ -158,13 +136,7 @@ export async function handleVerifyCredentials(req: Request, supabase: any, user:
       .update({ is_verified: false })
       .eq('user_id', user.id);
     
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: error.message 
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return createErrorResponse(error.message || 'Failed to verify credentials');
   }
 }
 
@@ -204,7 +176,13 @@ export async function verifyZoomCredentials(credentials: any) {
   
   try {
     console.log('Verifying Zoom credentials...');
-    // Try to get a token to verify the credentials work
+    
+    // If we already have a valid token, use it
+    if (credentials.access_token) {
+      return credentials.access_token;
+    }
+    
+    // Otherwise get a new token
     const token = await getZoomJwtToken(
       credentials.account_id,
       credentials.client_id,

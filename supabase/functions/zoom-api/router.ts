@@ -3,14 +3,15 @@ import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { createErrorResponse, createSuccessResponse } from "./cors.ts";
 import { 
-  handleVerifyCredentials,
-  ZoomApiClient
+  ZoomApiClient,
+  getZoomJwtToken
 } from "./auth.ts";
 import {
   handleSaveCredentials,
   handleCheckCredentialsStatus,
   getZoomCredentials,
-  verifyZoomCredentials
+  verifyZoomCredentials,
+  handleVerifyCredentials
 } from "./credentials.ts";
 import { 
   handleListWebinars, 
@@ -38,6 +39,7 @@ export async function executeWithTimeout<T>(operation: () => Promise<T>, timeout
 // The main router function
 export async function routeRequest(req: Request, supabaseAdmin: any, user: any, body: any) {
   const action = body?.action;
+  console.log(`[zoom-api:router] Routing action: ${action}`);
   
   // Route to the appropriate handler based on action with timeout protection
   try {
