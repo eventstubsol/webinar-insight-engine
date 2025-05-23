@@ -1,8 +1,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { VerificationStage, ZoomCredentials } from '../../../hooks/zoom/verification/types';
-import { useZoomVerificationFlow } from '../../../hooks/zoom/useZoomVerificationFlow';
-import { useZoomCredentialsLoader } from '../../../hooks/zoom/useZoomCredentialsLoader';
+import { VerificationStage, ZoomCredentials } from '@/hooks/zoom/verification/types';
+import { useZoomVerificationFlow } from '@/hooks/zoom/useZoomVerificationFlow';
+import { useZoomCredentialsLoader } from '@/hooks/zoom/useZoomCredentialsLoader';
 
 export function useZoomIntegrationWizard() {
   // Step handling
@@ -11,7 +11,7 @@ export function useZoomIntegrationWizard() {
   
   // Load the verification flow and saved credentials
   const verificationFlow = useZoomVerificationFlow();
-  const { credentials: savedCredentials, isLoading: isLoadingCredentials } = useZoomCredentialsLoader();
+  const { savedCredentials, isLoading: isLoadingCredentials } = useZoomCredentialsLoader();
   
   // Extract properties from the verification flow
   const { 

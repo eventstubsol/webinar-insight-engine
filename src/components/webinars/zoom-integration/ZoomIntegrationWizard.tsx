@@ -22,7 +22,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   onComplete,
   onCancel
 }) => {
-  const wizard = useZoomIntegrationWizard({ onComplete });
+  const wizard = useZoomIntegrationWizard();
   
   return (
     <Card className="w-full max-w-4xl mx-auto">
