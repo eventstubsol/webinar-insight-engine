@@ -4,6 +4,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { corsHeaders, handleCors, addCorsHeaders, createErrorResponse } from "./cors.ts";
 import { routeRequest } from "./router.ts";
 
+// Simple in-memory rate limiter
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 60; // 60 requests per minute per user
+const requestLog: Record<string, { count: number, timestamp: number }> = {};
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const userLog = requestLog[userId];
+  
+  // If no previous requests or window expired, reset
+  if (!userLog || now - userLog.timestamp > RATE_LIMIT_WINDOW) {
+    requestLog[userId] = { count: 1, timestamp: now };
+    return true;
+  }
+  
+  // If under limit, increment and allow
+  if (userLog.count < MAX_REQUESTS_PER_WINDOW) {
+    userLog.count++;
+    return true;
+  }
+  
+  // Rate limit exceeded
+  return false;
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight requests - this must come first
   const corsResponse = await handleCors(req);
@@ -72,6 +97,18 @@ serve(async (req: Request) => {
       }
       user = data.user;
       console.log(`[zoom-api] Authenticated user: ${user.id}`);
+      
+      // Apply rate limiting
+      const isWithinLimit = checkRateLimit(user.id);
+      if (!isWithinLimit) {
+        console.warn(`[zoom-api] Rate limit exceeded for user ${user.id}`);
+        return createErrorResponse(
+          "Too many requests. Please wait a moment before trying again.", 
+          429, 
+          { "Retry-After": "60" }
+        );
+      }
+      
     } catch (error) {
       console.error("Error verifying token:", error);
       return createErrorResponse("Authentication failed", 401);

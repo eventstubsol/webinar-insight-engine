@@ -7,6 +7,7 @@ import { ZoomCredentialsStatus } from '@/hooks/zoom';
 
 const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_REFRESH_DURATION = 60000; // 60 seconds - maximum time to allow refresh state
+const ERROR_COOLDOWN = 10000; // 10 seconds cooldown between error toasts
 
 export function useWebinarData() {
   const { user } = useAuth();
@@ -30,6 +31,8 @@ export function useWebinarData() {
   const [isManualRefresh, setIsManualRefresh] = useState(false);
   const refreshStartTime = useRef<number | null>(null);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastErrorTime = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Determine verified status from credentials status and errors
   const verified = credentialsStatus?.hasCredentials && 
@@ -46,8 +49,25 @@ export function useWebinarData() {
     if (error) {
       // Only log new errors
       console.log('[useWebinarData] Error detected:', error.message);
+      
+      // Check if we should show an error toast (with cooldown)
+      const now = Date.now();
+      if (now - lastErrorTime.current > ERROR_COOLDOWN) {
+        lastErrorTime.current = now;
+        
+        // Don't show network errors as toasts repeatedly
+        if (!error.message?.includes('Failed to fetch') && 
+            !error.message?.includes('network') &&
+            !error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+          toast({
+            title: 'Error loading webinars',
+            description: error.message || 'An unexpected error occurred',
+            variant: 'destructive'
+          });
+        }
+      }
     }
-  }, [error]);
+  }, [error, toast]);
   
   // Safety mechanism to reset loading state if it gets stuck
   useEffect(() => {
@@ -62,6 +82,12 @@ export function useWebinarData() {
           // This would normally be handled by the query component,
           // but we'll provide a fallback reset mechanism
           setIsManualRefresh(false);
+          
+          // Abort any in-flight requests
+          if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+          }
+          
           toast({
             title: 'Sync may still be in progress',
             description: 'The Zoom API may still be processing your request in the background.',
@@ -82,11 +108,35 @@ export function useWebinarData() {
     }
   }, [isRefetching, toast]);
   
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+  
   // Wrapper around refreshWebinars to add additional state management
   const handleRefresh = useCallback(async (force: boolean = false) => {
+    // If we already have an active refresh, don't start another
+    if (isManualRefresh || isRefetching) {
+      console.log('[useWebinarData] Refresh already in progress, skipping');
+      return;
+    }
+    
     if (!error && credentialsStatus?.hasCredentials) {
       setIsManualRefresh(true);
       setIsRefreshError(false);
+      
+      // Create abort controller for this request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
       
       try {
         console.log('[useWebinarData] Starting manual refresh');
@@ -104,11 +154,14 @@ export function useWebinarData() {
         console.error('[useWebinarData] Manual refresh failed:', err);
         setIsRefreshError(true);
         
-        toast({
-          title: 'Sync failed',
-          description: err.message || 'Could not refresh webinar data',
-          variant: 'destructive'
-        });
+        // Don't show toast for aborted requests
+        if (err.name !== 'AbortError') {
+          toast({
+            title: 'Sync failed',
+            description: err.message || 'Could not refresh webinar data',
+            variant: 'destructive'
+          });
+        }
       } finally {
         setIsManualRefresh(false);
       }
@@ -125,10 +178,16 @@ export function useWebinarData() {
         variant: 'destructive'
       });
     }
-  }, [refreshWebinars, error, credentialsStatus, toast]);
+  }, [refreshWebinars, error, credentialsStatus, toast, isManualRefresh, isRefetching]);
   
   // Memoize the auto refresh function to prevent unnecessary recreations
   const handleAutoRefresh = useCallback(async () => {
+    // Don't auto-refresh if there's already a manual or automatic refresh happening
+    if (isManualRefresh || isRefetching) {
+      console.log('[useWebinarData] Skipping auto-refresh, refresh already in progress');
+      return;
+    }
+    
     if (!error && credentialsStatus?.hasCredentials) {
       try {
         console.log('[useWebinarData] Starting auto-refresh');
@@ -147,14 +206,19 @@ export function useWebinarData() {
         setIsRefreshError(true);
         
         // Only show error toast for auto-refresh failures if it's a new error
-        toast({
-          title: 'Sync failed',
-          description: 'Could not automatically refresh webinar data',
-          variant: 'destructive'
-        });
+        // and not a network/abort error
+        if (err.name !== 'AbortError' && 
+            !err.message?.includes('ERR_INSUFFICIENT_RESOURCES') &&
+            !err.message?.includes('Failed to fetch')) {
+          toast({
+            title: 'Sync failed',
+            description: 'Could not automatically refresh webinar data',
+            variant: 'destructive'
+          });
+        }
       }
     }
-  }, [refreshWebinars, error, toast, credentialsStatus]);
+  }, [refreshWebinars, error, toast, credentialsStatus, isManualRefresh, isRefetching]);
 
   // Set up automatic refresh on mount and when dependencies change
   useEffect(() => {
@@ -165,7 +229,12 @@ export function useWebinarData() {
 
     // Initial refresh on mount if not loading
     if (!isLoading && !isRefetching && !error && !lastSyncTime) {
-      handleAutoRefresh();
+      // Add a small delay to prevent immediate refresh on mount
+      const timer = setTimeout(() => {
+        handleAutoRefresh();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
     }
 
     // Set up interval for periodic refreshes

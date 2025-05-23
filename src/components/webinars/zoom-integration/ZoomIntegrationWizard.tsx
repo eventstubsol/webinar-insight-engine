@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -31,6 +31,8 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   const { toast } = useToast();
   const { user } = useAuth();
   const { savedCredentials, hasCredentials, isLoading: isLoadingCredentials, fetchSavedCredentials } = useZoomCredentialsLoader();
+  const verificationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   const [currentStep, setCurrentStep] = useState<WizardStep>(WizardStep.Introduction);
   const [credentials, setCredentials] = useState<ZoomCredentials>({
@@ -60,12 +62,28 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     }
   }, [savedCredentials, toast]);
 
-  // Fetch credentials when the wizard opens
+  // Fetch credentials when the wizard opens - with a delay to prevent race conditions
   useEffect(() => {
     if (user) {
-      fetchSavedCredentials();
+      const timer = setTimeout(() => {
+        fetchSavedCredentials();
+      }, 500); // Add a small delay
+      
+      return () => clearTimeout(timer);
     }
   }, [user, fetchSavedCredentials]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (verificationTimeoutRef.current) {
+        clearTimeout(verificationTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleChangeCredentials = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCredentials({
@@ -92,6 +110,33 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     setError(null);
     setScopesError(false);
     setIsSubmitting(true);
+    
+    // Create an AbortController for this verification request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
+    // Set a timeout to prevent hanging verification
+    if (verificationTimeoutRef.current) {
+      clearTimeout(verificationTimeoutRef.current);
+    }
+    
+    verificationTimeoutRef.current = setTimeout(() => {
+      if (isSubmitting) {
+        setIsSubmitting(false);
+        setError("Verification timed out. Please try again.");
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        
+        toast({
+          title: 'Verification Timed Out',
+          description: 'The server took too long to respond. Please try again.',
+          variant: 'destructive'
+        });
+      }
+    }, 30000); // 30 second timeout
 
     try {
       const { data, error } = await supabase.functions.invoke('zoom-api', {
@@ -100,7 +145,8 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
           account_id: credentials.account_id,
           client_id: credentials.client_id,
           client_secret: credentials.client_secret
-        }
+        },
+        signal: abortControllerRef.current.signal,
       });
 
       if (error) {
@@ -108,6 +154,10 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
       }
 
       if (data.success) {
+        if (verificationTimeoutRef.current) {
+          clearTimeout(verificationTimeoutRef.current);
+        }
+        
         setVerificationDetails(data);
         setCurrentStep(WizardStep.Success);
         toast({
@@ -128,22 +178,44 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     } catch (err: any) {
       console.error('Verification error:', err);
       
-      // Check for scopes error in the message
-      if (err.message?.toLowerCase().includes('scopes') || 
-          err.message?.toLowerCase().includes('scope') || 
-          err.message?.toLowerCase().includes('4711')) {
-        setScopesError(true);
-        setCurrentStep(WizardStep.ConfigureScopes);
+      // Check for aborted requests
+      if (err.name === 'AbortError') {
+        console.log('Request was aborted');
+        return;
       }
       
-      setError(err.message || 'Failed to verify Zoom credentials');
-      
-      toast({
-        title: 'Verification Failed',
-        description: err.message || 'Could not verify Zoom API credentials',
-        variant: 'destructive'
-      });
+      // Check for network related errors
+      if (err.message?.includes('Failed to send') || 
+          err.message?.includes('ERR_INSUFFICIENT_RESOURCES') ||
+          err.message?.toLowerCase().includes('network') ||
+          err.message?.toLowerCase().includes('timeout')) {
+        setError("Network error. Please wait a moment and try again.");
+        toast({
+          title: 'Network Error',
+          description: 'Could not connect to the server. Please try again in a moment.',
+          variant: 'destructive'
+        });
+      } else {
+        // Check for scopes error in the message
+        if (err.message?.toLowerCase().includes('scopes') || 
+            err.message?.toLowerCase().includes('scope') || 
+            err.message?.toLowerCase().includes('4711')) {
+          setScopesError(true);
+          setCurrentStep(WizardStep.ConfigureScopes);
+        }
+        
+        setError(err.message || 'Failed to verify Zoom credentials');
+        
+        toast({
+          title: 'Verification Failed',
+          description: err.message || 'Could not verify Zoom API credentials',
+          variant: 'destructive'
+        });
+      }
     } finally {
+      if (verificationTimeoutRef.current) {
+        clearTimeout(verificationTimeoutRef.current);
+      }
       setIsSubmitting(false);
     }
   };

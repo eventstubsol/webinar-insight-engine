@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,6 +8,8 @@ import { ZoomCredentials } from './types';
 export function useZoomCredentialsLoader() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const fetchInProgress = useRef(false);
+  const abortController = useRef<AbortController | null>(null);
   
   const { 
     data, 
@@ -19,9 +21,22 @@ export function useZoomCredentialsLoader() {
     queryFn: async () => {
       if (!user) return null;
       
+      // Prevent concurrent fetches
+      if (fetchInProgress.current) {
+        console.log('Fetch already in progress, skipping duplicate request');
+        return null;
+      }
+      
       try {
+        fetchInProgress.current = true;
+        
+        // Create abort controller for this request
+        abortController.current = new AbortController();
+        const signal = abortController.current.signal;
+        
         const { data, error } = await supabase.functions.invoke('zoom-api', {
-          body: { action: 'get-credentials' }
+          body: { action: 'get-credentials' },
+          signal,
         });
         
         if (error) throw error;
@@ -32,16 +47,38 @@ export function useZoomCredentialsLoader() {
       } catch (err: any) {
         console.error('Error fetching saved credentials:', err);
         throw new Error(err.message || 'Failed to fetch credentials');
+      } finally {
+        // Set a small delay before allowing another fetch
+        setTimeout(() => {
+          fetchInProgress.current = false;
+        }, 1000);
       }
     },
     enabled: !!user,
     refetchOnWindowFocus: false,
+    retry: 2, // Limit retries to prevent cascading failures
+    retryDelay: attempt => Math.min(1000 * 2 ** attempt, 10000), // Exponential backoff
     staleTime: 30 * 1000, // 30 seconds
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
   
+  // Clean up abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortController.current) {
+        abortController.current.abort();
+      }
+    };
+  }, []);
+  
   const fetchSavedCredentials = async () => {
     if (!user) return null;
+    
+    // Don't allow fetch if another is already in progress
+    if (fetchInProgress.current) {
+      console.log('Fetch already in progress, skipping manual fetch request');
+      return null;
+    }
     
     try {
       setIsLoading(true);

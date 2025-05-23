@@ -25,15 +25,20 @@ import {
   handleGetWebinarExtendedData
 } from "./webinar-operations/index.ts";
 
-// Operation timeout (30 seconds)
-const OPERATION_TIMEOUT = 30000;
+// Operation timeout (15 seconds - reduced from 30 to prevent client timeouts)
+const OPERATION_TIMEOUT = 15000;
 
 // Helper to execute a function with timeout
-export async function executeWithTimeout<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> {
+export async function executeWithTimeout<T>(operation: () => Promise<T>, timeoutMs: number, operationName: string): Promise<T> {
+  console.log(`[zoom-api:router] Starting operation ${operationName} with ${timeoutMs}ms timeout`);
+  
   return Promise.race([
     operation(),
     new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs);
+      setTimeout(() => {
+        console.error(`[zoom-api:router] Operation ${operationName} timed out after ${timeoutMs}ms`);
+        reject(new Error(`Operation ${operationName} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
     })
   ]);
 }
@@ -51,21 +56,24 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
       case "save-credentials":
         response = await executeWithTimeout(
           () => handleSaveCredentials(req, supabaseAdmin, user, body),
-          OPERATION_TIMEOUT
+          OPERATION_TIMEOUT,
+          "save-credentials"
         );
         break;
       
       case "check-credentials-status":
         response = await executeWithTimeout(
           () => handleCheckCredentialsStatus(req, supabaseAdmin, user),
-          OPERATION_TIMEOUT
+          OPERATION_TIMEOUT,
+          "check-credentials-status"
         );
         break;
       
       case "get-credentials":
         response = await executeWithTimeout(
           () => handleGetCredentials(req, supabaseAdmin, user),
-          OPERATION_TIMEOUT
+          OPERATION_TIMEOUT,
+          "get-credentials"
         );
         break;
       
@@ -78,7 +86,8 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
         
         response = await executeWithTimeout(
           () => handleVerifyCredentials(req, supabaseAdmin, user, verifyCredentials),
-          OPERATION_TIMEOUT
+          OPERATION_TIMEOUT,
+          "verify-credentials"
         );
         break;
         
@@ -91,7 +100,11 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
 
         try {
           // Verify credentials for actions that require valid credentials
-          const token = await verifyZoomCredentials(credentials);
+          const token = await executeWithTimeout(
+            () => verifyZoomCredentials(credentials),
+            OPERATION_TIMEOUT,
+            "verify-zoom-credentials"
+          );
           
           // If token has changed, update it in the database
           if (token !== credentials.access_token) {
@@ -107,49 +120,56 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
             case "list-webinars":
               response = await executeWithTimeout(
                 () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
-                OPERATION_TIMEOUT
+                OPERATION_TIMEOUT,
+                "list-webinars"
               );
               break;
               
             case "get-webinar":
               response = await executeWithTimeout(
                 () => handleGetWebinar(req, supabaseAdmin, user, credentials, body.id, apiClient),
-                OPERATION_TIMEOUT
+                OPERATION_TIMEOUT,
+                "get-webinar"
               );
               break;
               
             case "get-participants":
               response = await executeWithTimeout(
                 () => handleGetParticipants(req, supabaseAdmin, user, credentials, body.id, apiClient),
-                OPERATION_TIMEOUT
+                OPERATION_TIMEOUT,
+                "get-participants"
               );
               break;
               
             case "update-webinar-participants":
               response = await executeWithTimeout(
                 () => handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials, apiClient),
-                OPERATION_TIMEOUT
+                OPERATION_TIMEOUT,
+                "update-webinar-participants"
               );
               break;
               
             case "get-webinar-instances":
               response = await executeWithTimeout(
                 () => handleGetWebinarInstances(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
-                OPERATION_TIMEOUT
+                OPERATION_TIMEOUT,
+                "get-webinar-instances"
               );
               break;
               
             case "get-instance-participants":
               response = await executeWithTimeout(
                 () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id, apiClient),
-                OPERATION_TIMEOUT
+                OPERATION_TIMEOUT,
+                "get-instance-participants"
               );
               break;
               
             case "get-webinar-extended-data":
               response = await executeWithTimeout(
                 () => handleGetWebinarExtendedData(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
-                OPERATION_TIMEOUT
+                OPERATION_TIMEOUT,
+                "get-webinar-extended-data"
               );
               break;
               
