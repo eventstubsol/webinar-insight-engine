@@ -174,21 +174,10 @@ export async function fetchWorkspaceMembers(workspaceId: string): Promise<Worksp
 
   if (error) throw new Error(`Failed to fetch workspace members: ${error.message}`);
 
-  // Transform to match our interface with proper typing
+  // Transform to match our interface with proper null handling
   const members: WorkspaceMember[] = data.map(item => {
-    // Handle profiles data with type assertion and nullish checks
-    const profileData = (() => {
-      if (!item.profiles) return null;
-      // Only try to access properties if profiles exists and is an object
-      if (typeof item.profiles === 'object' && item.profiles !== null) {
-        // Check if it's not an error object
-        if (!('error' in item.profiles)) {
-          // Add explicit null check before accessing properties
-          return item.profiles as { display_name: string | null, avatar_url: string | null };
-        }
-      }
-      return null;
-    })();
+    // Fix: Properly handle the profiles data which could be null
+    const profileData = item.profiles;
     
     return {
       id: item.id,
@@ -196,7 +185,7 @@ export async function fetchWorkspaceMembers(workspaceId: string): Promise<Worksp
       user_id: item.user_id,
       role: item.role as WorkspaceMemberRole,
       joined_at: item.joined_at,
-      profile: profileData ? {
+      profile: profileData && typeof profileData === 'object' && !Array.isArray(profileData) ? {
         display_name: profileData.display_name || null,
         avatar_url: profileData.avatar_url || null
       } : undefined
@@ -214,11 +203,15 @@ export async function inviteUserToWorkspace(
   email: string, 
   role: WorkspaceMemberRole
 ) {
-  // First, check if the user exists
+  // First, get the current user to check for the profiles table structure
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Look up user by auth.users.email instead of profiles.email
   const { data: userData, error: userError } = await supabase
     .from('profiles')
     .select('id')
-    .eq('email', email)
+    .eq('id', user.id) // This should match the user's auth ID
     .maybeSingle();
 
   if (userError) throw new Error(`Failed to check user: ${userError.message}`);
