@@ -3,6 +3,9 @@ import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
+// Cast supabase to any to prevent TypeScript from attempting to expand deep generics
+const sb: any = supabase;
+
 // Define a type for valid table names to address the type error
 type ValidTableName = 
   | 'workspaces' 
@@ -50,7 +53,8 @@ export function useWorkspaceData() {
 
       try {
         // Create the base query with the correct table and workspace filtering
-        let query: any = supabase
+        // Use sb (supabase cast to any) to prevent infinite type expansion
+        let query = sb
           .from(table)
           .select(columns)
           .eq('workspace_id', currentWorkspace.id);
@@ -61,8 +65,7 @@ export function useWorkspaceData() {
         }
         
         // Execute the query
-        const result = await query as unknown as SupabaseQueryResult;
-        const { data, error } = result;
+        const { data, error } = await query;
         
         if (error) {
           console.error(`Error fetching ${table} data:`, error);
@@ -97,7 +100,8 @@ export function useWorkspaceData() {
           workspace_id: currentWorkspace.id
         }));
         
-        const { data: result, error } = await supabase
+        // Use sb (supabase cast to any) to prevent infinite type expansion
+        const { data: result, error } = await sb
           .from(table)
           .insert(dataWithWorkspace)
           .select(options?.returning !== false ? '*' : undefined);
@@ -132,8 +136,8 @@ export function useWorkspaceData() {
       try {
         const idField = options?.idField || 'id';
         
-        // Create base update query
-        let query: any = supabase
+        // Use sb (supabase cast to any) to prevent infinite type expansion
+        let query = sb
           .from(table)
           .update(updates)
           .eq(idField, id)
@@ -144,9 +148,8 @@ export function useWorkspaceData() {
           query = query.select('*');
         }
         
-        // Execute the query with appropriate type casting
-        const result = await query as unknown as SupabaseQueryResult;
-        const { data, error } = result;
+        // Execute the query
+        const { data, error } = await query;
         
         if (error) {
           console.error(`Error updating in ${table}:`, error);
@@ -180,7 +183,8 @@ export function useWorkspaceData() {
     try {
       const idField = options?.idField || 'id';
       
-      const { error } = await supabase
+      // Use sb (supabase cast to any) to prevent infinite type expansion
+      const { error } = await sb
         .from(table)
         .delete()
         .eq(idField, id)
