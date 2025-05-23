@@ -31,14 +31,14 @@ export function useWorkspaceData() {
   /**
    * Get data from a table with workspace filtering
    */
-  const getFromWorkspace = useCallback(async <T extends Record<string, any>>(
+  const getFromWorkspace = useCallback(<T extends Record<string, any>>(
     table: ValidTableName,
     columns: string = '*',
     additionalFilters?: (query: any) => any
   ): Promise<T[]> => {
     if (!currentWorkspace) {
       console.warn('No workspace selected, cannot fetch data');
-      return [];
+      return Promise.resolve([]);
     }
 
     let query = supabase
@@ -50,25 +50,26 @@ export function useWorkspaceData() {
       query = additionalFilters(query);
     }
     
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error(`Error fetching ${table} data:`, error);
-      throw error;
-    }
-    
-    // Use proper casting with explicit unknown intermediary step
-    return (data ? data as unknown as T[] : []) as T[];
+    return query
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(`Error fetching ${table} data:`, error);
+          throw error;
+        }
+        
+        // Use proper casting with explicit unknown intermediary step
+        return (data ? data as unknown as T[] : []);
+      });
   }, [currentWorkspace]);
 
   /**
    * Insert data into a table with workspace_id
    */
-  const insertToWorkspace = useCallback(async <T extends Record<string, any>>(
+  const insertToWorkspace = useCallback(<T extends Record<string, any>>(
     table: ValidTableName,
     data: Omit<T, 'workspace_id'> | Omit<T, 'workspace_id'>[],
     options?: { returning?: boolean }
-  ) => {
+  ): Promise<T[]> => {
     if (!currentWorkspace) {
       console.warn('No workspace selected, cannot insert data');
       throw new Error('No workspace selected');
@@ -80,34 +81,35 @@ export function useWorkspaceData() {
       workspace_id: currentWorkspace.id
     }));
     
-    const query = supabase
+    let query = supabase
       .from(table)
-      .insert(dataWithWorkspace as any); // Type assertion needed here
+      .insert(dataWithWorkspace);
     
     if (options?.returning !== false) {
-      query.select();
+      query = query.select();
     }
     
-    const { data: responseData, error } = await query;
-    
-    if (error) {
-      console.error(`Error inserting into ${table}:`, error);
-      throw error;
-    }
-    
-    // Proper type casting with unknown intermediary
-    return (responseData ? responseData as unknown as T[] : []) as T[];
+    return query
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(`Error inserting into ${table}:`, error);
+          throw error;
+        }
+        
+        // Proper type casting with unknown intermediary
+        return (data ? data as unknown as T[] : []);
+      });
   }, [currentWorkspace]);
 
   /**
    * Update data in a table with workspace filtering
    */
-  const updateInWorkspace = useCallback(async <T extends Record<string, any>>(
+  const updateInWorkspace = useCallback(<T extends Record<string, any>>(
     table: ValidTableName,
     id: string | number,
     updates: Partial<T>,
     options?: { idField?: string; returning?: boolean }
-  ) => {
+  ): Promise<T | null> => {
     if (!currentWorkspace) {
       console.warn('No workspace selected, cannot update data');
       throw new Error('No workspace selected');
@@ -115,31 +117,32 @@ export function useWorkspaceData() {
 
     const idField = options?.idField || 'id';
     
-    const query = supabase
+    let query = supabase
       .from(table)
-      .update(updates as any) // Type assertion needed here
+      .update(updates)
       .eq(idField, id)
       .eq('workspace_id', currentWorkspace.id);
     
     if (options?.returning !== false) {
-      query.select().single();
+      query = query.select().single();
     }
     
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error(`Error updating in ${table}:`, error);
-      throw error;
-    }
-    
-    // Proper type casting with unknown intermediary
-    return (data ? data as unknown as T : null) as T;
+    return query
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(`Error updating in ${table}:`, error);
+          throw error;
+        }
+        
+        // Proper type casting with unknown intermediary
+        return data as unknown as T;
+      });
   }, [currentWorkspace]);
 
   /**
    * Delete data from a table with workspace filtering
    */
-  const deleteFromWorkspace = useCallback(async (
+  const deleteFromWorkspace = useCallback((
     table: ValidTableName,
     id: string | number,
     options?: { idField?: string }
@@ -151,16 +154,17 @@ export function useWorkspaceData() {
 
     const idField = options?.idField || 'id';
     
-    const { error } = await supabase
+    return supabase
       .from(table)
       .delete()
       .eq(idField, id)
-      .eq('workspace_id', currentWorkspace.id);
-    
-    if (error) {
-      console.error(`Error deleting from ${table}:`, error);
-      throw error;
-    }
+      .eq('workspace_id', currentWorkspace.id)
+      .then(({ error }) => {
+        if (error) {
+          console.error(`Error deleting from ${table}:`, error);
+          throw error;
+        }
+      });
   }, [currentWorkspace]);
 
   return {
