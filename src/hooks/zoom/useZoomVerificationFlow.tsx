@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,10 +74,8 @@ export function useZoomVerificationFlow() {
           client_id: credentials.client_id,
           client_secret: credentials.client_secret
         },
-        // Add timeout option to the request
-        options: {
-          timeout: 40000 // 40 seconds
-        }
+        // Fix: Set timeout directly in the invoke options, not in a nested 'options' object
+        timeout: 40000 // 40 seconds
       });
       
       if (saveError) {
@@ -146,15 +145,12 @@ export function useZoomVerificationFlow() {
     try {
       console.log('Verifying credentials...');
       
-      // Add timeout option to the request
+      // Fix: Set timeout directly in the invoke options, not in a nested 'options' object
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke('zoom-api', {
         body: { 
           action: 'verify-credentials'
         },
-        // Set a higher client-side timeout
-        options: {
-          timeout: 40000 // 40 seconds
-        }
+        timeout: 40000 // 40 seconds
       });
       
       if (verifyError) {
