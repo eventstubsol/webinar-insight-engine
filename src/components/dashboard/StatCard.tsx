@@ -1,67 +1,71 @@
 
-import React, { ReactNode } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import React from 'react';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
+import { ArrowUp, ArrowDown } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+
+interface TrendData {
+  value: number; // Percentage change
+  label: string; // Display text like "+15%"
+  direction: 'up' | 'down' | 'flat';
+}
 
 interface StatCardProps {
   title: string;
-  value: string | undefined;
+  value: string | React.ReactNode;
   description: string;
-  icon: ReactNode;
+  icon: React.ReactNode;
   isLoading?: boolean;
   cardColor?: string;
-  trend?: {
-    value: number;
-    label: string;
-    direction: 'up' | 'down' | 'flat';
-  };
+  trend?: TrendData;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({
-  title,
-  value,
-  description,
-  icon,
-  isLoading = false,
-  cardColor = 'bg-background',
+export const StatCard = ({ 
+  title, 
+  value, 
+  description, 
+  icon, 
+  isLoading = false, 
+  cardColor,
   trend
-}) => {
+}: StatCardProps) => {
   return (
-    <Card className={cn("overflow-hidden", cardColor)}>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between space-y-0 pb-2">
-          <h3 className="tracking-tight text-sm font-medium">{title}</h3>
-          <div className="p-1 rounded-full bg-background/80">
-            {icon}
-          </div>
+    <Card className={cardColor}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4">
+        <CardTitle className="text-xs font-medium sm:text-sm">{title}</CardTitle>
+        <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+          {icon}
         </div>
-        
-        <div className="text-2xl font-bold">
+      </CardHeader>
+      <CardContent className="px-6 pb-4 pt-0 relative">
+        <div className="flex items-center">
           {isLoading ? (
-            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-8 w-24 mb-1" />
           ) : (
-            value || '0'
+            <div className="text-xl font-bold h-8 flex items-center">{value}</div>
           )}
         </div>
+        <CardDescription className="text-xs sm:text-sm mt-1">{description}</CardDescription>
         
-        <div className="flex items-center pt-1">
-          <p className="text-xs text-muted-foreground">{description}</p>
-          
-          {trend && !isLoading && (
-            <div className={cn(
-              "ml-auto flex items-center text-xs",
-              trend.direction === 'up' ? 'text-green-600' : 
-              trend.direction === 'down' ? 'text-red-600' : 'text-gray-500'
-            )}>
-              {trend.direction === 'up' && <TrendingUp className="mr-1 h-3 w-3" />}
-              {trend.direction === 'down' && <TrendingDown className="mr-1 h-3 w-3" />}
-              {trend.direction === 'flat' && <Minus className="mr-1 h-3 w-3" />}
-              <span>{trend.label}</span>
-            </div>
-          )}
-        </div>
+        {trend && !isLoading && (
+          <div className="absolute bottom-4 right-6">
+            <Badge 
+              variant={trend.direction === 'up' ? 'success' : trend.direction === 'down' ? 'destructive' : 'secondary'} 
+              className="text-xs font-medium"
+            >
+              {trend.direction === 'up' && <ArrowUp className="mr-1 h-3 w-3" />}
+              {trend.direction === 'down' && <ArrowDown className="mr-1 h-3 w-3" />}
+              {trend.label}
+            </Badge>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

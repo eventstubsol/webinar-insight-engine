@@ -81,8 +81,6 @@ port = 54321
 port = 9999
 # The URL of your Function API. You most likely want to keep this value.
 url = "https://dcvlxtkxqyaznxxvkynd.supabase.co/functions/v1/zoom-api"
-# Increase the timeout to 60 seconds
-timeout_seconds = 60
 
 [functions.storage-init]
 # Which port the Function server is listening on. You most likely want to keep this value.

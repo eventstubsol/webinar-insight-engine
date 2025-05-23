@@ -4,12 +4,9 @@ import { useZoomWebinars, useZoomCredentials } from '@/hooks/zoom';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { ZoomCredentialsStatus } from '@/hooks/zoom';
-import { CircuitBreakerState, ErrorCategory } from '@/hooks/zoom/verification';
-import { parseErrorDetails } from '@/hooks/zoom/utils/errorUtils';
 
 const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_REFRESH_DURATION = 60000; // 60 seconds - maximum time to allow refresh state
-const ERROR_COOLDOWN = 10000; // 10 seconds cooldown between error toasts
 
 export function useWebinarData() {
   const { user } = useAuth();
@@ -31,14 +28,8 @@ export function useWebinarData() {
   
   const [isRefreshError, setIsRefreshError] = useState(false);
   const [isManualRefresh, setIsManualRefresh] = useState(false);
-  const [circuitBreakerState, setCircuitBreakerState] = useState<CircuitBreakerState>(CircuitBreakerState.CLOSED);
-  const [errorCategory, setErrorCategory] = useState<ErrorCategory | null>(null);
-  const [retryable, setRetryable] = useState(false);
-  
   const refreshStartTime = useRef<number | null>(null);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastErrorTime = useRef<number>(0);
-  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Determine verified status from credentials status and errors
   const verified = credentialsStatus?.hasCredentials && 
@@ -50,109 +41,13 @@ export function useWebinarData() {
   // Explicitly ensure scopesError is a boolean
   const scopesError: boolean = Boolean(errorDetails.isScopesError);
   
-  // Parse error details for better handling
-  const parseApiError = useCallback((err: any) => {
-    // Check for circuit breaker state in headers or error object
-    let circuitState = CircuitBreakerState.CLOSED;
-    let category = null;
-    let isRetryable = false;
-    
-    // Parse error from standard response format
-    if (err.response) {
-      const headers = err.response.headers;
-      if (headers) {
-        const circuitHeader = headers.get('X-Circuit-State');
-        const categoryHeader = headers.get('X-Error-Category');
-        const retryableHeader = headers.get('X-Retryable');
-        
-        if (circuitHeader) {
-          circuitState = circuitHeader as CircuitBreakerState;
-        }
-        
-        if (categoryHeader) {
-          category = categoryHeader;
-        }
-        
-        if (retryableHeader) {
-          isRetryable = retryableHeader === 'true';
-        }
-      }
-    } else if (err.message) {
-      // Fallback parsing based on message contents
-      if (err.message.includes('circuit breaker open') || 
-          err.message.includes('temporarily unavailable') ||
-          err.message.includes('previous failures')) {
-        circuitState = CircuitBreakerState.OPEN;
-        category = ErrorCategory.SERVICE_UNAVAILABLE;
-        isRetryable = true;
-      }
-      
-      if (err.message.includes('rate limit') || err.message.includes('too many requests')) {
-        category = ErrorCategory.RATE_LIMIT;
-        isRetryable = true;
-      }
-      
-      if (err.message.includes('network') || err.message.includes('timeout') || 
-          err.message.includes('connection')) {
-        category = ErrorCategory.NETWORK;
-        isRetryable = true;
-      }
-      
-      if (err.message.includes('token') || err.message.includes('authentication') || 
-          err.message.includes('auth')) {
-        category = ErrorCategory.AUTHENTICATION;
-        isRetryable = false;
-      }
-    }
-    
-    setCircuitBreakerState(circuitState);
-    setErrorCategory(category);
-    setRetryable(isRetryable);
-    
-    return { 
-      circuitState,
-      category,
-      isRetryable
-    };
-  }, []);
-  
   // Reset error state on new error
   useEffect(() => {
     if (error) {
       // Only log new errors
       console.log('[useWebinarData] Error detected:', error.message);
-      
-      // Parse error for better handling
-      const { circuitState, category, isRetryable } = parseApiError(error);
-      
-      // Check if we should show an error toast (with cooldown)
-      const now = Date.now();
-      if (now - lastErrorTime.current > ERROR_COOLDOWN) {
-        lastErrorTime.current = now;
-        
-        // Don't show network errors as toasts repeatedly
-        if (!error.message?.includes('Failed to fetch') && 
-            !error.message?.includes('network') &&
-            !error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
-          
-          // Only show toast for non-retryable errors or circuit breaker open state
-          if (!isRetryable || circuitState === CircuitBreakerState.OPEN) {
-            toast({
-              title: category === ErrorCategory.RATE_LIMIT ? 
-                'Rate limit exceeded' : 'Error loading webinars',
-              description: error.message || 'An unexpected error occurred',
-              variant: 'destructive'
-            });
-          }
-        }
-      }
-    } else {
-      // Reset error state when error clears
-      setCircuitBreakerState(CircuitBreakerState.CLOSED);
-      setErrorCategory(null);
-      setRetryable(false);
     }
-  }, [error, toast, parseApiError]);
+  }, [error]);
   
   // Safety mechanism to reset loading state if it gets stuck
   useEffect(() => {
@@ -167,12 +62,6 @@ export function useWebinarData() {
           // This would normally be handled by the query component,
           // but we'll provide a fallback reset mechanism
           setIsManualRefresh(false);
-          
-          // Abort any in-flight requests
-          if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-          }
-          
           toast({
             title: 'Sync may still be in progress',
             description: 'The Zoom API may still be processing your request in the background.',
@@ -193,53 +82,11 @@ export function useWebinarData() {
     }
   }, [isRefetching, toast]);
   
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
-  
-  // Enhanced error details with circuit breaker and error category info
-  const enhancedErrorDetails = {
-    ...errorDetails,
-    circuitBreakerState,
-    errorCategory: errorCategory || undefined,
-    retryable
-  };
-  
   // Wrapper around refreshWebinars to add additional state management
   const handleRefresh = useCallback(async (force: boolean = false) => {
-    // Don't allow refresh if circuit breaker is open
-    if (circuitBreakerState === CircuitBreakerState.OPEN) {
-      toast({
-        title: 'Service temporarily unavailable',
-        description: 'Please try again in a moment. The system is recovering from previous errors.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    // If we already have an active refresh, don't start another
-    if (isManualRefresh || isRefetching) {
-      console.log('[useWebinarData] Refresh already in progress, skipping');
-      return;
-    }
-    
     if (!error && credentialsStatus?.hasCredentials) {
       setIsManualRefresh(true);
       setIsRefreshError(false);
-      
-      // Create abort controller for this request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      abortControllerRef.current = new AbortController();
       
       try {
         console.log('[useWebinarData] Starting manual refresh');
@@ -253,21 +100,15 @@ export function useWebinarData() {
           description: 'Webinar data has been updated from Zoom',
           variant: 'default'
         });
-      } catch (err: any) {
+      } catch (err) {
         console.error('[useWebinarData] Manual refresh failed:', err);
         setIsRefreshError(true);
         
-        // Parse error details
-        parseApiError(err);
-        
-        // Don't show toast for aborted requests
-        if (err.name !== 'AbortError') {
-          toast({
-            title: 'Sync failed',
-            description: err.message || 'Could not refresh webinar data',
-            variant: 'destructive'
-          });
-        }
+        toast({
+          title: 'Sync failed',
+          description: err.message || 'Could not refresh webinar data',
+          variant: 'destructive'
+        });
       } finally {
         setIsManualRefresh(false);
       }
@@ -284,22 +125,10 @@ export function useWebinarData() {
         variant: 'destructive'
       });
     }
-  }, [refreshWebinars, error, credentialsStatus, toast, isManualRefresh, isRefetching, circuitBreakerState, parseApiError]);
+  }, [refreshWebinars, error, credentialsStatus, toast]);
   
   // Memoize the auto refresh function to prevent unnecessary recreations
   const handleAutoRefresh = useCallback(async () => {
-    // Don't auto-refresh if circuit breaker is open
-    if (circuitBreakerState === CircuitBreakerState.OPEN) {
-      console.log('[useWebinarData] Skipping auto-refresh, circuit breaker is open');
-      return;
-    }
-    
-    // Don't auto-refresh if there's already a manual or automatic refresh happening
-    if (isManualRefresh || isRefetching) {
-      console.log('[useWebinarData] Skipping auto-refresh, refresh already in progress');
-      return;
-    }
-    
     if (!error && credentialsStatus?.hasCredentials) {
       try {
         console.log('[useWebinarData] Starting auto-refresh');
@@ -313,27 +142,19 @@ export function useWebinarData() {
           description: 'Webinar data has been updated from Zoom',
           variant: 'default'
         });
-      } catch (err: any) {
+      } catch (err) {
         console.error('[useWebinarData] Auto-refresh failed:', err);
         setIsRefreshError(true);
         
-        // Parse error for better handling
-        parseApiError(err);
-        
         // Only show error toast for auto-refresh failures if it's a new error
-        // and not a network/abort error
-        if (err.name !== 'AbortError' && 
-            !err.message?.includes('ERR_INSUFFICIENT_RESOURCES') &&
-            !err.message?.includes('Failed to fetch')) {
-          toast({
-            title: 'Sync failed',
-            description: 'Could not automatically refresh webinar data',
-            variant: 'destructive'
-          });
-        }
+        toast({
+          title: 'Sync failed',
+          description: 'Could not automatically refresh webinar data',
+          variant: 'destructive'
+        });
       }
     }
-  }, [refreshWebinars, error, toast, credentialsStatus, isManualRefresh, isRefetching, circuitBreakerState, parseApiError]);
+  }, [refreshWebinars, error, toast, credentialsStatus]);
 
   // Set up automatic refresh on mount and when dependencies change
   useEffect(() => {
@@ -344,12 +165,7 @@ export function useWebinarData() {
 
     // Initial refresh on mount if not loading
     if (!isLoading && !isRefetching && !error && !lastSyncTime) {
-      // Add a small delay to prevent immediate refresh on mount
-      const timer = setTimeout(() => {
-        handleAutoRefresh();
-      }, 2000);
-      
-      return () => clearTimeout(timer);
+      handleAutoRefresh();
     }
 
     // Set up interval for periodic refreshes
@@ -366,7 +182,7 @@ export function useWebinarData() {
     isLoading,
     isRefetching: isRefetching || isManualRefresh, // Include our manual state
     error,
-    errorDetails: enhancedErrorDetails,
+    errorDetails,
     refreshWebinars: handleRefresh, // Use our wrapper
     lastSyncTime,
     credentialsStatus,
@@ -376,8 +192,6 @@ export function useWebinarData() {
     checkCredentialsStatus,
     isRefreshError,
     verificationDetails: credentialsStatus,
-    handleAutoRefresh,
-    circuitBreakerState,
-    errorCategory
+    handleAutoRefresh
   };
 }

@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { WebinarInstanceService } from './services/WebinarInstanceService';
+import { fetchInstanceParticipantsAPI } from './services/webinarApiService';
 
 export interface InstanceParticipants {
   registrants: any[];
@@ -51,7 +51,7 @@ export function useZoomInstanceParticipants(webinarId: string | null, instanceId
       
       // If not in database, fetch from API
       try {
-        return await WebinarInstanceService.fetchInstanceParticipantsAPI(webinarId, instanceId);
+        return await fetchInstanceParticipantsAPI(webinarId, instanceId);
       } catch (apiError) {
         console.error('[useZoomInstanceParticipants] API error:', apiError);
         return { registrants: [], attendees: [] };

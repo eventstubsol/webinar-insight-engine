@@ -1,11 +1,25 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { WebinarInstanceService } from './services/WebinarInstanceService';
-import { ZoomWebinarInstance } from './types/webinarTypes';
+import { fetchWebinarInstancesFromDatabase, fetchWebinarInstancesAPI } from './services/webinarApiService';
+
+export interface WebinarInstance {
+  id: string;
+  instance_id: string;
+  webinar_id: string;
+  webinar_uuid: string;
+  topic: string;
+  start_time: string | null;
+  end_time: string | null;
+  duration: number | null;
+  status: string | null;
+  participants_count: number;
+  registrants_count: number;
+  raw_data: Record<string, any>;
+}
 
 interface UseZoomWebinarInstancesResult {
-  instances: ZoomWebinarInstance[];
+  instances: WebinarInstance[];
   isLoading: boolean;
   isRefetching: boolean;
   error: Error | null;
@@ -28,7 +42,7 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
       
       try {
         // First try to get instances from database
-        const dbInstances = await WebinarInstanceService.fetchWebinarInstancesFromDatabase(user.id, webinarId);
+        const dbInstances = await fetchWebinarInstancesFromDatabase(user.id, webinarId);
         
         // If we don't have the webinarId, just return what's in the database
         if (!webinarId) {
@@ -39,9 +53,9 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
         // try to fetch instances from the API
         if (!dbInstances || dbInstances.length < 2) {
           try {
-            await WebinarInstanceService.fetchWebinarInstancesAPI(webinarId);
+            await fetchWebinarInstancesAPI(webinarId);
             // Refetch from database after API call
-            const refreshedInstances = await WebinarInstanceService.fetchWebinarInstancesFromDatabase(user.id, webinarId);
+            const refreshedInstances = await fetchWebinarInstancesFromDatabase(user.id, webinarId);
             return refreshedInstances || [];
           } catch (apiError) {
             console.error('[useZoomWebinarInstances] Error fetching instances from API:', apiError);
@@ -69,5 +83,3 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
     refetch
   };
 }
-
-export type { ZoomWebinarInstance };

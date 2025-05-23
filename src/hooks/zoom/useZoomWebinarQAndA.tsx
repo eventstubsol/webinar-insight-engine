@@ -1,10 +1,10 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { ZoomDataService } from './services/ZoomDataService';
+import { useAuth } from '@/hooks/useAuth';
 
-interface WebinarQuestion {
+export interface ZoomWebinarQuestion {
   id: string;
-  webinar_id: string;
   question_id: string;
   question: string;
   answer?: string;
@@ -16,56 +16,39 @@ interface WebinarQuestion {
   answered_by?: string;
 }
 
-interface WebinarQAndAData {
-  questions: WebinarQuestion[];
+export interface ZoomWebinarQAndAResult {
+  questions: ZoomWebinarQuestion[];
   totalQuestions: number;
   answeredQuestions: number;
 }
 
-export const useZoomWebinarQAndA = (webinarId: string | null) => {
+export function useZoomWebinarQAndA(webinarId: string | null) {
+  const { user } = useAuth();
+  
   const {
     data,
     isLoading,
-    isRefetching,
     error,
-    refetch
+    refetch,
+    isRefetching
   } = useQuery({
-    queryKey: ['webinar', webinarId, 'qanda'],
-    queryFn: async (): Promise<WebinarQAndAData> => {
-      if (!webinarId) {
-        return { questions: [], totalQuestions: 0, answeredQuestions: 0 };
-      }
-
-      const { data, error } = await supabase
-        .from('zoom_webinar_questions')
-        .select('*')
-        .eq('webinar_id', webinarId)
-        .order('question_time', { ascending: false });
-
-      if (error) {
-        throw new Error(`Failed to fetch Q&A data: ${error.message}`);
-      }
-
-      const questions = data || [];
-      const answeredQuestions = questions.filter(q => q.answered).length;
-
-      return {
-        questions,
-        totalQuestions: questions.length,
-        answeredQuestions
-      };
+    queryKey: ['zoom-webinar-qanda', user?.id, webinarId],
+    queryFn: async () => {
+      if (!user || !webinarId) return { questions: [], totalQuestions: 0, answeredQuestions: 0 };
+      
+      return await ZoomDataService.fetchWebinarQAndA(user.id, webinarId);
     },
-    enabled: !!webinarId,
-    refetchOnWindowFocus: false
+    enabled: !!user && !!webinarId,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000 // 30 minutes
   });
 
   return {
-    questions: data?.questions || [],
-    totalQuestions: data?.totalQuestions || 0,
-    answeredQuestions: data?.answeredQuestions || 0,
+    qAndA: data || { questions: [], totalQuestions: 0, answeredQuestions: 0 } as ZoomWebinarQAndAResult,
     isLoading,
     isRefetching,
     error,
     refetch
   };
-};
+}
