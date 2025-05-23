@@ -3,6 +3,25 @@ import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
+// Define a type for valid table names to address the type error
+type ValidTableName = 
+  | 'workspaces' 
+  | 'profiles' 
+  | 'user_roles' 
+  | 'workspace_members' 
+  | 'zoom_credentials' 
+  | 'zoom_sync_history' 
+  | 'zoom_webinar_chat'
+  | 'zoom_webinar_engagement'
+  | 'zoom_webinar_instance_participants'
+  | 'zoom_webinar_instances'
+  | 'zoom_webinar_participants'
+  | 'zoom_webinar_poll_responses'
+  | 'zoom_webinar_polls'
+  | 'zoom_webinar_questions'
+  | 'zoom_webinar_recordings'
+  | 'zoom_webinars';
+
 /**
  * Hook to handle workspace-scoped data operations
  */
@@ -13,7 +32,7 @@ export function useWorkspaceData() {
    * Get data from a table with workspace filtering
    */
   const getFromWorkspace = useCallback(async <T extends Record<string, any>>(
-    table: string,
+    table: ValidTableName,
     columns: string = '*',
     additionalFilters?: (query: any) => any
   ): Promise<T[]> => {
@@ -46,7 +65,7 @@ export function useWorkspaceData() {
    * Insert data into a table with workspace_id
    */
   const insertToWorkspace = useCallback(async <T extends Record<string, any>>(
-    table: string,
+    table: ValidTableName,
     data: Omit<T, 'workspace_id'> | Omit<T, 'workspace_id'>[],
     options?: { returning?: boolean }
   ): Promise<T[]> => {
@@ -61,9 +80,10 @@ export function useWorkspaceData() {
       workspace_id: currentWorkspace.id
     }));
     
+    // Use type assertion to handle the dynamic table and data types
     const query = supabase
       .from(table)
-      .insert(dataWithWorkspace);
+      .insert(dataWithWorkspace as any); // Type assertion needed here
     
     if (options?.returning !== false) {
       query.select();
@@ -84,7 +104,7 @@ export function useWorkspaceData() {
    * Update data in a table with workspace filtering
    */
   const updateInWorkspace = useCallback(async <T extends Record<string, any>>(
-    table: string,
+    table: ValidTableName,
     id: string | number,
     updates: Partial<T>,
     options?: { idField?: string; returning?: boolean }
@@ -98,7 +118,7 @@ export function useWorkspaceData() {
     
     const query = supabase
       .from(table)
-      .update(updates)
+      .update(updates as any) // Type assertion needed here
       .eq(idField, id)
       .eq('workspace_id', currentWorkspace.id);
     
@@ -121,7 +141,7 @@ export function useWorkspaceData() {
    * Delete data from a table with workspace filtering
    */
   const deleteFromWorkspace = useCallback(async (
-    table: string,
+    table: ValidTableName,
     id: string | number,
     options?: { idField?: string }
   ): Promise<void> => {

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -39,7 +40,7 @@ interface WorkspaceContextType {
   updateWorkspace: (id: string, data: { name?: string; description?: string }) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
   fetchWorkspaceMembers: (workspaceId: string) => Promise<WorkspaceMember[]>;
-  inviteWorkspaceMember: (workspaceId: string, email: string, role: WorkspaceMember['role']) => Promise<void>;
+  inviteWorkspaceMember: (workspaceId: string, email: string, role: WorkspaceMemberRole) => Promise<void>;
   updateWorkspaceMember: (memberId: string, role: WorkspaceMember['role']) => Promise<void>;
   removeWorkspaceMember: (memberId: string) => Promise<void>;
   userRole: WorkspaceMember['role'] | null;
@@ -319,17 +320,17 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Transform to match our interface with proper typing
       const members: WorkspaceMember[] = data.map(item => {
         // Handle profiles data with type assertion and nullish checks
-        let profileData: { display_name: string | null, avatar_url: string | null } | null = null;
-        
-        if (item.profiles) {
-          // Only try to access properties if profiles exists
+        const profileData = (() => {
+          if (!item.profiles) return null;
+          // Only try to access properties if profiles exists and is an object
           if (typeof item.profiles === 'object' && item.profiles !== null) {
             // Safe check if it's not an error object
             if (!('error' in item.profiles)) {
-              profileData = item.profiles as { display_name: string | null, avatar_url: string | null };
+              return item.profiles as { display_name: string | null, avatar_url: string | null };
             }
           }
-        }
+          return null;
+        })();
         
         return {
           id: item.id,
@@ -356,10 +357,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
+  // Updated to fix the type instantiation issue
   const inviteWorkspaceMember = useCallback(async (
     workspaceId: string, 
     email: string, 
-    role: 'owner' | 'admin' | 'analyst' | 'viewer'
+    role: WorkspaceMemberRole
   ) => {
     try {
       // First, check if the user exists
