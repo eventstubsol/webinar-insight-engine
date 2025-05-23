@@ -8,6 +8,9 @@ export interface WebinarStatsItem {
   attendees: number;
 }
 
+// Export WebinarStatsItem as MonthlyAttendanceData for backwards compatibility
+export type MonthlyAttendanceData = WebinarStatsItem;
+
 /**
  * Safely extracts registrants and attendees counts from webinar data
  * with fallbacks for missing or malformed data

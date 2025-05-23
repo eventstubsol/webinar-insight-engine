@@ -11,11 +11,11 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
-import { MonthlyAttendanceData } from './RegistrationAttendanceUtils';
+import { WebinarStatsItem, MonthlyAttendanceData } from './RegistrationAttendanceUtils';
 import RegistrationAttendanceTooltip from './RegistrationAttendanceTooltip';
 
 interface RegistrationAttendanceContentProps {
-  webinarStats: MonthlyAttendanceData[];
+  webinarStats: WebinarStatsItem[];
   isLoading: boolean;
 }
 
