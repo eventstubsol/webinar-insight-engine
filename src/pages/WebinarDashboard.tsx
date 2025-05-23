@@ -6,18 +6,9 @@ import { WebinarDashboardHeader } from '@/components/webinars/dashboard/WebinarD
 import { WebinarMetadataHeader } from '@/components/webinars/dashboard/WebinarMetadataHeader';
 import { WebinarDashboardTabs } from '@/components/webinars/dashboard/WebinarDashboardTabs';
 import { WebinarDashboardSkeleton } from '@/components/webinars/dashboard/WebinarDashboardSkeleton';
-import { 
-  useZoomWebinarDetails, 
-  useZoomWebinarParticipants, 
-  useZoomWebinarInstances,
-  ZoomParticipants 
-} from '@/hooks/zoom';
+import { useZoomWebinarDetails, useZoomWebinarParticipants, ZoomParticipants } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/hooks/use-toast';
-import { ZoomDataService } from '@/hooks/zoom/services/ZoomDataService';
+import { AlertCircle } from 'lucide-react';
 
 // Define helper function to type check and safely cast participants
 const safeParticipantsCast = (participants: any): ZoomParticipants => {
@@ -49,34 +40,20 @@ const safeParticipantsCast = (participants: any): ZoomParticipants => {
 const WebinarDashboard = () => {
   const { webinarId } = useParams<{ webinarId: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
   
   const { 
     webinar, 
     isLoading: isWebinarLoading,
-    error: webinarError,
-    refetch: refetchWebinar
+    error: webinarError
   } = useZoomWebinarDetails(webinarId || null);
   
   const { 
     participants: rawParticipants, 
-    isLoading: isParticipantsLoading,
-    isRefetching: isParticipantsRefetching,
-    error: participantsError,
-    refetch: refetchParticipants 
+    isLoading: isParticipantsLoading 
   } = useZoomWebinarParticipants(webinarId || null);
+  
+  const isLoading = isWebinarLoading || isParticipantsLoading;
 
-  const {
-    instances,
-    isLoading: isInstancesLoading,
-    isRefetching: isInstancesRefetching,
-    error: instancesError,
-    refetch: refetchInstances
-  } = useZoomWebinarInstances(webinarId);
-  
-  const isLoading = isWebinarLoading || isParticipantsLoading || isInstancesLoading;
-  const isRefetching = isParticipantsRefetching || isInstancesRefetching;
-  
   // Safely cast participants to the expected ZoomParticipants type
   const participants: ZoomParticipants = safeParticipantsCast(rawParticipants);
 
@@ -87,76 +64,14 @@ const WebinarDashboard = () => {
     }
   }, [webinar, isLoading, navigate, webinarId]);
 
-  // Function to refresh all data
-  const refreshAllData = async () => {
-    try {
-      toast({
-        title: "Refreshing webinar data",
-        description: "Please wait while we fetch the latest data..."
-      });
-      
-      await Promise.all([
-        refetchWebinar(),
-        refetchParticipants(),
-        refetchInstances()
-      ]);
-      
-      toast({
-        title: "Data refreshed",
-        description: "Webinar data has been updated successfully"
-      });
-    } catch (error) {
-      toast({
-        title: "Refresh failed",
-        description: "Could not refresh webinar data. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Function to sync all extended data
-  const syncAllExtendedData = async () => {
-    if (!webinarId) return;
-    
-    try {
-      toast({
-        title: "Syncing extended data",
-        description: "Please wait while we fetch Q&A, polls, and engagement data..."
-      });
-      
-      const result = await ZoomDataService.syncAllWebinarData(
-        webinar?.user_id || '', 
-        webinarId
-      );
-      
-      await refreshAllData();
-      
-      toast({
-        title: "Extended data synced",
-        description: "Q&A, polls, and engagement data has been updated"
-      });
-      
-      return result;
-    } catch (error) {
-      console.error("Error syncing extended data:", error);
-      toast({
-        title: "Sync failed",
-        description: "Could not sync extended webinar data. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const error = webinarError || participantsError || instancesError;
-
-  if (error) {
+  if (webinarError) {
     return (
       <AppLayout>
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>
-            Failed to load webinar details. {error.message}
+            Failed to load webinar details. {webinarError.message}
           </AlertDescription>
         </Alert>
       </AppLayout>
@@ -174,44 +89,11 @@ const WebinarDashboard = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <WebinarDashboardHeader webinar={webinar} />
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={syncAllExtendedData}
-              className="flex items-center gap-1"
-              disabled={isRefetching}
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
-              Sync Extended Data
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={refreshAllData}
-              className="flex items-center gap-1"
-              disabled={isRefetching}
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
-              Refresh Data
-            </Button>
-          </div>
-        </div>
-        
-        <Separator />
-        
-        <WebinarMetadataHeader 
-          webinar={webinar} 
-          participants={participants}
-          instances={instances} 
-        />
-        
+        <WebinarDashboardHeader webinar={webinar} />
+        <WebinarMetadataHeader webinar={webinar} participants={participants} />
         <WebinarDashboardTabs 
           webinar={webinar}
           participants={participants}
-          instances={instances}
         />
       </div>
     </AppLayout>

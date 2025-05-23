@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 export function useZoomWebinarDetails(webinarId: string | null) {
   const { user } = useAuth();
   
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['zoom-webinar', user?.id, webinarId],
     queryFn: async () => {
       if (!user || !webinarId) return null;
@@ -40,7 +40,6 @@ export function useZoomWebinarDetails(webinarId: string | null) {
   return {
     webinar: data,
     isLoading,
-    error,
-    refetch
+    error
   };
 }
