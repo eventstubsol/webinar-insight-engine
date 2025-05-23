@@ -36,9 +36,9 @@ function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="webinar-insight-theme">
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <WorkspaceProvider>
-            <Router>
+        <Router>
+          <AuthProvider>
+            <WorkspaceProvider>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/landing" element={<LandingPage />} />
@@ -108,10 +108,10 @@ function App() {
                 />
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </Router>
-            <Toaster />
-          </WorkspaceProvider>
-        </AuthProvider>
+              <Toaster />
+            </WorkspaceProvider>
+          </AuthProvider>
+        </Router>
       </QueryClientProvider>
     </ThemeProvider>
   );

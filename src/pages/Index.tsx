@@ -1,10 +1,11 @@
 
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import LandingPage from './LandingPage';
 
-// This Index page simply redirects to the LandingPage
+// This Index page redirects to the LandingPage component directly
 const Index = () => {
-  return <Navigate to="/" replace />;
+  return <LandingPage />;
 };
 
 export default Index;
