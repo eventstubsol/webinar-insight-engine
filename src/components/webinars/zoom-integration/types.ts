@@ -1,19 +1,10 @@
 
-export interface ZoomCredentials {
-  account_id: string;
-  client_id: string;
-  client_secret: string;
-}
+import { VerificationDetails as VerificationDetailsBase } from '@/hooks/zoom/verification/types';
+import { ZoomCredentials as ZoomCredentialsBase } from '@/hooks/zoom/verification/types';
 
-export interface VerificationDetails {
-  success: boolean;
-  message?: string;
-  user_email?: string;
-  user?: {
-    email?: string;
-    account_id?: string;
-  };
-}
+// Re-export types to avoid conflicts
+export type ZoomCredentials = ZoomCredentialsBase;
+export type VerificationDetails = VerificationDetailsBase;
 
 // Main steps of the wizard
 export enum WizardStep {

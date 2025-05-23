@@ -1,6 +1,10 @@
 
 // Export all types
 export * from './types';
+// Export verification types with renamed interface to avoid conflict
+export { VerificationStage, VerificationDetails, type VerificationState } from './verification/types';
+// Export ZoomCredentials interface from verification as ZoomVerificationCredentials
+export { type ZoomCredentials as ZoomVerificationCredentials } from './verification/types';
 export * from './types/webinarTypes';
 export * from './verification/types';
 
