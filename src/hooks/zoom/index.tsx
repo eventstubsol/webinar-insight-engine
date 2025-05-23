@@ -18,7 +18,12 @@ export * from './useZoomWebinarRecordings';
 export * from './utils/webinarUtils';
 export * from './utils/errorUtils';
 
+// Export PDF and data export hooks
+export * from './usePdfExport';
+export * from './useExportData';
+
 // Export services and operations for direct access
 export * from './services';
 export * from './services/index';
 export * from './webinarOperations';
+

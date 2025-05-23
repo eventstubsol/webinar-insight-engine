@@ -14,6 +14,24 @@ import { toast } from '@/hooks/use-toast';
 // Operation timeout in milliseconds (45 seconds - allowing for edge function's 30s timeout)
 const OPERATION_TIMEOUT = 45000;
 
+// Circuit breaker state management
+interface CircuitBreakerState {
+  failures: number;
+  lastFailureTime: number | null;
+  status: 'closed' | 'open' | 'half-open';
+}
+
+// Initial circuit breaker state
+const circuitBreaker: CircuitBreakerState = {
+  failures: 0,
+  lastFailureTime: null,
+  status: 'closed'
+};
+
+// Circuit breaker settings
+const CIRCUIT_BREAKER_THRESHOLD = 3;         // Number of failures before opening
+const CIRCUIT_BREAKER_RESET_TIMEOUT = 60000; // 1 minute timeout before half-open
+
 /**
  * Execute a function with a timeout
  */
@@ -49,6 +67,49 @@ async function executeWithTimeout<T>(
 }
 
 /**
+ * Check if circuit breaker allows operation
+ */
+function checkCircuitBreaker(): boolean {
+  if (circuitBreaker.status === 'closed') {
+    return true;
+  } else if (circuitBreaker.status === 'half-open') {
+    return true;
+  } else if (circuitBreaker.status === 'open') {
+    // Check if timeout has passed
+    if (circuitBreaker.lastFailureTime && 
+        Date.now() - circuitBreaker.lastFailureTime > CIRCUIT_BREAKER_RESET_TIMEOUT) {
+      // Transition to half-open to allow a test request
+      circuitBreaker.status = 'half-open';
+      return true;
+    }
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Update circuit breaker state based on operation result
+ */
+function updateCircuitBreaker(success: boolean): void {
+  if (success) {
+    if (circuitBreaker.status !== 'closed') {
+      // On successful operation, close the circuit
+      circuitBreaker.status = 'closed';
+      circuitBreaker.failures = 0;
+    }
+  } else {
+    circuitBreaker.failures++;
+    circuitBreaker.lastFailureTime = Date.now();
+    
+    if (circuitBreaker.failures >= CIRCUIT_BREAKER_THRESHOLD) {
+      // Too many failures, open the circuit
+      circuitBreaker.status = 'open';
+      console.warn('Circuit breaker opened due to multiple failures');
+    }
+  }
+}
+
+/**
  * Refresh webinars operation with improved error handling and timeout safety
  */
 export async function refreshWebinarsOperation(
@@ -60,6 +121,16 @@ export async function refreshWebinarsOperation(
     toast({
       title: 'Authentication Required',
       description: 'You must be logged in to refresh webinars',
+      variant: 'destructive'
+    });
+    return;
+  }
+  
+  // Check if circuit breaker allows operation
+  if (!checkCircuitBreaker()) {
+    toast({
+      title: 'API temporarily unavailable',
+      description: 'Too many failed requests. Please try again later.',
       variant: 'destructive'
     });
     return;
@@ -100,6 +171,9 @@ export async function refreshWebinarsOperation(
     // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
     
+    // Update circuit breaker on success
+    updateCircuitBreaker(true);
+    
     // Show a consolidated notification with both webinar and participant data
     if (refreshData.syncResults) {
       const webinarsUpdated = refreshData.syncResults.itemsUpdated || 0;
@@ -119,6 +193,9 @@ export async function refreshWebinarsOperation(
     isCompleted = true;
     
     console.error('[refreshWebinarsOperation] Error during refresh:', err);
+    
+    // Update circuit breaker on failure
+    updateCircuitBreaker(false);
     
     // Different error handling based on error type
     if (timeoutTriggered) {
@@ -159,6 +236,18 @@ export async function updateParticipantDataOperation(
     return null;
   }
   
+  // Check if circuit breaker allows operation
+  if (!checkCircuitBreaker()) {
+    if (!silent) {
+      toast({
+        title: 'API temporarily unavailable',
+        description: 'Too many failed requests. Please try again later.',
+        variant: 'destructive'
+      });
+    }
+    return null;
+  }
+  
   try {
     const data = await executeWithTimeout(
       () => ParticipantService.updateParticipantDataAPI(),
@@ -174,6 +263,9 @@ export async function updateParticipantDataOperation(
       }
     );
     
+    // Update circuit breaker on success
+    updateCircuitBreaker(true);
+    
     // Only show toast if not silent mode
     if (!silent) {
       showParticipantUpdateNotification(data);
@@ -185,6 +277,9 @@ export async function updateParticipantDataOperation(
     return data;
   } catch (err) {
     console.error('[updateParticipantDataOperation] Unhandled error:', err);
+    
+    // Update circuit breaker on failure
+    updateCircuitBreaker(false);
     
     if (!silent) {
       showErrorNotification(err, 'Update failed');

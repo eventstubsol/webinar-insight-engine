@@ -2,13 +2,14 @@
 import { supabase } from '@/integrations/supabase/client';
 import { BaseZoomService } from './base/BaseZoomService';
 import { ZoomWebinar } from '../types';
+import { DataValidator } from '../utils/validationUtils';
 
 /**
  * WebinarService - Service for managing webinar data
  */
 export class WebinarService extends BaseZoomService {
   /**
-   * Fetch webinars from database
+   * Fetch webinars from database with validation
    */
   static async fetchWebinarsFromDatabase(userId: string): Promise<ZoomWebinar[] | null> {
     console.log('[WebinarService] Fetching webinars from database');
@@ -31,7 +32,20 @@ export class WebinarService extends BaseZoomService {
     
     console.log(`[WebinarService] Found ${dbWebinars.length} webinars in database`);
     
-    return WebinarService.transformDatabaseWebinars(dbWebinars);
+    // Transform and validate webinar data
+    const validWebinars = WebinarService.transformDatabaseWebinars(dbWebinars)
+      .filter(webinar => {
+        try {
+          // Validate each webinar
+          DataValidator.validateWebinar(webinar);
+          return true;
+        } catch (error) {
+          console.warn(`[WebinarService] Invalid webinar data for ${webinar.id || 'unknown'}: ${error.message}`);
+          return false;
+        }
+      });
+    
+    return validWebinars;
   }
 
   /**
@@ -78,12 +92,35 @@ export class WebinarService extends BaseZoomService {
   }
 
   /**
-   * Fetch webinars from API
+   * Fetch webinars from API with rate limiting
    */
   static async fetchWebinarsFromAPI(forceSync: boolean = false): Promise<ZoomWebinar[]> {
     console.log(`[WebinarService] Fetching webinars from API with force_sync=${forceSync}`);
     
-    return await BaseZoomService.invokeEdgeFunction('list-webinars', { force_sync: forceSync });
+    try {
+      const data = await BaseZoomService.invokeEdgeFunction('list-webinars', { force_sync: forceSync });
+      
+      // Validate the returned data
+      if (!data || !data.webinars || !Array.isArray(data.webinars)) {
+        throw new Error('Invalid response format from API');
+      }
+      
+      // Validate each webinar and filter out invalid ones
+      const validWebinars = data.webinars.filter(webinar => {
+        try {
+          DataValidator.validateWebinar(webinar);
+          return true;
+        } catch (error) {
+          console.warn(`[WebinarService] Invalid webinar data from API for ${webinar.id || 'unknown'}: ${error.message}`);
+          return false;
+        }
+      });
+      
+      return validWebinars;
+    } catch (error) {
+      console.error('[WebinarService] API fetch error:', error);
+      throw error;
+    }
   }
 
   /**

@@ -7,8 +7,9 @@ import {
   handleCheckCredentialsStatus,
   handleVerifyCredentials,
   getZoomCredentials,
-  verifyZoomCredentials
-} from "./credentials.ts";
+  verifyZoomCredentials,
+  ZoomApiClient
+} from "./auth.ts";
 import { 
   handleListWebinars, 
   handleGetWebinar, 
@@ -78,53 +79,56 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
         // Verify credentials for actions that require valid credentials
         await verifyZoomCredentials(credentials);
         
+        // Create API client with rate limiting
+        const apiClient = new ZoomApiClient(credentials.accessToken);
+        
         // Route to the correct action handler with timeout protection
         switch (action) {
           case "list-webinars":
             response = await executeWithTimeout(
-              () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false),
+              () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
               OPERATION_TIMEOUT
             );
             break;
             
           case "get-webinar":
             response = await executeWithTimeout(
-              () => handleGetWebinar(req, supabaseAdmin, user, credentials, body.id),
+              () => handleGetWebinar(req, supabaseAdmin, user, credentials, body.id, apiClient),
               OPERATION_TIMEOUT
             );
             break;
             
           case "get-participants":
             response = await executeWithTimeout(
-              () => handleGetParticipants(req, supabaseAdmin, user, credentials, body.id),
+              () => handleGetParticipants(req, supabaseAdmin, user, credentials, body.id, apiClient),
               OPERATION_TIMEOUT
             );
             break;
             
           case "update-webinar-participants":
             response = await executeWithTimeout(
-              () => handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials),
+              () => handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials, apiClient),
               OPERATION_TIMEOUT
             );
             break;
             
           case "get-webinar-instances":
             response = await executeWithTimeout(
-              () => handleGetWebinarInstances(req, supabaseAdmin, user, credentials, body.webinar_id),
+              () => handleGetWebinarInstances(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
               OPERATION_TIMEOUT
             );
             break;
             
           case "get-instance-participants":
             response = await executeWithTimeout(
-              () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id),
+              () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id, apiClient),
               OPERATION_TIMEOUT
             );
             break;
             
           case "get-webinar-extended-data":
             response = await executeWithTimeout(
-              () => handleGetWebinarExtendedData(req, supabaseAdmin, user, credentials, body.webinar_id),
+              () => handleGetWebinarExtendedData(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
               OPERATION_TIMEOUT
             );
             break;
