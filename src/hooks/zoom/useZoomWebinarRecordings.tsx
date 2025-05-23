@@ -1,22 +1,21 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/hooks/useAuth';
-import { ZoomDataService } from './services/ZoomDataService';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface WebinarRecording {
   id: string;
-  recording_id: string;
   webinar_id: string;
-  instance_id?: string;
+  instance_id: string;
+  recording_id: string;
   recording_type: string;
-  recording_start: string | null;
-  recording_end: string | null;
-  duration: number | null;
-  file_type?: string;
-  file_size?: number;
-  play_url: string | null;
-  download_url: string | null;
-  status: string | null;
+  recording_start: string;
+  recording_end: string;
+  file_type: string;
+  file_size: number;
+  play_url: string;
+  download_url: string;
+  status: string;
+  duration: number;
   password?: string;
 }
 
@@ -26,46 +25,50 @@ export interface WebinarRecordingsData {
   totalDuration: number;
 }
 
-export function useZoomWebinarRecordings(webinarId: string | null) {
-  const { user } = useAuth();
-  
+export const useZoomWebinarRecordings = (webinarId: string | null) => {
   const {
     data,
     isLoading,
+    isRefetching,
     error,
-    refetch,
-    isRefetching
+    refetch
   } = useQuery({
-    queryKey: ['zoom-webinar-recordings', user?.id, webinarId],
-    queryFn: async () => {
-      if (!user || !webinarId) return { recordings: [], totalRecordings: 0, totalDuration: 0 };
-      
-      try {
-        return await ZoomDataService.fetchWebinarRecordings(user.id, webinarId);
-      } catch (err) {
-        console.error('[useZoomWebinarRecordings] Error:', err);
-        throw err;
+    queryKey: ['webinar', webinarId, 'recordings'],
+    queryFn: async (): Promise<WebinarRecordingsData> => {
+      if (!webinarId) {
+        return { recordings: [], totalRecordings: 0, totalDuration: 0 };
       }
+
+      const { data, error } = await supabase
+        .from('zoom_webinar_recordings')
+        .select('*')
+        .eq('webinar_id', webinarId)
+        .order('recording_start', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch recordings: ${error.message}`);
+      }
+
+      const recordings = data || [];
+      const totalDuration = recordings.reduce((acc, rec) => acc + (rec.duration || 0), 0);
+
+      return {
+        recordings,
+        totalRecordings: recordings.length,
+        totalDuration
+      };
     },
-    enabled: !!user && !!webinarId,
-    refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000 // 5 minutes
+    enabled: !!webinarId,
+    refetchOnWindowFocus: false
   });
-  
-  // Ensure we always return a consistent structure
-  const recordingsData: WebinarRecordingsData = data || { 
-    recordings: [], 
-    totalRecordings: 0, 
-    totalDuration: 0 
-  };
-  
+
   return {
-    recordings: recordingsData.recordings || [],
-    totalRecordings: recordingsData.totalRecordings || 0,
-    totalDuration: recordingsData.totalDuration || 0,
+    recordings: data?.recordings || [],
+    totalRecordings: data?.totalRecordings || 0,
+    totalDuration: data?.totalDuration || 0,
     isLoading,
     isRefetching,
     error,
     refetch
   };
-}
+};

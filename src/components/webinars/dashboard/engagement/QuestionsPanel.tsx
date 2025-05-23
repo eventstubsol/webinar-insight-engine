@@ -1,155 +1,133 @@
 
-import { useState } from "react";
+import React, { useState } from 'react';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ZoomWebinarQuestion } from "@/hooks/zoom";
-import { formatDistanceToNow } from "date-fns";
-import { Separator } from "@/components/ui/separator";
 
-interface QuestionsPanelProps {
-  questions: ZoomWebinarQuestion[];
-  isLoading: boolean;
+interface Question {
+  question: string;
+  answer?: string;
+  name?: string;
+  email?: string;
+  question_time?: string;
+  answer_time?: string;
+  answered: boolean;
+  answered_by?: string;
 }
 
-export function QuestionsPanel({ questions, isLoading }: QuestionsPanelProps) {
-  const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
+interface QuestionsPanelProps {
+  questions?: Question[];
+  isLoading?: boolean;
+}
 
-  // Toggle collapsible state for a question
-  const toggleQuestion = (id: string) => {
-    setOpenItems((current) => ({
-      ...current,
-      [id]: !current[id],
-    }));
-  };
+export const QuestionsPanel: React.FC<QuestionsPanelProps> = ({
+  questions = [],
+  isLoading = false
+}) => {
+  const [filter, setFilter] = useState<'all' | 'answered' | 'unanswered'>('all');
+
+  const filteredQuestions = questions.filter(q => {
+    if (filter === 'answered') return q.answered;
+    if (filter === 'unanswered') return !q.answered;
+    return true;
+  });
+
+  const answeredCount = questions.filter(q => q.answered).length;
+  const unansweredCount = questions.length - answeredCount;
 
   if (isLoading) {
     return (
-      <Card className="mb-4">
-        <CardContent className="pt-6">
-          <div className="space-y-2">
-            <div className="h-5 w-1/3 bg-muted animate-pulse rounded"></div>
-            <div className="h-20 bg-muted animate-pulse rounded"></div>
-            <div className="h-20 bg-muted animate-pulse rounded"></div>
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle>Questions & Answers</CardTitle>
+          <CardDescription>Questions asked during the webinar</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-8 w-full mb-4" />
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  if (questions.length === 0) {
-    return (
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <MessageCircle className="h-5 w-5" />
-            Q&A
-          </CardTitle>
-          <CardDescription>
-            No questions were asked during this webinar.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  const answeredQuestions = questions.filter((q) => q.answered);
-  const unansweredQuestions = questions.filter((q) => !q.answered);
-
   return (
-    <Card className="mb-4">
+    <Card className="h-full">
       <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <MessageCircle className="h-5 w-5" />
-          Q&A
-        </CardTitle>
+        <CardTitle>Questions & Answers</CardTitle>
         <CardDescription>
-          {questions.length} questions ({answeredQuestions.length} answered,{" "}
-          {unansweredQuestions.length} unanswered)
+          {questions.length} questions asked during the webinar
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
-          {questions.map((question) => (
-            <Collapsible
-              key={question.id}
-              open={openItems[question.id]}
-              onOpenChange={() => toggleQuestion(question.id)}
-              className="border rounded-lg p-3"
-            >
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <div className="font-medium">{question.question}</div>
-                  <div className="text-sm text-muted-foreground flex items-center gap-2">
-                    <span>
-                      From: {question.name || "Anonymous"}{" "}
-                      {question.question_time &&
-                        `(${formatDistanceToNow(
-                          new Date(question.question_time),
-                          { addSuffix: true }
-                        )})`}
-                    </span>
-                    {question.answered ? (
-                      <Badge variant="outline" className="bg-green-50">
-                        Answered
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-amber-50">
-                        Unanswered
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    {openItems[question.id] ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
-              <CollapsibleContent className="pt-2">
-                {question.answered ? (
-                  <>
-                    <Separator className="my-2" />
-                    <div className="space-y-1">
-                      <div className="font-medium text-sm">Answer:</div>
-                      <div>{question.answer}</div>
-                      {question.answer_time && (
-                        <div className="text-xs text-muted-foreground">
-                          Answered{" "}
-                          {formatDistanceToNow(new Date(question.answer_time), {
-                            addSuffix: true,
-                          })}{" "}
-                          {question.answered_by && `by ${question.answered_by}`}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-muted-foreground mt-2">
-                    This question hasn't been answered yet.
-                  </div>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
-          ))}
-        </div>
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
+          <TabsList className="mb-4">
+            <TabsTrigger value="all">
+              All ({questions.length})
+            </TabsTrigger>
+            <TabsTrigger value="answered">
+              Answered ({answeredCount})
+            </TabsTrigger>
+            <TabsTrigger value="unanswered">
+              Unanswered ({unansweredCount})
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="all" className="mt-0">
+            <QuestionsList questions={filteredQuestions} />
+          </TabsContent>
+          <TabsContent value="answered" className="mt-0">
+            <QuestionsList questions={filteredQuestions} />
+          </TabsContent>
+          <TabsContent value="unanswered" className="mt-0">
+            <QuestionsList questions={filteredQuestions} />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
-}
+};
+
+const QuestionsList: React.FC<{ questions: Question[] }> = ({ questions }) => {
+  if (questions.length === 0) {
+    return (
+      <div className="py-8 text-center text-muted-foreground">
+        No questions found
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+      {questions.map((q, index) => (
+        <div key={index} className="border rounded-lg p-3">
+          <div className="flex justify-between items-start mb-2">
+            <div className="font-medium">{q.name || 'Anonymous'}</div>
+            <Badge variant={q.answered ? "default" : "outline"}>
+              {q.answered ? "Answered" : "Unanswered"}
+            </Badge>
+          </div>
+          <p className="mb-2 text-sm">{q.question}</p>
+          {q.answered && (
+            <div className="bg-muted p-2 rounded-md mt-2">
+              <p className="text-xs text-muted-foreground mb-1">
+                Answered by {q.answered_by || 'Host'}
+              </p>
+              <p className="text-sm">{q.answer}</p>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};

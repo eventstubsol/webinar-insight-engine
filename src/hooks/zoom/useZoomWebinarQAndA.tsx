@@ -1,10 +1,10 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { ZoomDataService } from './services/ZoomDataService';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
-export interface ZoomWebinarQuestion {
+interface WebinarQuestion {
   id: string;
+  webinar_id: string;
   question_id: string;
   question: string;
   answer?: string;
@@ -16,32 +16,47 @@ export interface ZoomWebinarQuestion {
   answered_by?: string;
 }
 
-export interface ZoomWebinarQAndAResult {
-  questions: ZoomWebinarQuestion[];
+interface WebinarQAndAData {
+  questions: WebinarQuestion[];
   totalQuestions: number;
   answeredQuestions: number;
 }
 
-export function useZoomWebinarQAndA(webinarId: string | null) {
-  const { user } = useAuth();
-  
+export const useZoomWebinarQAndA = (webinarId: string | null) => {
   const {
     data,
     isLoading,
+    isRefetching,
     error,
-    refetch,
-    isRefetching
+    refetch
   } = useQuery({
-    queryKey: ['zoom-webinar-qanda', user?.id, webinarId],
-    queryFn: async () => {
-      if (!user || !webinarId) return { questions: [], totalQuestions: 0, answeredQuestions: 0 };
-      
-      return await ZoomDataService.fetchWebinarQAndA(user.id, webinarId);
+    queryKey: ['webinar', webinarId, 'qanda'],
+    queryFn: async (): Promise<WebinarQAndAData> => {
+      if (!webinarId) {
+        return { questions: [], totalQuestions: 0, answeredQuestions: 0 };
+      }
+
+      const { data, error } = await supabase
+        .from('zoom_webinar_questions')
+        .select('*')
+        .eq('webinar_id', webinarId)
+        .order('question_time', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch Q&A data: ${error.message}`);
+      }
+
+      const questions = data || [];
+      const answeredQuestions = questions.filter(q => q.answered).length;
+
+      return {
+        questions,
+        totalQuestions: questions.length,
+        answeredQuestions
+      };
     },
-    enabled: !!user && !!webinarId,
-    refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000 // 30 minutes
+    enabled: !!webinarId,
+    refetchOnWindowFocus: false
   });
 
   return {
@@ -53,4 +68,4 @@ export function useZoomWebinarQAndA(webinarId: string | null) {
     error,
     refetch
   };
-}
+};

@@ -20,4 +20,5 @@ export * from './utils/errorUtils';
 
 // Export services and operations for direct access
 export * from './services';
+export * from './services/index';
 export * from './webinarOperations';

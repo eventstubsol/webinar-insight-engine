@@ -1,12 +1,12 @@
 
+import React from 'react';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageCircle, BarChart2, Users } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface EngagementMetricsProps {
   totalQuestions: number;
@@ -14,81 +14,75 @@ interface EngagementMetricsProps {
   totalPolls: number;
   pollParticipants: number;
   totalAttendees: number;
-  isLoading: boolean;
+  isLoading?: boolean;
 }
 
-export function EngagementMetrics({
+export const EngagementMetrics: React.FC<EngagementMetricsProps> = ({
   totalQuestions,
   answeredQuestions,
   totalPolls,
   pollParticipants,
   totalAttendees,
-  isLoading,
-}: EngagementMetricsProps) {
+  isLoading = false
+}) => {
+  // Calculate percentages
+  const questionsAnsweredPercentage = totalQuestions > 0 
+    ? Math.round((answeredQuestions / totalQuestions) * 100) 
+    : 0;
+
+  const pollParticipationPercentage = totalAttendees > 0 && totalPolls > 0
+    ? Math.round((pollParticipants / totalAttendees) * 100)
+    : 0;
+    
+  // Format for display
+  const formatMetric = (value: number) => {
+    return value.toLocaleString();
+  };
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {Array(3)
-          .fill(0)
-          .map((_, i) => (
-            <div
-              key={i}
-              className="p-4 border rounded-md animate-pulse bg-muted"
-            >
-              <div className="h-4 w-1/2 bg-muted-foreground/20 rounded mb-2"></div>
-              <div className="h-6 w-1/4 bg-muted-foreground/20 rounded"></div>
-            </div>
-          ))}
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-28" />
+        ))}
       </div>
     );
   }
 
-  // Calculate participation rate
-  const participationRate =
-    totalAttendees > 0
-      ? Math.round((pollParticipants / totalAttendees) * 100)
-      : 0;
-
-  // Calculate question answering rate
-  const questionAnswerRate =
-    totalQuestions > 0
-      ? Math.round((answeredQuestions / totalQuestions) * 100)
-      : 0;
+  const metrics = [
+    {
+      title: "Q&A Activity",
+      value: formatMetric(totalQuestions),
+      description: `${answeredQuestions} answered (${questionsAnsweredPercentage}%)`,
+      color: "bg-blue-100 dark:bg-blue-900"
+    },
+    {
+      title: "Poll Engagement",
+      value: formatMetric(totalPolls),
+      description: totalPolls > 0 ? `${pollParticipationPercentage}% participation rate` : "No polls conducted",
+      color: "bg-purple-100 dark:bg-purple-900"
+    },
+    {
+      title: "Total Attendees",
+      value: formatMetric(totalAttendees),
+      description: "Unique attendees",
+      color: "bg-green-100 dark:bg-green-900"
+    }
+  ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div className="p-4 border rounded-md">
-        <h3 className="font-medium flex items-center gap-2 text-sm text-muted-foreground">
-          <MessageCircle className="h-4 w-4" />
-          Q&A Activity
-        </h3>
-        <p className="text-2xl font-bold mt-2">{totalQuestions}</p>
-        <p className="text-sm text-muted-foreground">
-          {answeredQuestions} answered ({questionAnswerRate}%)
-        </p>
-      </div>
-
-      <div className="p-4 border rounded-md">
-        <h3 className="font-medium flex items-center gap-2 text-sm text-muted-foreground">
-          <BarChart2 className="h-4 w-4" />
-          Polls
-        </h3>
-        <p className="text-2xl font-bold mt-2">{totalPolls}</p>
-        <p className="text-sm text-muted-foreground">
-          {pollParticipants} participants
-        </p>
-      </div>
-
-      <div className="p-4 border rounded-md">
-        <h3 className="font-medium flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="h-4 w-4" />
-          Participation
-        </h3>
-        <p className="text-2xl font-bold mt-2">{participationRate}%</p>
-        <p className="text-sm text-muted-foreground">
-          {pollParticipants} of {totalAttendees} engaged
-        </p>
-      </div>
+      {metrics.map((metric, index) => (
+        <Card key={index} className="overflow-hidden">
+          <CardHeader className={`py-3 ${metric.color}`}>
+            <CardTitle className="text-sm font-medium">{metric.title}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 pb-2">
+            <div className="text-2xl font-bold mb-1">{metric.value}</div>
+            <p className="text-xs text-muted-foreground">{metric.description}</p>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
-}
+};
