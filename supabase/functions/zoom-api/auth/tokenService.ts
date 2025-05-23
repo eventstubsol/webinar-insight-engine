@@ -20,10 +20,16 @@ export async function getZoomJwtToken(accountId: string, clientId: string, clien
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`Token request failed with status ${response.status}: ${errorText}`);
       throw new Error(`Failed to get token: ${response.status} ${response.statusText} - ${errorText}`);
     }
     
     const data = await response.json();
+    if (!data.access_token) {
+      throw new Error('Token response did not contain an access_token');
+    }
+    
+    console.log('Successfully retrieved new access token');
     return data.access_token;
   } catch (error) {
     console.error('Error getting Zoom JWT token:', error);

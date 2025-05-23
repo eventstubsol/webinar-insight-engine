@@ -1,4 +1,3 @@
-
 import { getZoomJwtToken } from '../auth/tokenService.ts';
 import { updateCredentialsVerification } from './storage.ts';
 import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
@@ -14,9 +13,11 @@ export async function verifyZoomCredentials(credentials: any) {
     
     // If we already have a valid token, use it
     if (credentials.access_token) {
+      console.log('Using existing access token');
       return credentials.access_token;
     }
     
+    console.log('No existing token found, requesting new token...');
     // Otherwise get a new token
     const token = await getZoomJwtToken(
       credentials.account_id,
@@ -44,9 +45,8 @@ export async function testOAuthScopes(token: string) {
       }
     });
     
-    const scopeTestData = await scopeTestResponse.json();
-    
     if (!scopeTestResponse.ok) {
+      const scopeTestData = await scopeTestResponse.json();
       console.error('Scope test failed:', scopeTestData);
       
       if (scopeTestData.code === 4711 || scopeTestData.message?.includes('scopes')) {
@@ -56,6 +56,9 @@ export async function testOAuthScopes(token: string) {
       throw new Error(`API scope test failed: ${scopeTestData.message || 'Unknown error'}`);
     }
     
+    const scopeTestData = await scopeTestResponse.json();
+    console.log('Scope test succeeded, user data:', scopeTestData.email);
+    
     return {
       success: true,
       user: {
@@ -64,6 +67,7 @@ export async function testOAuthScopes(token: string) {
       }
     };
   } catch (error) {
+    console.error('Error testing OAuth scopes:', error);
     throw error;
   }
 }

@@ -1,4 +1,3 @@
-
 import { RateLimiter } from '../rateLimiter.ts';
 
 // ZoomApiClient for making rate-limited API calls
@@ -8,6 +7,9 @@ export class ZoomApiClient {
   private rateLimiter: RateLimiter;
   
   constructor(token: string) {
+    if (!token) {
+      throw new Error('Token is required to initialize ZoomApiClient');
+    }
     this.token = token;
     // Maximum 90 requests per second as per Zoom API rate limits
     this.rateLimiter = new RateLimiter(90, 1000);
@@ -25,10 +27,19 @@ export class ZoomApiClient {
       ...options.headers
     };
     
-    return fetch(url, {
+    const response = await fetch(url, {
       ...options,
       headers
     });
+    
+    // Log API errors but don't handle them here
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      console.error(`Zoom API error on ${endpoint}:`, errorData);
+      // We'll let the caller handle the error
+    }
+    
+    return response;
   }
   
   async get(endpoint: string, params: Record<string, any> = {}) {
@@ -43,6 +54,8 @@ export class ZoomApiClient {
       }
     });
     
+    console.log(`Making GET request to: ${url.toString()}`);
+    
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -53,7 +66,8 @@ export class ZoomApiClient {
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(`Zoom API error: ${response.status} ${response.statusText} - ${errorData.message || JSON.stringify(errorData)}`);
+      console.error(`Zoom API error on ${endpoint}:`, errorData);
+      throw new Error(`Zoom API error: ${errorData.message || JSON.stringify(errorData)}`);
     }
     
     return response.json();

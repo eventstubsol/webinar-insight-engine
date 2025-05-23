@@ -121,6 +121,7 @@ export type Database = {
       }
       zoom_credentials: {
         Row: {
+          access_token: string | null
           account_id: string
           client_id: string
           client_secret: string
@@ -133,6 +134,7 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          access_token?: string | null
           account_id: string
           client_id: string
           client_secret: string
@@ -145,6 +147,7 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          access_token?: string | null
           account_id?: string
           client_id?: string
           client_secret?: string

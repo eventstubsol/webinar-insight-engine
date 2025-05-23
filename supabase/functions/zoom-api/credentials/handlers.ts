@@ -1,116 +1,110 @@
 
+import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
-import { getZoomJwtToken } from '../auth/tokenService.ts';
-import { getZoomCredentials, saveZoomCredentials, updateCredentialsVerification } from './storage.ts';
+import { saveZoomCredentials, getZoomCredentials, updateCredentialsVerification } from './storage.ts';
 import { verifyZoomCredentials, testOAuthScopes } from './verification.ts';
 
-// Handle saving zoom credentials
-export async function handleSaveCredentials(req: Request, supabase: any, user: any, body: any) {
-  const { account_id, client_id, client_secret } = body;
-  
-  // Validate required fields
-  if (!account_id || !client_id || !client_secret) {
-    throw new Error('Missing required credentials: account_id, client_id, and client_secret are required');
-  }
-  
+// Handler to save Zoom credentials
+export async function handleSaveCredentials(req: Request, supabaseAdmin: any, user: any, body: any) {
   try {
-    // First try to get a token to verify credentials
-    const testToken = await getZoomJwtToken(account_id, client_id, client_secret);
+    const { account_id, client_id, client_secret } = body;
     
-    // Test scopes
-    const scopeTest = await testOAuthScopes(testToken);
+    // Validate input
+    if (!account_id || !client_id || !client_secret) {
+      return createErrorResponse("Missing required fields: account_id, client_id, client_secret", 400);
+    }
     
-    // Credentials are valid, save or update
-    await saveZoomCredentials(supabase, user.id, {
-      account_id,
-      client_id,
-      client_secret
-    }, true, testToken);
+    // Save credentials (unverified at this point)
+    const savedCredentials = await saveZoomCredentials(
+      supabaseAdmin,
+      user.id,
+      { account_id, client_id, client_secret },
+      false
+    );
     
     return createSuccessResponse({
-      success: true,
-      message: 'Zoom credentials verified and saved successfully',
-      user_email: scopeTest.user.email
+      message: "Credentials saved successfully, not verified yet",
+      credentials: savedCredentials
     });
   } catch (error) {
-    return createErrorResponse(error.message || 'Failed to save credentials');
+    console.error("Error saving credentials:", error);
+    return createErrorResponse(`Failed to save credentials: ${error.message}`, 400);
   }
 }
 
-// Handle getting the user's saved credentials
-export async function handleGetCredentials(req: Request, supabase: any, user: any) {
+// Handler to check credentials status
+export async function handleCheckCredentialsStatus(req: Request, supabaseAdmin: any, user: any) {
   try {
-    console.log(`[zoom-api] Getting credentials for user ${user.id}`);
+    const credentials = await getZoomCredentials(supabaseAdmin, user.id);
     
-    // Get the credentials but exclude sensitive fields
-    const { data: credentials, error } = await supabase
-      .from('zoom_credentials')
-      .select('account_id, client_id, client_secret')
-      .eq('user_id', user.id)
-      .single();
-    
-    if (error) {
-      console.error('Error fetching credentials:', error);
-      return createErrorResponse('Failed to retrieve credentials', 400);
-    }
-    
-    if (!credentials) {
-      return createSuccessResponse({
-        hasCredentials: false,
-        message: 'No credentials found for this user'
-      });
-    }
-    
-    // Return the credentials
     return createSuccessResponse({
-      hasCredentials: true,
-      credentials: {
+      hasCredentials: !!credentials,
+      isVerified: credentials ? credentials.is_verified : false,
+      lastVerifiedAt: credentials ? credentials.last_verified_at : null
+    });
+  } catch (error) {
+    console.error("Error checking credentials status:", error);
+    return createErrorResponse(`Failed to check credentials status: ${error.message}`, 400);
+  }
+}
+
+// Handler to get credentials
+export async function handleGetCredentials(req: Request, supabaseAdmin: any, user: any) {
+  try {
+    const credentials = await getZoomCredentials(supabaseAdmin, user.id);
+    
+    return createSuccessResponse({
+      hasCredentials: !!credentials,
+      credentials: credentials ? {
         account_id: credentials.account_id,
         client_id: credentials.client_id,
-        client_secret: credentials.client_secret
-      }
+        client_secret: credentials.client_secret,
+        is_verified: credentials.is_verified,
+        last_verified_at: credentials.last_verified_at
+      } : null
     });
   } catch (error) {
-    console.error('Exception fetching credentials:', error);
-    return createErrorResponse(error.message || 'Failed to retrieve credentials');
+    console.error("Error getting credentials:", error);
+    return createErrorResponse(`Failed to retrieve credentials: ${error.message}`, 400);
   }
 }
 
-// Handle checking credentials status
-export async function handleCheckCredentialsStatus(req: Request, supabase: any, user: any) {
-  const { data: credentials, error: credentialsError } = await supabase
-    .from('zoom_credentials')
-    .select('*')
-    .eq('user_id', user.id)
-    .single();
-
-  return createSuccessResponse({
-    hasCredentials: !!credentials,
-    isVerified: credentials?.is_verified || false,
-    lastVerified: credentials?.last_verified_at || null
-  });
-}
-
-// Handle verifying credentials
-export async function handleVerifyCredentials(req: Request, supabase: any, user: any, credentials: any) {
+// Handler to verify credentials
+export async function handleVerifyCredentials(req: Request, supabaseAdmin: any, user: any, credentials: any) {
   try {
-    const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
+    console.log(`Verifying credentials for user ${user.id}`);
+    
+    // Try to get a token - this will throw if credentials are invalid
+    const token = await verifyZoomCredentials(credentials);
+    console.log(`Successfully obtained token for user ${user.id}`);
     
     // Test scopes
-    const scopeTest = await testOAuthScopes(token);
+    const scopeResult = await testOAuthScopes(token);
+    console.log(`Scope test passed for user ${user.id}`);
     
-    // Update credentials in database to mark as verified and store the token
-    await updateCredentialsVerification(supabase, user.id, true, token);
+    // Update verification status and save the token
+    await updateCredentialsVerification(supabaseAdmin, user.id, true, token);
     
-    return createSuccessResponse({ 
-      success: true, 
-      message: 'Zoom API credentials and scopes validated successfully',
-      user: scopeTest.user
+    return createSuccessResponse({
+      verified: true,
+      message: "Credentials verified successfully",
+      user: scopeResult.user
     });
   } catch (error) {
-    // Update credentials in database to mark as not verified
-    await updateCredentialsVerification(supabase, user.id, false);
+    console.error("Error verifying credentials:", error);
     
-    return createErrorResponse(error.message || 'Failed to verify credentials');
+    // Update verification status to false on failure
+    try {
+      await updateCredentialsVerification(supabaseAdmin, user.id, false);
+    } catch (updateError) {
+      console.error("Error updating verification status:", updateError);
+    }
+    
+    // Check for specific error types
+    if (error.message?.includes('scopes')) {
+      return createErrorResponse(error.message, 403);
+    }
+    
+    return createErrorResponse(`Failed to verify credentials: ${error.message}`, 400);
   }
 }

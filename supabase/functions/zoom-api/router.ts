@@ -12,7 +12,8 @@ import {
   getZoomCredentials,
   verifyZoomCredentials,
   handleVerifyCredentials,
-  handleGetCredentials
+  handleGetCredentials,
+  updateCredentialsVerification
 } from "./credentials/index.ts";
 import { 
   handleListWebinars,
@@ -88,65 +89,78 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
           return createErrorResponse("Zoom credentials not found", 400);
         }
 
-        // Verify credentials for actions that require valid credentials
-        await verifyZoomCredentials(credentials);
-        
-        // Create API client with rate limiting
-        const apiClient = new ZoomApiClient(credentials.access_token);
-        
-        // Route to the correct action handler with timeout protection
-        switch (action) {
-          case "list-webinars":
-            response = await executeWithTimeout(
-              () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
-              OPERATION_TIMEOUT
-            );
-            break;
-            
-          case "get-webinar":
-            response = await executeWithTimeout(
-              () => handleGetWebinar(req, supabaseAdmin, user, credentials, body.id, apiClient),
-              OPERATION_TIMEOUT
-            );
-            break;
-            
-          case "get-participants":
-            response = await executeWithTimeout(
-              () => handleGetParticipants(req, supabaseAdmin, user, credentials, body.id, apiClient),
-              OPERATION_TIMEOUT
-            );
-            break;
-            
-          case "update-webinar-participants":
-            response = await executeWithTimeout(
-              () => handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials, apiClient),
-              OPERATION_TIMEOUT
-            );
-            break;
-            
-          case "get-webinar-instances":
-            response = await executeWithTimeout(
-              () => handleGetWebinarInstances(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
-              OPERATION_TIMEOUT
-            );
-            break;
-            
-          case "get-instance-participants":
-            response = await executeWithTimeout(
-              () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id, apiClient),
-              OPERATION_TIMEOUT
-            );
-            break;
-            
-          case "get-webinar-extended-data":
-            response = await executeWithTimeout(
-              () => handleGetWebinarExtendedData(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
-              OPERATION_TIMEOUT
-            );
-            break;
-            
-          default:
-            return createErrorResponse(`Unknown action: ${action}`, 400);
+        try {
+          // Verify credentials for actions that require valid credentials
+          const token = await verifyZoomCredentials(credentials);
+          
+          // If token has changed, update it in the database
+          if (token !== credentials.access_token) {
+            await updateCredentialsVerification(supabaseAdmin, user.id, true, token);
+            console.log(`Updated access token for user ${user.id}`);
+          }
+          
+          // Create API client with rate limiting
+          const apiClient = new ZoomApiClient(token);
+          
+          // Route to the correct action handler with timeout protection
+          switch (action) {
+            case "list-webinars":
+              response = await executeWithTimeout(
+                () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            case "get-webinar":
+              response = await executeWithTimeout(
+                () => handleGetWebinar(req, supabaseAdmin, user, credentials, body.id, apiClient),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            case "get-participants":
+              response = await executeWithTimeout(
+                () => handleGetParticipants(req, supabaseAdmin, user, credentials, body.id, apiClient),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            case "update-webinar-participants":
+              response = await executeWithTimeout(
+                () => handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials, apiClient),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            case "get-webinar-instances":
+              response = await executeWithTimeout(
+                () => handleGetWebinarInstances(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            case "get-instance-participants":
+              response = await executeWithTimeout(
+                () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id, apiClient),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            case "get-webinar-extended-data":
+              response = await executeWithTimeout(
+                () => handleGetWebinarExtendedData(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            default:
+              return createErrorResponse(`Unknown action: ${action}`, 400);
+          }
+        } catch (credentialError) {
+          // If verification fails, mark credentials as invalid
+          await updateCredentialsVerification(supabaseAdmin, user.id, false);
+          console.error(`Credential verification failed for user ${user.id}:`, credentialError);
+          return createErrorResponse(`Authentication failed: ${credentialError.message}`, 401);
         }
     }
     

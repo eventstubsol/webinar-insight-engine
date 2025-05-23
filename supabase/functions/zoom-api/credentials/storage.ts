@@ -42,6 +42,8 @@ export async function saveZoomCredentials(
   accessToken?: string
 ) {
   try {
+    console.log(`Saving credentials for user ${userId}, with token: ${accessToken ? 'present' : 'not present'}`);
+    
     const { data, error } = await supabase
       .from('zoom_credentials')
       .upsert({
@@ -59,6 +61,7 @@ export async function saveZoomCredentials(
       .single();
     
     if (error) {
+      console.error('Error saving credentials:', error);
       throw new Error(`Failed to save credentials: ${error.message}`);
     }
     
@@ -86,6 +89,7 @@ export async function updateCredentialsVerification(
     }
     
     if (accessToken) {
+      console.log(`Updating credentials with new access token for user ${userId}`);
       updateData.access_token = accessToken;
     }
     
@@ -95,8 +99,11 @@ export async function updateCredentialsVerification(
       .eq('user_id', userId);
       
     if (error) {
+      console.error('Error updating credentials verification:', error);
       throw error;
     }
+    
+    console.log(`Successfully updated verification status to ${isVerified} for user ${userId}`);
   } catch (error) {
     console.error('Error updating credentials verification:', error);
     throw error;
