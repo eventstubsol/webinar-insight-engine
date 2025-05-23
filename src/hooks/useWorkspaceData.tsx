@@ -31,114 +31,119 @@ export function useWorkspaceData() {
   /**
    * Get data from a table with workspace filtering
    */
-  const getFromWorkspace = useCallback(async <T extends Record<string, any>>(
-    table: ValidTableName,
-    columns: string = '*',
-    additionalFilters?: (query: any) => any
-  ): Promise<T[]> => {
-    if (!currentWorkspace) {
-      console.warn('No workspace selected, cannot fetch data');
-      return [];
-    }
-
-    try {
-      let query = supabase
-        .from(table)
-        .select(columns)
-        .eq('workspace_id', currentWorkspace.id);
-      
-      if (additionalFilters) {
-        query = additionalFilters(query);
+  const getFromWorkspace = useCallback(
+    async (
+      table: ValidTableName,
+      columns: string = '*',
+      additionalFilters?: (query: any) => any
+    ): Promise<any[]> => {
+      if (!currentWorkspace) {
+        console.warn('No workspace selected, cannot fetch data');
+        return [];
       }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error(`Error fetching ${table} data:`, error);
+
+      try {
+        let query = supabase
+          .from(table)
+          .select(columns)
+          .eq('workspace_id', currentWorkspace.id);
+        
+        if (additionalFilters) {
+          query = additionalFilters(query);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error(`Error fetching ${table} data:`, error);
+          throw error;
+        }
+        
+        return data || [];
+      } catch (error) {
+        console.error(`Error in getFromWorkspace:`, error);
         throw error;
       }
-      
-      // Cast to any first to avoid deep instantiation issues
-      return (data || []) as any[];
-    } catch (error) {
-      console.error(`Error in getFromWorkspace:`, error);
-      throw error;
-    }
-  }, [currentWorkspace]);
+    }, [currentWorkspace]);
 
   /**
    * Insert data into a table with workspace_id
    */
-  const insertToWorkspace = useCallback(async <T extends Record<string, any>>(
-    table: ValidTableName,
-    data: Omit<T, 'workspace_id'> | Omit<T, 'workspace_id'>[],
-    options?: { returning?: boolean }
-  ): Promise<T[]> => {
-    if (!currentWorkspace) {
-      console.warn('No workspace selected, cannot insert data');
-      throw new Error('No workspace selected');
-    }
+  const insertToWorkspace = useCallback(
+    async (
+      table: ValidTableName,
+      data: Record<string, any> | Record<string, any>[],
+      options?: { returning?: boolean }
+    ): Promise<any[]> => {
+      if (!currentWorkspace) {
+        console.warn('No workspace selected, cannot insert data');
+        throw new Error('No workspace selected');
+      }
 
-    try {
-      const dataArray = Array.isArray(data) ? data : [data];
-      const dataWithWorkspace = dataArray.map(item => ({
-        ...item,
-        workspace_id: currentWorkspace.id
-      }));
-      
-      const { data: result, error } = await supabase
-        .from(table)
-        .insert(dataWithWorkspace as any)
-        .select(options?.returning !== false ? '*' : undefined);
-      
-      if (error) {
-        console.error(`Error inserting into ${table}:`, error);
+      try {
+        const dataArray = Array.isArray(data) ? data : [data];
+        const dataWithWorkspace = dataArray.map(item => ({
+          ...item,
+          workspace_id: currentWorkspace.id
+        }));
+        
+        const { data: result, error } = await supabase
+          .from(table)
+          .insert(dataWithWorkspace)
+          .select(options?.returning !== false ? '*' : undefined);
+        
+        if (error) {
+          console.error(`Error inserting into ${table}:`, error);
+          throw error;
+        }
+        
+        return result || [];
+      } catch (error) {
+        console.error(`Error in insertToWorkspace:`, error);
         throw error;
       }
-      
-      return (result || []) as any[];
-    } catch (error) {
-      console.error(`Error in insertToWorkspace:`, error);
-      throw error;
-    }
-  }, [currentWorkspace]);
+    }, [currentWorkspace]);
 
   /**
    * Update data in a table with workspace filtering
    */
-  const updateInWorkspace = useCallback(async <T extends Record<string, any>>(
-    table: ValidTableName,
-    id: string | number,
-    updates: Partial<T>,
-    options?: { idField?: string; returning?: boolean }
-  ): Promise<T | null> => {
-    if (!currentWorkspace) {
-      console.warn('No workspace selected, cannot update data');
-      throw new Error('No workspace selected');
-    }
+  const updateInWorkspace = useCallback(
+    async (
+      table: ValidTableName,
+      id: string | number,
+      updates: Record<string, any>,
+      options?: { idField?: string; returning?: boolean }
+    ): Promise<any | null> => {
+      if (!currentWorkspace) {
+        console.warn('No workspace selected, cannot update data');
+        throw new Error('No workspace selected');
+      }
 
-    try {
-      const idField = options?.idField || 'id';
-      
-      const { data: result, error } = await supabase
-        .from(table)
-        .update(updates as any)
-        .eq(idField, id)
-        .eq('workspace_id', currentWorkspace.id)
-        .select(options?.returning !== false ? '*' : undefined);
-      
-      if (error) {
-        console.error(`Error updating in ${table}:`, error);
+      try {
+        const idField = options?.idField || 'id';
+        
+        const { data: result, error } = await supabase
+          .from(table)
+          .update(updates)
+          .eq(idField, id)
+          .eq('workspace_id', currentWorkspace.id)
+          .select(options?.returning !== false ? '*' : undefined);
+        
+        if (error) {
+          console.error(`Error updating in ${table}:`, error);
+          throw error;
+        }
+        
+        if (!result || !Array.isArray(result) || result.length === 0) {
+          return null;
+        }
+        
+        return result[0];
+      } catch (error) {
+        console.error(`Error in updateInWorkspace:`, error);
         throw error;
       }
-      
-      // Safely check if result exists and has items
-      return (result && Array.isArray(result) && result.length > 0) ? (result[0] as any) : null;
-    } catch (error) {
-      console.error(`Error in updateInWorkspace:`, error);
-      throw error;
-    }
-  }, [currentWorkspace]);
+    }, [currentWorkspace]);
 
   /**
    * Delete data from a table with workspace filtering
