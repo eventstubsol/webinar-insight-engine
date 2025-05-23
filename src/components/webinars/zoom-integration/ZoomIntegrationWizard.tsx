@@ -79,9 +79,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
       if (verificationTimeoutRef.current) {
         clearTimeout(verificationTimeoutRef.current);
       }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     };
   }, []);
 
@@ -111,12 +108,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     setScopesError(false);
     setIsSubmitting(true);
     
-    // Create an AbortController for this verification request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-    
     // Set a timeout to prevent hanging verification
     if (verificationTimeoutRef.current) {
       clearTimeout(verificationTimeoutRef.current);
@@ -126,9 +117,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
       if (isSubmitting) {
         setIsSubmitting(false);
         setError("Verification timed out. Please try again.");
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
         
         toast({
           title: 'Verification Timed Out',
@@ -139,14 +127,17 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     }, 30000); // 30 second timeout
 
     try {
+      // Create the AbortController but don't use its signal with supabase functions
+      // since it's not supported in the type definitions
+      abortControllerRef.current = new AbortController();
+      
       const { data, error } = await supabase.functions.invoke('zoom-api', {
         body: { 
           action: 'save-credentials',
           account_id: credentials.account_id,
           client_id: credentials.client_id,
           client_secret: credentials.client_secret
-        },
-        signal: abortControllerRef.current.signal,
+        }
       });
 
       if (error) {
@@ -178,15 +169,9 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     } catch (err: any) {
       console.error('Verification error:', err);
       
-      // Check for aborted requests
-      if (err.name === 'AbortError') {
-        console.log('Request was aborted');
-        return;
-      }
-      
       // Check for network related errors
       if (err.message?.includes('Failed to send') || 
-          err.message?.includes('ERR_INSUFFICIENT_RESOURCES') ||
+          err.message?.toLowerCase().includes('err_insufficient_resources') ||
           err.message?.toLowerCase().includes('network') ||
           err.message?.toLowerCase().includes('timeout')) {
         setError("Network error. Please wait a moment and try again.");

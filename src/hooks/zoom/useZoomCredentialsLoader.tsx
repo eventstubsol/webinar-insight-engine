@@ -31,13 +31,22 @@ export function useZoomCredentialsLoader() {
         fetchInProgress.current = true;
         
         // Create abort controller for this request
+        // We create it but we can't directly use it with supabase functions
+        // due to type limitations
         abortController.current = new AbortController();
-        const signal = abortController.current.signal;
+        
+        // Instead, we'll use a timeout to simulate cancellation
+        const timeoutId = setTimeout(() => {
+          console.log('Request timeout reached, aborting');
+          throw new Error('Request timed out');
+        }, 15000); // 15 seconds timeout
         
         const { data, error } = await supabase.functions.invoke('zoom-api', {
-          body: { action: 'get-credentials' },
-          signal,
+          body: { action: 'get-credentials' }
         });
+        
+        // Clear the timeout if request completes successfully
+        clearTimeout(timeoutId);
         
         if (error) throw error;
         return data as {
@@ -62,12 +71,12 @@ export function useZoomCredentialsLoader() {
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
   
-  // Clean up abort controller on unmount
+  // Clean up timeout on unmount
   useEffect(() => {
     return () => {
-      if (abortController.current) {
-        abortController.current.abort();
-      }
+      // Since we can't directly use the abort controller with supabase functions,
+      // we'll just set fetchInProgress to false to prevent new fetches
+      fetchInProgress.current = false;
     };
   }, []);
   
