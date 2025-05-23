@@ -1,0 +1,125 @@
+
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useZoomCredentialsLoader } from '@/hooks/zoom/useZoomCredentialsLoader';
+import { useZoomVerificationFlow, VerificationStage } from '@/hooks/zoom/useZoomVerificationFlow';
+import { ZoomCredentials, WizardStep } from '../types';
+
+export function useZoomIntegrationWizard({ onComplete }: { onComplete?: () => void }) {
+  const { user } = useAuth();
+  const { hasCredentials, isLoading: isLoadingCredentials, fetchSavedCredentials } = useZoomCredentialsLoader();
+  
+  // Verification flow state and logic
+  const {
+    isSubmitting,
+    error,
+    scopesError,
+    verificationDetails,
+    verificationStage,
+    savedCredentials,
+    handleVerificationProcess,
+    clearScopesError
+  } = useZoomVerificationFlow();
+  
+  const [currentStep, setCurrentStep] = useState<WizardStep>(WizardStep.Introduction);
+  const [credentials, setCredentials] = useState<ZoomCredentials>({
+    account_id: '',
+    client_id: '',
+    client_secret: ''
+  });
+
+  // When savedCredentials loads, update the form
+  useEffect(() => {
+    if (savedCredentials) {
+      setCredentials({
+        account_id: savedCredentials.account_id || '',
+        client_id: savedCredentials.client_id || '',
+        client_secret: savedCredentials.client_secret || '',
+      });
+    }
+  }, [savedCredentials]);
+
+  // Fetch credentials when the wizard opens - with a delay to prevent race conditions
+  useEffect(() => {
+    if (user) {
+      const timer = setTimeout(() => {
+        fetchSavedCredentials();
+      }, 500); // Add a small delay
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, fetchSavedCredentials]);
+  
+  // Update step when verification completes or when scopes error occurs
+  useEffect(() => {
+    if (verificationDetails) {
+      setCurrentStep(WizardStep.Success);
+    } else if (scopesError) {
+      setCurrentStep(WizardStep.ConfigureScopes);
+    }
+  }, [verificationDetails, scopesError]);
+  
+  // Monitor verification stage
+  useEffect(() => {
+    console.log(`Verification stage changed to: ${verificationStage}`);
+  }, [verificationStage]);
+
+  const handleChangeCredentials = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCredentials({
+      ...credentials,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSaveCredentials = async () => {
+    if (!user) {
+      return;
+    }
+
+    if (!credentials.account_id || !credentials.client_id || !credentials.client_secret) {
+      return;
+    }
+
+    // Use our verification flow hook to handle the process
+    const success = await handleVerificationProcess(credentials);
+    
+    if (success && verificationDetails) {
+      setCurrentStep(WizardStep.Success);
+    }
+  };
+
+  const handleNext = () => {
+    setCurrentStep(prev => prev + 1 as WizardStep);
+  };
+
+  const handleBack = () => {
+    if (currentStep === WizardStep.ConfigureScopes && scopesError) {
+      // If we're going back from the scopes error screen, clear the error
+      clearScopesError();
+    }
+    setCurrentStep(prev => prev - 1 as WizardStep);
+  };
+
+  const handleComplete = () => {
+    if (onComplete) {
+      onComplete();
+    }
+  };
+  
+  return {
+    currentStep,
+    credentials,
+    isSubmitting,
+    error,
+    scopesError,
+    verificationDetails,
+    verificationStage,
+    hasCredentials,
+    isLoadingCredentials,
+    handleNext,
+    handleBack,
+    handleSaveCredentials,
+    handleChangeCredentials,
+    handleComplete
+  };
+}

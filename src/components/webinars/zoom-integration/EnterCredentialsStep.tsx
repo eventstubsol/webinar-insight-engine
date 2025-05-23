@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ChevronLeft, Info, AlertTriangle, RefreshCw, ChevronRight, Loader2 } from "lucide-react";
 import { ZoomCredentials } from '@/hooks/zoom/verification/types';
-import { VerificationStage } from '@/hooks/zoom/useZoomVerificationFlow';
+import { VerificationStage } from '@/hooks/zoom/verification/types';
 
 interface EnterCredentialsStepProps {
   onVerify: () => void;

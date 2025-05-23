@@ -19,3 +19,21 @@ export interface ZoomIntegrationWizardProps {
   onComplete?: () => void;
   onCancel?: () => void;
 }
+
+// Add this interface for the useZoomIntegrationWizard hook's return type
+export interface ZoomIntegrationWizardState {
+  currentStep: WizardStep;
+  credentials: ZoomCredentials;
+  isSubmitting: boolean;
+  error: string | null;
+  scopesError: boolean;
+  verificationDetails: VerificationDetails | null;
+  verificationStage: string;
+  hasCredentials: boolean;
+  isLoadingCredentials: boolean;
+  handleNext: () => void;
+  handleBack: () => void;
+  handleSaveCredentials: () => Promise<void>;
+  handleChangeCredentials: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleComplete: () => void;
+}
