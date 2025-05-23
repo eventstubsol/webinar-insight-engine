@@ -16,6 +16,19 @@ export async function getZoomJwtToken(
   clientId: string,
   clientSecret: string
 ): Promise<any> {
+  // Validate inputs first
+  if (!accountId || accountId.trim() === '') {
+    throw new Error('Missing required Zoom credentials: account_id is empty');
+  }
+  
+  if (!clientId || clientId.trim() === '') {
+    throw new Error('Missing required Zoom credentials: client_id is empty');
+  }
+  
+  if (!clientSecret || clientSecret.trim() === '') {
+    throw new Error('Missing required Zoom credentials: client_secret is empty');
+  }
+  
   // Create a cache key based on credentials
   const cacheKey = `${accountId}:${clientId}`;
   
@@ -33,11 +46,6 @@ export async function getZoomJwtToken(
   }
   
   try {
-    // Validate inputs
-    if (!accountId || !clientId || !clientSecret) {
-      throw new Error('Missing required Zoom credentials (account_id, client_id, or client_secret)');
-    }
-    
     console.log('Requesting new token from Zoom API');
     
     // Request new token

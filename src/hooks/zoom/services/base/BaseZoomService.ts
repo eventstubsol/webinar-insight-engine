@@ -37,6 +37,30 @@ export class BaseZoomService {
       
       if (error) {
         console.error(`[BaseZoomService] Edge function error:`, error);
+        
+        // Check for specific error codes in response headers or body
+        const errorMessage = error.message || 'Unknown error';
+        const errorCode = error.code || error.response?.headers?.['x-error-code'];
+        
+        // Handle credential-specific errors
+        if (errorCode === 'invalid_credentials' || errorCode === 'credentials_required' || 
+            errorCode === 'auth_failed' || errorMessage.includes('reconnect your Zoom account')) {
+          this.showToast(
+            'Zoom Connection Required',
+            'Please connect or reconnect your Zoom account in Settings.',
+            'destructive'
+          );
+          
+          // Optionally redirect to settings
+          if (typeof window !== 'undefined' && window.location) {
+            setTimeout(() => {
+              window.location.href = '/settings';
+            }, 2000);
+          }
+          
+          throw new Error('Zoom credentials invalid or missing');
+        }
+        
         // Categorize and handle error
         this.handleApiError(error, action);
       }

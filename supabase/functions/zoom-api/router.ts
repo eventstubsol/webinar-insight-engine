@@ -1,3 +1,4 @@
+
 import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { createErrorResponse, createSuccessResponse } from "./cors.ts";
@@ -37,6 +38,33 @@ const EXTENDED_OPERATION_TIMEOUT = 60000; // 60 seconds for heavier operations
 // Generate a unique request ID for tracking
 function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+}
+
+// Validate and get credentials with improved error handling
+async function validateAndGetCredentials(supabaseAdmin: any, userId: string): Promise<any> {
+  const credentials = await getZoomCredentials(supabaseAdmin, userId);
+  
+  if (!credentials) {
+    throw new Error("No Zoom credentials found. Please connect your Zoom account.");
+  }
+  
+  // Validate required fields
+  if (!credentials.account_id || !credentials.client_id || !credentials.client_secret) {
+    console.error(`Invalid credentials for user ${userId}:`, {
+      hasAccountId: !!credentials.account_id,
+      hasClientId: !!credentials.client_id,
+      hasClientSecret: !!credentials.client_secret
+    });
+    throw new Error("Invalid Zoom credentials. Please reconnect your Zoom account.");
+  }
+  
+  // Check if credentials are verified
+  if (!credentials.is_verified) {
+    console.warn(`Unverified credentials for user ${userId}`);
+    // Don't throw here, let the verification process handle it
+  }
+  
+  return credentials;
 }
 
 // Helper to execute a function with timeout and error handling
@@ -280,14 +308,101 @@ export async function processLongRunningAction(
         );
         break;
         
+      case "list-webinars":
+        try {
+          console.log(`[zoom-api:router] [${requestId}] Getting credentials for list-webinars`);
+          const credentials = await validateAndGetCredentials(supabaseAdmin, user.id);
+          
+          console.log(`[zoom-api:router] [${requestId}] Credentials validated, attempting to get token`);
+          
+          // Try to get token with better error handling
+          let token;
+          try {
+            token = await verifyZoomCredentials(credentials);
+          } catch (tokenError) {
+            console.error(`[zoom-api:router] [${requestId}] Token verification failed:`, tokenError);
+            
+            // If it's a credential issue, return clear error
+            if (tokenError.message?.includes('Missing required Zoom credentials') ||
+                tokenError.message?.includes('Invalid') ||
+                tokenError.message?.includes('account_id') ||
+                tokenError.message?.includes('client_id') ||
+                tokenError.message?.includes('client_secret')) {
+              
+              // Mark credentials as invalid
+              await updateCredentialsVerification(supabaseAdmin, user.id, false);
+              
+              return createErrorResponse(
+                "Your Zoom credentials are invalid or incomplete. Please reconnect your Zoom account in Settings.",
+                401,
+                { 'X-Error-Code': 'invalid_credentials' }
+              );
+            }
+            
+            // For other token errors, try to refresh
+            if (tokenError.message?.includes('token') || tokenError.message?.includes('expired')) {
+              try {
+                console.log(`[zoom-api:router] [${requestId}] Attempting token refresh`);
+                const { refreshZoomToken } = await import('./credentials/verification.ts');
+                const refreshResult = await refreshZoomToken(credentials);
+                
+                await updateCredentialsVerification(
+                  supabaseAdmin,
+                  user.id,
+                  true,
+                  refreshResult.token,
+                  refreshResult.expires_in
+                );
+                
+                token = refreshResult.token;
+                console.log(`[zoom-api:router] [${requestId}] Token refreshed successfully`);
+              } catch (refreshError) {
+                console.error(`[zoom-api:router] [${requestId}] Token refresh failed:`, refreshError);
+                await updateCredentialsVerification(supabaseAdmin, user.id, false);
+                
+                return createErrorResponse(
+                  "Failed to authenticate with Zoom. Please reconnect your Zoom account in Settings.",
+                  401,
+                  { 'X-Error-Code': 'auth_failed' }
+                );
+              }
+            } else {
+              throw tokenError;
+            }
+          }
+          
+          // Create API client and proceed
+          const apiClient = new ZoomApiClient(token);
+          
+          response = await rateRegistry.executeWithRateLimit(
+            RateLimitCategory.HEAVY,
+            async () => {
+              return await executeWithTimeout(
+                () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
+                EXTENDED_OPERATION_TIMEOUT,
+                "list-webinars",
+                requestId
+              );
+            }
+          );
+        } catch (error) {
+          console.error(`[zoom-api:router] [${requestId}] Error in list-webinars:`, error);
+          
+          // Return appropriate error response
+          if (error.message?.includes('connect your Zoom account') ||
+              error.message?.includes('reconnect your Zoom account')) {
+            return createErrorResponse(error.message, 401, { 'X-Error-Code': 'credentials_required' });
+          }
+          
+          throw error;
+        }
+        break;
+      
       default:
         // For other actions, we need to verify credentials first
-        const credentials = await getZoomCredentials(supabaseAdmin, user.id);
-        if (!credentials) {
-          return createErrorResponse("Zoom credentials not found", 400);
-        }
-
         try {
+          const credentials = await validateAndGetCredentials(supabaseAdmin, user.id);
+          
           // Verify credentials for actions that require valid credentials
           const token = await executeWithTimeout(
             () => verifyZoomCredentials(credentials),
@@ -308,61 +423,6 @@ export async function processLongRunningAction(
           
           // Route to the correct action handler with timeout protection
           switch (action) {
-            case "list-webinars":
-              try {
-                // Use rate limiting for this heavy operation
-                response = await rateRegistry.executeWithRateLimit(
-                  RateLimitCategory.HEAVY,
-                  async () => {
-                    return await executeWithTimeout(
-                      () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
-                      EXTENDED_OPERATION_TIMEOUT,
-                      "list-webinars",
-                      requestId
-                    );
-                  }
-                );
-              } catch (webinarError) {
-                console.error(`[zoom-api:router] [${requestId}] Error in list-webinars:`, webinarError);
-                
-                // Check for token expiration errors
-                if (webinarError.message && (
-                  webinarError.message.includes('token') || 
-                  webinarError.message.includes('expired') ||
-                  webinarError.message.includes('authentication')
-                )) {
-                  try {
-                    console.log(`[zoom-api:router] [${requestId}] Attempting to refresh token for webinar list`);
-                    const { refreshZoomToken } = await import('./credentials/verification.ts');
-                    const refreshResult = await refreshZoomToken(credentials);
-                    
-                    await updateCredentialsVerification(
-                      supabaseAdmin, 
-                      user.id, 
-                      true, 
-                      refreshResult.token, 
-                      refreshResult.expires_in
-                    );
-                    
-                    return createSuccessResponse({
-                      message: "Access token refreshed. Please retry your webinar request.",
-                      token_refreshed: true,
-                      requestId
-                    });
-                  } catch (refreshError) {
-                    // Token refresh failed
-                    return createErrorResponse(
-                      `Failed to refresh token: ${refreshError.message}`,
-                      401
-                    );
-                  }
-                }
-                
-                // If not token-related, bubble up the original error
-                throw webinarError;
-              }
-              break;
-              
             case "get-webinar":
               // Use medium rate limiting
               response = await rateRegistry.executeWithRateLimit(
@@ -446,6 +506,7 @@ export async function processLongRunningAction(
             try {
               console.log(`[zoom-api:router] [${requestId}] Attempting to refresh token after credential error`);
               const { refreshZoomToken } = await import('./credentials/verification.ts');
+              const credentials = await getZoomCredentials(supabaseAdmin, user.id);
               const refreshResult = await refreshZoomToken(credentials);
               
               // Update credentials with new token

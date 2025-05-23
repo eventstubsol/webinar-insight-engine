@@ -1,3 +1,4 @@
+
 import { getZoomJwtToken, ZoomApiClient, clearTokenCache } from '../auth/index.ts';
 import { parseError } from '../errorHandling.ts';
 import { updateCredentialsVerification } from './storage.ts';
@@ -170,5 +171,41 @@ export async function validateTokenOnly(credentials: any) {
       error_code: parsedError.code,
       error_category: parsedError.category
     };
+  }
+}
+
+/**
+ * Refresh the token for the provided credentials
+ */
+export async function refreshZoomToken(credentials: any) {
+  try {
+    console.log("Refreshing Zoom token");
+    
+    if (!credentials || !credentials.account_id || !credentials.client_id || !credentials.client_secret) {
+      throw new Error("Missing required credentials for token refresh");
+    }
+    
+    // Clear any cached token first
+    clearTokenCache(credentials.account_id, credentials.client_id);
+    
+    // Request a fresh token
+    const tokenResult = await getZoomJwtToken(
+      credentials.account_id,
+      credentials.client_id,
+      credentials.client_secret
+    );
+    
+    if (!tokenResult || !tokenResult.access_token) {
+      throw new Error("Failed to obtain fresh access token from Zoom");
+    }
+    
+    return {
+      success: true,
+      token: tokenResult.access_token,
+      expires_in: tokenResult.expires_in
+    };
+  } catch (error) {
+    console.error("Token refresh failed:", error);
+    throw error; // Re-throw to let caller handle specific errors
   }
 }

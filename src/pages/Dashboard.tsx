@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
@@ -14,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, ArrowRight, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { CredentialStatus } from '@/components/dashboard/CredentialStatus';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -130,6 +132,9 @@ const Dashboard = () => {
             </div>
           )}
         </div>
+
+        {/* Added credential status alert at the top */}
+        <CredentialStatus />
 
         {/* Show loading indicator while checking credentials */}
         {isLoading && (
