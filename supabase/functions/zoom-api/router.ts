@@ -25,8 +25,8 @@ import {
   handleGetWebinarExtendedData
 } from "./webinar-operations/index.ts";
 
-// Operation timeout (reduced from 15 seconds to 10 seconds to prevent client timeouts)
-const OPERATION_TIMEOUT = 10000;
+// Operation timeout (increased from 10 seconds to 30 seconds to prevent client timeouts)
+const OPERATION_TIMEOUT = 30000;
 
 // Helper to execute a function with timeout
 export async function executeWithTimeout<T>(operation: () => Promise<T>, timeoutMs: number, operationName: string): Promise<T> {

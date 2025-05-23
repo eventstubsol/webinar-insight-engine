@@ -1,4 +1,3 @@
-
 import { getZoomJwtToken } from '../auth/tokenService.ts';
 import { updateCredentialsVerification } from './storage.ts';
 import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
@@ -53,12 +52,16 @@ interface RetryConfig {
   retryableErrors: string[];
 }
 
+// Improved retry configuration with more comprehensive retryable errors and statuses
 const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxRetries: 3,
-  baseDelay: 500,
-  maxDelay: 5000,
-  retryableStatuses: [429, 500, 502, 503, 504],
-  retryableErrors: ['network', 'timeout', 'connection', 'ECONNRESET', 'ETIMEDOUT']
+  maxRetries: 5,               // Increased from 3 to 5
+  baseDelay: 1000,             // Increased from 500ms to 1000ms
+  maxDelay: 10000,             // Increased from 5000ms to 10000ms
+  retryableStatuses: [408, 425, 429, 500, 502, 503, 504],  // Added 408 (Request Timeout) and 425 (Too Early)
+  retryableErrors: [
+    'network', 'timeout', 'connection', 'ECONNRESET', 'ETIMEDOUT', 
+    'fetch failed', 'aborted', 'socket hang up', 'ERR_INSUFFICIENT_RESOURCES'
+  ]
 };
 
 // Helper function to determine if an error is retryable
@@ -93,7 +96,7 @@ function calculateBackoffDelay(attempt: number, config: RetryConfig): number {
   return Math.floor(cappedDelay * jitterFactor);
 }
 
-// Enhanced retry logic with proper TypeScript typing
+// Enhanced retry logic with improved logging and error handling
 async function withRetry<T>(
   operation: () => Promise<T>, 
   config: RetryConfig = DEFAULT_RETRY_CONFIG
@@ -103,17 +106,25 @@ async function withRetry<T>(
   
   while (attempt <= config.maxRetries) {
     try {
-      // Add logging for each attempt
+      // Add more detailed logging
       if (attempt > 0) {
         console.log(`Retry attempt ${attempt}/${config.maxRetries}`);
       }
       
-      return await operation();
+      // Add timing information
+      const startTime = Date.now();
+      const result = await operation();
+      const endTime = Date.now();
+      console.log(`Operation completed in ${endTime - startTime}ms`);
+      
+      return result;
     } catch (error) {
       lastError = error;
       
+      // Enhanced error logging
       console.log(
-        `Operation failed on attempt ${attempt + 1}/${config.maxRetries + 1}: ${error.message || 'Unknown error'}`
+        `Operation failed on attempt ${attempt + 1}/${config.maxRetries + 1}: ${error.message || 'Unknown error'}`,
+        error.stack ? `\nStack: ${error.stack}` : ''
       );
       
       // Check if we've used all retries
@@ -137,20 +148,22 @@ async function withRetry<T>(
     }
   }
   
-  // Convert generic errors to our custom error types
+  // Improved error type conversion with more context
   if (lastError) {
+    const errorDetails = lastError.stack || '';
+    
     if (lastError.status === 429 || lastError.message?.includes('rate limit')) {
-      throw new ZoomRateLimitError(lastError.message || 'Rate limit exceeded');
+      throw new ZoomRateLimitError(`Rate limit exceeded. ${errorDetails}`);
     } else if (lastError.message?.includes('network') || 
                lastError.message?.includes('timed out') ||
                lastError.message?.includes('connection')) {
-      throw new ZoomNetworkError(lastError.message || 'Network error');
+      throw new ZoomNetworkError(`Network error: ${lastError.message}. ${errorDetails}`);
     } else if (lastError.message?.includes('Invalid client') || 
                lastError.message?.includes('Invalid account') || 
                lastError.message?.includes('client_secret')) {
-      throw new ZoomAuthenticationError(lastError.message || 'Authentication error');
+      throw new ZoomAuthenticationError(`Authentication error: ${lastError.message}. ${errorDetails}`);
     } else if (lastError.message?.includes('scopes')) {
-      throw new ZoomScopesError(lastError.message || 'Missing required OAuth scopes');
+      throw new ZoomScopesError(`${lastError.message}. ${errorDetails}`);
     }
   }
   

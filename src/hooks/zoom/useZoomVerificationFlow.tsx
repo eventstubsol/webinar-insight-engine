@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,7 +42,7 @@ export function useZoomVerificationFlow() {
     isSubmittingRef.current = true;
     requestInProgressRef.current = true;
     
-    // Set a timeout to prevent hanging submission
+    // Set a timeout to prevent hanging submission - increased from 20s to 45s
     if (verificationTimeoutRef.current) {
       clearTimeout(verificationTimeoutRef.current);
     }
@@ -62,7 +61,7 @@ export function useZoomVerificationFlow() {
           variant: 'destructive'
         });
       }
-    }, 20000); // 20 second timeout
+    }, 45000); // Increased from 20000ms to 45000ms
     
     try {
       console.log('Saving credentials...');
@@ -73,14 +72,20 @@ export function useZoomVerificationFlow() {
           account_id: credentials.account_id,
           client_id: credentials.client_id,
           client_secret: credentials.client_secret
+        },
+        // Add timeout option to the request
+        options: {
+          timeout: 40000 // 40 seconds
         }
       });
       
       if (saveError) {
+        console.error('Save credentials error details:', saveError);
         throw new Error(saveError.message || 'Failed to save credentials');
       }
       
       if (!saveData?.success) {
+        console.error('Save credentials failed with data:', saveData);
         throw new Error(saveData?.error || 'Failed to save credentials');
       }
       
@@ -90,11 +95,22 @@ export function useZoomVerificationFlow() {
     } catch (err: any) {
       console.error('Error saving credentials:', err);
       
+      // Enhanced error classification
+      if (err.message?.toLowerCase().includes('timeout') || 
+         err.message?.toLowerCase().includes('timed out')) {
+        setError("The save operation timed out. This could be due to network issues or server load.");
+        
+        toast({
+          title: 'Save Operation Timed Out',
+          description: 'The server took too long to respond. Please try again.',
+          variant: 'destructive'
+        });
+      }
       // Check for network related errors
-      if (err.message?.includes('Failed to send') || 
+      else if (err.message?.includes('Failed to send') || 
           err.message?.toLowerCase().includes('err_insufficient_resources') ||
           err.message?.toLowerCase().includes('network') ||
-          err.message?.toLowerCase().includes('timeout')) {
+          err.message?.toLowerCase().includes('connection')) {
         setError("Network error. Please wait a moment and try again.");
         
         toast({
@@ -130,15 +146,25 @@ export function useZoomVerificationFlow() {
     try {
       console.log('Verifying credentials...');
       
+      // Add timeout option to the request
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke('zoom-api', {
         body: { 
           action: 'verify-credentials'
+        },
+        // Set a higher client-side timeout
+        options: {
+          timeout: 40000 // 40 seconds
         }
       });
       
       if (verifyError) {
+        // Enhanced error logging
+        console.error('Verification failed with error:', verifyError);
         throw new Error(verifyError.message || 'Verification failed');
       }
+      
+      // Log the full response for debugging
+      console.log('Verification response data:', verifyData);
       
       if (verifyData.success || verifyData.verified) {
         console.log('Verification successful:', verifyData);
@@ -165,18 +191,38 @@ export function useZoomVerificationFlow() {
     } catch (err: any) {
       console.error('Verification error:', err);
       
-      // Check for scopes error in the message
+      // More detailed error classification
       if (err.message?.toLowerCase().includes('scopes') || 
           err.message?.toLowerCase().includes('scope') || 
           err.message?.toLowerCase().includes('4711')) {
         setScopesError(true);
+        setError('Missing required OAuth scopes. Please check your Zoom app configuration.');
+      } else if (err.message?.toLowerCase().includes('timeout') || 
+                 err.message?.toLowerCase().includes('timed out')) {
+        setError('The verification process timed out. This could be due to network issues or server load.');
+      } else if (err.message?.toLowerCase().includes('network') || 
+                 err.message?.toLowerCase().includes('connection')) {
+        setError('Network error. Please check your internet connection and try again.');
+      } else {
+        // Default error
+        setError(err.message || 'Failed to verify Zoom credentials');
       }
       
-      setError(err.message || 'Failed to verify Zoom credentials');
+      // Provide more specific toast messages based on error type
+      let toastTitle = 'Verification Failed';
+      let toastDesc = err.message || 'Could not verify Zoom API credentials';
+      
+      if (err.message?.toLowerCase().includes('timeout')) {
+        toastTitle = 'Verification Timed Out';
+        toastDesc = 'The verification process took too long. Please try again.';
+      } else if (err.message?.toLowerCase().includes('scopes')) {
+        toastTitle = 'Missing OAuth Scopes';
+        toastDesc = 'Your Zoom app is missing required permissions. Please check the configuration.';
+      }
       
       toast({
-        title: 'Verification Failed',
-        description: err.message || 'Could not verify Zoom API credentials',
+        title: toastTitle,
+        description: toastDesc,
         variant: 'destructive'
       });
       
