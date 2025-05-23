@@ -9,7 +9,7 @@ export function useZoomCredentialsLoader() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const fetchInProgress = useRef(false);
-  const abortController = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const { 
     data, 
@@ -30,23 +30,26 @@ export function useZoomCredentialsLoader() {
       try {
         fetchInProgress.current = true;
         
-        // Create abort controller for this request
-        // We create it but we can't directly use it with supabase functions
-        // due to type limitations
-        abortController.current = new AbortController();
+        // Set timeout to cancel long-running requests
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
         
-        // Instead, we'll use a timeout to simulate cancellation
-        const timeoutId = setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           console.log('Request timeout reached, aborting');
+          fetchInProgress.current = false;
           throw new Error('Request timed out');
-        }, 15000); // 15 seconds timeout
+        }, 10000); // Reduced to 10 seconds timeout for faster feedback
         
         const { data, error } = await supabase.functions.invoke('zoom-api', {
           body: { action: 'get-credentials' }
         });
         
         // Clear the timeout if request completes successfully
-        clearTimeout(timeoutId);
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
         
         if (error) throw error;
         return data as {
@@ -74,8 +77,9 @@ export function useZoomCredentialsLoader() {
   // Clean up timeout on unmount
   useEffect(() => {
     return () => {
-      // Since we can't directly use the abort controller with supabase functions,
-      // we'll just set fetchInProgress to false to prevent new fetches
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
       fetchInProgress.current = false;
     };
   }, []);

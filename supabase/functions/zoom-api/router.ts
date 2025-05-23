@@ -25,8 +25,8 @@ import {
   handleGetWebinarExtendedData
 } from "./webinar-operations/index.ts";
 
-// Operation timeout (15 seconds - reduced from 30 to prevent client timeouts)
-const OPERATION_TIMEOUT = 15000;
+// Operation timeout (reduced from 15 seconds to 10 seconds to prevent client timeouts)
+const OPERATION_TIMEOUT = 10000;
 
 // Helper to execute a function with timeout
 export async function executeWithTimeout<T>(operation: () => Promise<T>, timeoutMs: number, operationName: string): Promise<T> {
@@ -79,11 +79,14 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
       
       case "verify-credentials":
         // Get Zoom credentials for this action
+        console.log(`[zoom-api:router] Getting credentials for verification for user ${user.id}`);
         const verifyCredentials = await getZoomCredentials(supabaseAdmin, user.id);
         if (!verifyCredentials) {
-          return createErrorResponse("Zoom credentials not found", 400);
+          console.error(`[zoom-api:router] No credentials found for user ${user.id} during verification`);
+          return createErrorResponse("Zoom credentials not found. Please save credentials first.", 400);
         }
         
+        console.log(`[zoom-api:router] Found credentials, proceeding with verification for user ${user.id}`);
         response = await executeWithTimeout(
           () => handleVerifyCredentials(req, supabaseAdmin, user, verifyCredentials),
           OPERATION_TIMEOUT,
@@ -191,6 +194,19 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
     // For timeouts or network errors
     if (error.message && error.message.includes('timed out')) {
       return createErrorResponse("Operation timed out. Please try again later.", 504);
+    }
+    
+    // Check for specific error types for better error messages
+    if (error.message && error.message.toLowerCase().includes('scopes')) {
+      return createErrorResponse("Missing required OAuth scopes. Please check your Zoom app configuration.", 403);
+    }
+    
+    // Network related errors
+    if (error.message && 
+        (error.message.includes('Failed to send') || 
+         error.message.toLowerCase().includes('network') ||
+         error.message.toLowerCase().includes('connection'))) {
+      return createErrorResponse("Network error. Please check your connection and try again.", 503);
     }
     
     return createErrorResponse(error.message || "An unknown error occurred", 400);
