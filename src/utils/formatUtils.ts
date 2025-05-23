@@ -19,3 +19,32 @@ export function formatDuration(durationInSeconds: number): string {
 export function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
+
+// Format date and time to a readable string
+export function formatDateTime(date: Date | string | undefined): string {
+  if (!date) return 'N/A';
+  
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  
+  return dateObj.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// Format minutes to hours and minutes (e.g., "1h 30m")
+export function formatMinutes(minutes: number): string {
+  if (!minutes || minutes < 0) return 'N/A';
+  
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.floor(minutes % 60);
+  
+  let result = '';
+  if (hours > 0) result += `${hours}h `;
+  if (remainingMinutes > 0 || hours === 0) result += `${remainingMinutes}m`;
+  
+  return result.trim();
+}
