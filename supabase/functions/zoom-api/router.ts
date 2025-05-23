@@ -13,7 +13,7 @@ import {
   verifyZoomCredentials,
   handleVerifyCredentials,
   handleGetCredentials
-} from "./credentials.ts";
+} from "./credentials/index.ts";
 import { 
   handleListWebinars, 
   handleGetWebinar, 
