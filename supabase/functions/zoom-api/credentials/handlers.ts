@@ -1,6 +1,6 @@
 
 import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
-import { getZoomJwtToken } from '../auth.ts';
+import { getZoomJwtToken } from '../auth/tokenService.ts';
 import { getZoomCredentials, saveZoomCredentials, updateCredentialsVerification } from './storage.ts';
 import { verifyZoomCredentials, testOAuthScopes } from './verification.ts';
 

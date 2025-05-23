@@ -5,7 +5,7 @@ import { createErrorResponse, createSuccessResponse } from "./cors.ts";
 import { 
   ZoomApiClient,
   getZoomJwtToken
-} from "./auth.ts";
+} from "./auth/index.ts";
 import {
   handleSaveCredentials,
   handleCheckCredentialsStatus,
@@ -92,7 +92,7 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
         await verifyZoomCredentials(credentials);
         
         // Create API client with rate limiting
-        const apiClient = new ZoomApiClient(credentials.accessToken);
+        const apiClient = new ZoomApiClient(credentials.access_token);
         
         // Route to the correct action handler with timeout protection
         switch (action) {
