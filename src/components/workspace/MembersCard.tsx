@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { UserPlus } from 'lucide-react';
-import { WorkspaceMember } from '@/types/workspace';
+import { WorkspaceMember, WorkspaceMemberRole } from '@/types/workspace';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -16,9 +16,9 @@ interface MembersCardProps {
   members: WorkspaceMember[];
   isLoading: boolean;
   isAdmin: boolean;
-  currentUserRole: string | null;
+  currentUserRole: WorkspaceMemberRole | null;
   onInviteClick: () => void;
-  onUpdateRole: (memberId: string, role: WorkspaceMember['role']) => Promise<void>;
+  onUpdateRole: (memberId: string, role: WorkspaceMemberRole) => Promise<void>;
   onRemoveMember: (memberId: string) => Promise<void>;
 }
 

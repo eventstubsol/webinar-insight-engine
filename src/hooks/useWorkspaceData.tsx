@@ -2,6 +2,7 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { PostgrestFilterBuilder } from '@supabase/supabase-js';
 
 // Define a type for valid table names to address the type error
 type ValidTableName = 
@@ -34,7 +35,7 @@ export function useWorkspaceData() {
   const getFromWorkspace = useCallback(async <T extends Record<string, any>>(
     table: ValidTableName,
     columns: string = '*',
-    additionalFilters?: (query: any) => any
+    additionalFilters?: (query: PostgrestFilterBuilder<any, any, any>) => PostgrestFilterBuilder<any, any, any>
   ): Promise<T[]> => {
     if (!currentWorkspace) {
       console.warn('No workspace selected, cannot fetch data');
@@ -58,7 +59,8 @@ export function useWorkspaceData() {
         throw error;
       }
       
-      return (data || []) as T[];
+      // Use type assertion to ensure proper typing
+      return (data || []) as unknown as T[];
     } catch (error) {
       console.error(`Error in getFromWorkspace:`, error);
       throw error;
@@ -85,9 +87,11 @@ export function useWorkspaceData() {
         workspace_id: currentWorkspace.id
       }));
       
+      // Use `as any` to bypass strict type checking for the insert operation
+      // This is necessary because Supabase's types are very specific and our generic approach is difficult to type properly
       let query = supabase
         .from(table)
-        .insert(dataWithWorkspace);
+        .insert(dataWithWorkspace as any);
       
       if (options?.returning !== false) {
         query = query.select();
@@ -100,7 +104,8 @@ export function useWorkspaceData() {
         throw error;
       }
       
-      return (result || []) as T[];
+      // Use type assertion to ensure proper typing
+      return (result || []) as unknown as T[];
     } catch (error) {
       console.error(`Error in insertToWorkspace:`, error);
       throw error;
@@ -124,18 +129,15 @@ export function useWorkspaceData() {
     try {
       const idField = options?.idField || 'id';
       
+      // Use `as any` to bypass strict type checking for the update operation
       let query = supabase
         .from(table)
-        .update(updates)
+        .update(updates as any)
         .eq(idField, id)
         .eq('workspace_id', currentWorkspace.id);
       
       if (options?.returning !== false) {
         query = query.select();
-      }
-      
-      if (options?.returning !== false) {
-        query = query.single();
       }
       
       const { data: result, error } = await query;
@@ -145,7 +147,8 @@ export function useWorkspaceData() {
         throw error;
       }
       
-      return result as T | null;
+      // For single updates, return the first item or null
+      return (result && result.length > 0 ? result[0] : null) as unknown as T | null;
     } catch (error) {
       console.error(`Error in updateInWorkspace:`, error);
       throw error;
