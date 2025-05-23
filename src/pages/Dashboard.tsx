@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { WebinarDistributionChart } from '@/components/dashboard/WebinarDistributionChart';
 import { RegistrationAttendanceAreaChart } from '@/components/dashboard/RegistrationAttendanceAreaChart';
@@ -34,80 +33,78 @@ const Dashboard = () => {
   };
 
   return (
-    <AppLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">Welcome back! Here's an overview of your webinars.</p>
-          </div>
-          
-          {hasZoomCredentials && (
-            <div className="flex items-center gap-2">
-              {/* Buttons removed here */}
-            </div>
-          )}
+    <div className="w-full space-y-6 animate-fade-in">
+      <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Welcome back! Here's an overview of your webinars.</p>
         </div>
-
-        {/* Show loading indicator while checking credentials */}
-        {credentialsLoading && (
-          <div className="flex items-center justify-center h-12 my-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="ml-2 text-muted-foreground">Checking Zoom integration...</span>
+        
+        {hasZoomCredentials && (
+          <div className="flex items-center gap-2">
+            {/* Buttons removed here */}
           </div>
         )}
+      </div>
 
-        {/* Show Zoom setup banner for new users without credentials */}
-        {!credentialsLoading && !hasZoomCredentials && (
-          <Alert className="bg-blue-50 border-blue-200">
-            <Info className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-blue-800">Set up your Zoom integration</AlertTitle>
-            <AlertDescription className="text-blue-700">
-              <p>Connect your Zoom account to start tracking your webinar analytics.</p>
-              <div className="flex flex-wrap gap-3 mt-3">
-                <Button 
-                  onClick={handleConnectZoom} 
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Set Up Zoom Integration
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                  onClick={() => navigate('/webinars')}
-                >
-                  Go to Webinars <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
+      {/* Show loading indicator while checking credentials */}
+      {credentialsLoading && (
+        <div className="flex items-center justify-center h-12 my-2">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Checking Zoom integration...</span>
+        </div>
+      )}
 
-        {/* Zoom Integration Wizard Dialog */}
-        <Dialog open={showWizard} onOpenChange={setShowWizard}>
-          <DialogContent className="max-w-4xl p-0">
-            <ZoomIntegrationWizard 
-              onComplete={handleWizardComplete}
-              onCancel={() => setShowWizard(false)}
-            />
-          </DialogContent>
-        </Dialog>
+      {/* Show Zoom setup banner for new users without credentials */}
+      {!credentialsLoading && !hasZoomCredentials && (
+        <Alert className="bg-blue-50 border-blue-200">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-800">Set up your Zoom integration</AlertTitle>
+          <AlertDescription className="text-blue-700">
+            <p>Connect your Zoom account to start tracking your webinar analytics.</p>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <Button 
+                onClick={handleConnectZoom} 
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Set Up Zoom Integration
+              </Button>
+              <Button 
+                variant="outline" 
+                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                onClick={() => navigate('/webinars')}
+              >
+                Go to Webinars <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
-        <div className="grid gap-6">
-          <DashboardStats />
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <WebinarDistributionChart />
-            <RegistrationAttendanceAreaChart />
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <UpcomingWebinars />
-            <RecentWebinars />
-          </div>
+      {/* Zoom Integration Wizard Dialog */}
+      <Dialog open={showWizard} onOpenChange={setShowWizard}>
+        <DialogContent className="max-w-4xl p-0">
+          <ZoomIntegrationWizard 
+            onComplete={handleWizardComplete}
+            onCancel={() => setShowWizard(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <div className="grid gap-6 w-full">
+        <DashboardStats />
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <WebinarDistributionChart />
+          <RegistrationAttendanceAreaChart />
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <UpcomingWebinars />
+          <RecentWebinars />
         </div>
       </div>
-    </AppLayout>
+    </div>
   );
 };
 

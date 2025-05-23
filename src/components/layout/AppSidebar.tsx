@@ -1,4 +1,3 @@
-
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -31,7 +30,7 @@ export function AppSidebar({ className, isCollapsed }: SidebarNavProps) {
   return (
     <div
       className={cn(
-        "flex flex-col h-screen border-r bg-background",
+        "flex flex-col h-screen border-r bg-background shrink-0",
         isCollapsed ? "w-[80px]" : "w-[240px]",
         className
       )}
@@ -55,7 +54,7 @@ export function AppSidebar({ className, isCollapsed }: SidebarNavProps) {
           )}
         >
           <NavItem
-            to="/"
+            to="/dashboard"
             icon={<Gauge />}
             label="Dashboard"
             isCollapsed={isCollapsed}
