@@ -57,8 +57,7 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    // Safe type casting with explicit unknown intermediate step
-    return (data as unknown) as T[];
+    return (data || []) as T[];
   }, [currentWorkspace]);
 
   /**
@@ -68,7 +67,7 @@ export function useWorkspaceData() {
     table: ValidTableName,
     data: Omit<T, 'workspace_id'> | Omit<T, 'workspace_id'>[],
     options?: { returning?: boolean }
-  ): Promise<T[]> => {
+  ) => {
     if (!currentWorkspace) {
       console.warn('No workspace selected, cannot insert data');
       throw new Error('No workspace selected');
@@ -80,7 +79,6 @@ export function useWorkspaceData() {
       workspace_id: currentWorkspace.id
     }));
     
-    // Use type assertion to handle the dynamic table and data types
     const query = supabase
       .from(table)
       .insert(dataWithWorkspace as any); // Type assertion needed here
@@ -96,8 +94,7 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    // Safe type casting with explicit unknown intermediate step
-    return (responseData as unknown) as T[];
+    return responseData as unknown as T[];
   }, [currentWorkspace]);
 
   /**
@@ -108,7 +105,7 @@ export function useWorkspaceData() {
     id: string | number,
     updates: Partial<T>,
     options?: { idField?: string; returning?: boolean }
-  ): Promise<T | null> => {
+  ) => {
     if (!currentWorkspace) {
       console.warn('No workspace selected, cannot update data');
       throw new Error('No workspace selected');
@@ -133,8 +130,7 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    // Safe type casting with explicit unknown intermediate step
-    return (data as unknown) as T;
+    return data as unknown as T;
   }, [currentWorkspace]);
 
   /**

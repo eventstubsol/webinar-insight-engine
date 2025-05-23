@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -324,8 +323,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           if (!item.profiles) return null;
           // Only try to access properties if profiles exists and is an object
           if (typeof item.profiles === 'object' && item.profiles !== null) {
-            // Safe check if it's not an error object
+            // Check if it's not an error object
             if (!('error' in item.profiles)) {
+              // Safely typecast the profiles data
               return item.profiles as { display_name: string | null, avatar_url: string | null };
             }
           }
