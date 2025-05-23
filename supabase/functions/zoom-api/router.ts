@@ -1,4 +1,3 @@
-
 import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { createErrorResponse, createSuccessResponse } from "./cors.ts";
@@ -15,14 +14,14 @@ import {
   handleGetCredentials
 } from "./credentials/index.ts";
 import { 
-  handleListWebinars, 
-  handleGetWebinar, 
-  handleGetParticipants, 
+  handleListWebinars,
+  handleGetWebinar,
+  handleGetParticipants,
   handleUpdateWebinarParticipants,
   handleGetWebinarInstances,
   handleGetInstanceParticipants,
   handleGetWebinarExtendedData
-} from "./webinars.ts";
+} from "./webinar-operations/index.ts";
 
 // Operation timeout (30 seconds)
 const OPERATION_TIMEOUT = 30000;
