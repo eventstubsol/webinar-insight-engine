@@ -58,8 +58,8 @@ export function useWorkspaceData() {
         throw error;
       }
       
-      // Use explicit type assertion to avoid deep instantiation issues
-      return (data || []) as any as T[];
+      // Cast to any first to avoid deep instantiation issues
+      return (data || []) as any[];
     } catch (error) {
       console.error(`Error in getFromWorkspace:`, error);
       throw error;
@@ -86,24 +86,17 @@ export function useWorkspaceData() {
         workspace_id: currentWorkspace.id
       }));
       
-      // Use type assertion to avoid TypeScript errors
-      let query = supabase
+      const { data: result, error } = await supabase
         .from(table)
-        .insert(dataWithWorkspace as any);
-      
-      if (options?.returning !== false) {
-        query = query.select();
-      }
-      
-      const { data: result, error } = await query;
+        .insert(dataWithWorkspace as any)
+        .select(options?.returning !== false ? '*' : undefined);
       
       if (error) {
         console.error(`Error inserting into ${table}:`, error);
         throw error;
       }
       
-      // Use explicit type assertion to avoid deep instantiation issues
-      return (result || []) as any as T[];
+      return (result || []) as any[];
     } catch (error) {
       console.error(`Error in insertToWorkspace:`, error);
       throw error;
@@ -127,26 +120,20 @@ export function useWorkspaceData() {
     try {
       const idField = options?.idField || 'id';
       
-      // Use type assertion to avoid TypeScript errors
-      let query = supabase
+      const { data: result, error } = await supabase
         .from(table)
         .update(updates as any)
         .eq(idField, id)
-        .eq('workspace_id', currentWorkspace.id);
-      
-      if (options?.returning !== false) {
-        query = query.select();
-      }
-      
-      const { data: result, error } = await query;
+        .eq('workspace_id', currentWorkspace.id)
+        .select(options?.returning !== false ? '*' : undefined);
       
       if (error) {
         console.error(`Error updating in ${table}:`, error);
         throw error;
       }
       
-      // For single updates, return the first item or null
-      return result && Array.isArray(result) && result.length > 0 ? (result[0] as any as T) : null;
+      // Safely check if result exists and has items
+      return (result && Array.isArray(result) && result.length > 0) ? (result[0] as any) : null;
     } catch (error) {
       console.error(`Error in updateInWorkspace:`, error);
       throw error;
