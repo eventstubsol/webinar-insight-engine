@@ -38,7 +38,8 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    return data as T[];
+    // Explicitly cast the data to handle type conversion safely
+    return (data as unknown) as T[];
   }, [currentWorkspace]);
 
   /**
@@ -75,7 +76,8 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    return responseData as T[];
+    // Explicitly cast the response data to handle type conversion safely
+    return (responseData as unknown) as T[];
   }, [currentWorkspace]);
 
   /**
@@ -111,7 +113,8 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    return data as T;
+    // Explicitly cast the data to handle type conversion safely
+    return (data as unknown) as T;
   }, [currentWorkspace]);
 
   /**

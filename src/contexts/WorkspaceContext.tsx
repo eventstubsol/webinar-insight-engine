@@ -319,8 +319,15 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Transform to match our interface with proper typing
       const members: WorkspaceMember[] = data.map(item => {
-        // Safely handle profiles data with type checking
-        const profileData = item.profiles as { display_name: string | null, avatar_url: string | null } | null;
+        // Handle profiles data with type assertion and nullish checks
+        let profileData: { display_name: string | null, avatar_url: string | null } | null = null;
+        
+        if (item.profiles && typeof item.profiles === 'object') {
+          // Safe check if it's not an error object
+          if (!('error' in item.profiles)) {
+            profileData = item.profiles as { display_name: string | null, avatar_url: string | null };
+          }
+        }
         
         return {
           id: item.id,
