@@ -1,127 +1,107 @@
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useZoomCredentialsLoader } from '@/hooks/zoom/useZoomCredentialsLoader';
-import { useZoomVerificationFlow, VerificationStage } from '@/hooks/zoom/useZoomVerificationFlow';
-import { ZoomCredentials, WizardStep } from '../types';
+import { useState, useCallback, useEffect } from 'react';
+import { VerificationStage, ZoomCredentials } from '../../../hooks/zoom/verification/types';
+import { useZoomVerificationFlow } from '../../../hooks/zoom/useZoomVerificationFlow';
+import { useZoomCredentialsLoader } from '../../../hooks/zoom/useZoomCredentialsLoader';
 
-export function useZoomIntegrationWizard({ onComplete }: { onComplete?: () => void }) {
-  const { user } = useAuth();
-  const { hasCredentials, isLoading: isLoadingCredentials, fetchSavedCredentials } = useZoomCredentialsLoader();
+export function useZoomIntegrationWizard() {
+  // Step handling
+  const [currentStep, setCurrentStep] = useState(0);
+  const [showNextStep, setShowNextStep] = useState(false);
   
-  // Verification flow state and logic
-  const {
-    isSubmitting,
-    error,
-    verificationDetails,
-    currentStage,
+  // Load the verification flow and saved credentials
+  const verificationFlow = useZoomVerificationFlow();
+  const { credentials: savedCredentials, isLoading: isLoadingCredentials } = useZoomCredentialsLoader();
+  
+  // Extract properties from the verification flow
+  const { 
+    isVerifying, 
+    currentStage, 
+    scopesError, 
+    error, 
+    clearScopesError, 
     handleVerificationProcess,
-    // Access the properties that were previously missing
-    scopesError,
-    verificationStage,
-    savedCredentials,
-    clearScopesError
-  } = useZoomVerificationFlow();
+    verificationState
+  } = verificationFlow;
   
-  const [currentStep, setCurrentStep] = useState<WizardStep>(WizardStep.Introduction);
-  const [credentials, setCredentials] = useState<ZoomCredentials>({
-    account_id: '',
-    client_id: '',
-    client_secret: ''
-  });
+  // Track if we're currently on the success step
+  const [isOnSuccessStep, setIsOnSuccessStep] = useState(false);
 
-  // When savedCredentials loads, update the form
+  // Watch for changes in verification state
   useEffect(() => {
-    if (savedCredentials) {
-      setCredentials({
-        account_id: savedCredentials.account_id || '',
-        client_id: savedCredentials.client_id || '',
-        client_secret: savedCredentials.client_secret || '',
-      });
+    // If verification is complete, move to success step
+    if (currentStage === VerificationStage.COMPLETE && !isOnSuccessStep) {
+      setCurrentStep(4); // Success step
+      setShowNextStep(true);
+      setIsOnSuccessStep(true);
     }
-  }, [savedCredentials]);
-
-  // Fetch credentials when the wizard opens - with a delay to prevent race conditions
-  useEffect(() => {
-    if (user) {
-      const timer = setTimeout(() => {
-        fetchSavedCredentials();
-      }, 500); // Add a small delay
-      
-      return () => clearTimeout(timer);
-    }
-  }, [user, fetchSavedCredentials]);
-  
-  // Update step when verification completes or when scopes error occurs
-  useEffect(() => {
-    if (verificationDetails) {
-      setCurrentStep(WizardStep.Success);
-    } else if (scopesError) {
-      setCurrentStep(WizardStep.ConfigureScopes);
-    }
-  }, [verificationDetails, scopesError]);
-  
-  // Monitor verification stage
-  useEffect(() => {
-    console.log(`Verification stage changed to: ${verificationStage}`);
-  }, [verificationStage]);
-
-  const handleChangeCredentials = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCredentials({
-      ...credentials,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleSaveCredentials = async () => {
-    if (!user) {
-      return;
-    }
-
-    if (!credentials.account_id || !credentials.client_id || !credentials.client_secret) {
-      return;
-    }
-
-    // Use our verification flow hook to handle the process
-    const success = await handleVerificationProcess(credentials);
     
-    if (success && verificationDetails) {
-      setCurrentStep(WizardStep.Success);
+    // If there's a scope error, show the scopes step
+    if (currentStage === VerificationStage.SCOPE_ERROR) {
+      setCurrentStep(2);
     }
-  };
+  }, [currentStage, isOnSuccessStep]);
 
-  const handleNext = () => {
-    setCurrentStep(prev => prev + 1 as WizardStep);
-  };
-
-  const handleBack = () => {
-    if (currentStep === WizardStep.ConfigureScopes && scopesError) {
-      // If we're going back from the scopes error screen, clear the error
-      clearScopesError();
+  // Navigate to next step
+  const goToNextStep = useCallback(() => {
+    if (currentStep < 4) {
+      setCurrentStep(prev => prev + 1);
+      setShowNextStep(false);
     }
-    setCurrentStep(prev => prev - 1 as WizardStep);
-  };
+  }, [currentStep]);
 
-  const handleComplete = () => {
-    if (onComplete) {
-      onComplete();
+  // Navigate to previous step
+  const goToPreviousStep = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+      setShowNextStep(false);
+      if (isOnSuccessStep) {
+        setIsOnSuccessStep(false);
+      }
     }
-  };
+  }, [currentStep, isOnSuccessStep]);
+
+  // Mark the current step as complete, allowing progression
+  const completeCurrentStep = useCallback(() => {
+    setShowNextStep(true);
+  }, []);
+
+  // Handle the entire process from the EnterCredentialsStep
+  const handleCredentialsSubmit = useCallback(async (credentials: ZoomCredentials) => {
+    try {
+      await handleVerificationProcess(credentials);
+      return true;
+    } catch (err) {
+      console.error("Verification process failed:", err);
+      return false;
+    }
+  }, [handleVerificationProcess]);
   
+  // Get completed status for a step
+  const isStepCompleted = useCallback((step: number) => {
+    if (step < currentStep) {
+      return true;
+    }
+    if (step === currentStep) {
+      return showNextStep;
+    }
+    return false;
+  }, [currentStep, showNextStep]);
+
   return {
     currentStep,
-    credentials,
-    isSubmitting,
-    error,
+    isStepCompleted,
+    goToNextStep,
+    goToPreviousStep,
+    completeCurrentStep,
+    handleCredentialsSubmit,
+    isSubmitting: isVerifying,
+    verificationStage: currentStage,
     scopesError,
-    verificationDetails,
-    verificationStage,
-    hasCredentials,
+    clearScopesError,
+    savedCredentials,
     isLoadingCredentials,
-    handleNext,
-    handleBack,
-    handleSaveCredentials,
-    handleChangeCredentials,
-    handleComplete
+    error,
+    verificationDetails: verificationState.verificationDetails
   };
 }

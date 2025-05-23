@@ -1,420 +1,174 @@
-import { getZoomJwtToken } from '../auth/tokenService.ts';
+import { getZoomJwtToken, ZoomApiClient, clearTokenCache } from '../auth/index.ts';
+import { parseError } from '../errorHandling.ts';
 import { updateCredentialsVerification } from './storage.ts';
-import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
 
-// Custom error types for better error handling
-export class ZoomAPIError extends Error {
-  status: number;
-  code: string;
-  
-  constructor(message: string, status = 400, code = 'zoom_api_error') {
-    super(message);
-    this.name = 'ZoomAPIError';
-    this.status = status;
-    this.code = code;
-  }
-}
-
-export class ZoomNetworkError extends ZoomAPIError {
-  constructor(message: string) {
-    super(message, 503, 'network_error');
-    this.name = 'ZoomNetworkError';
-  }
-}
-
-export class ZoomAuthenticationError extends ZoomAPIError {
-  constructor(message: string) {
-    super(message, 401, 'authentication_error');
-    this.name = 'ZoomAuthenticationError';
-  }
-}
-
-export class ZoomScopesError extends ZoomAPIError {
-  constructor(message: string) {
-    super(message, 403, 'missing_scopes');
-    this.name = 'ZoomScopesError';
-  }
-}
-
-export class ZoomRateLimitError extends ZoomAPIError {
-  constructor(message: string) {
-    super(message, 429, 'rate_limit_exceeded');
-    this.name = 'ZoomRateLimitError';
-  }
-}
-
-export class ZoomTokenError extends ZoomAPIError {
-  constructor(message: string) {
-    super(message, 401, 'token_error');
-    this.name = 'ZoomTokenError';
-  }
-}
-
-// Retry configuration
-interface RetryConfig {
-  maxRetries: number;
-  baseDelay: number;
-  maxDelay: number;
-  retryableStatuses: number[];
-  retryableErrors: string[];
-}
-
-// Improved retry configuration with more comprehensive retryable errors and statuses
-const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxRetries: 5,               // Increased from 3 to 5
-  baseDelay: 1000,             // Increased from 500ms to 1000ms
-  maxDelay: 10000,             // Increased from 5000ms to 10000ms
-  retryableStatuses: [408, 425, 429, 500, 502, 503, 504],  // Added 408 (Request Timeout) and 425 (Too Early)
-  retryableErrors: [
-    'network', 'timeout', 'connection', 'ECONNRESET', 'ETIMEDOUT', 
-    'fetch failed', 'aborted', 'socket hang up', 'ERR_INSUFFICIENT_RESOURCES'
-  ]
-};
-
-// Helper function to determine if an error is retryable
-function isRetryable(error: any, config: RetryConfig): boolean {
-  if (!error) return false;
-  
-  // Check HTTP status code
-  if (error.status && config.retryableStatuses.includes(error.status)) {
-    return true;
-  }
-  
-  // Check error message for known patterns
-  if (error.message) {
-    const message = error.message.toLowerCase();
-    return config.retryableErrors.some(term => message.includes(term.toLowerCase()));
-  }
-  
-  return false;
-}
-
-// Calculate delay with exponential backoff and jitter
-function calculateBackoffDelay(attempt: number, config: RetryConfig): number {
-  // Exponential backoff: baseDelay * 2^attempt
-  const exponentialDelay = config.baseDelay * Math.pow(2, attempt);
-  
-  // Apply maximum delay cap
-  const cappedDelay = Math.min(exponentialDelay, config.maxDelay);
-  
-  // Add jitter to prevent thundering herd problem (±25% randomness)
-  const jitterFactor = 0.75 + (Math.random() * 0.5);
-  
-  return Math.floor(cappedDelay * jitterFactor);
-}
-
-// Enhanced retry logic with improved logging and error handling
-async function withRetry<T>(
-  operation: () => Promise<T>, 
-  config: RetryConfig = DEFAULT_RETRY_CONFIG
-): Promise<T> {
-  let lastError: any;
-  let attempt = 0;
-  
-  while (attempt <= config.maxRetries) {
-    try {
-      // Add more detailed logging
-      if (attempt > 0) {
-        console.log(`Retry attempt ${attempt}/${config.maxRetries}`);
-      }
-      
-      // Add timing information
-      const startTime = Date.now();
-      const result = await operation();
-      const endTime = Date.now();
-      console.log(`Operation completed in ${endTime - startTime}ms`);
-      
-      return result;
-    } catch (error) {
-      lastError = error;
-      
-      // Enhanced error logging
-      console.log(
-        `Operation failed on attempt ${attempt + 1}/${config.maxRetries + 1}: ${error.message || 'Unknown error'}`
-      );
-      
-      // Check if we've used all retries
-      if (attempt >= config.maxRetries) {
-        console.log('Maximum retries reached, giving up');
-        break;
-      }
-      
-      // Only retry if the error is considered retryable
-      if (isRetryable(error, config)) {
-        const delay = calculateBackoffDelay(attempt, config);
-        console.log(`Retrying in ${delay}ms (attempt ${attempt + 1}/${config.maxRetries})`);
-        
-        await new Promise(resolve => setTimeout(resolve, delay));
-        attempt++;
-        continue;
-      } else {
-        console.log('Error is not retryable, giving up');
-        break;
-      }
-    }
-  }
-  
-  // Improved error type conversion with more context
-  if (lastError) {
-    const errorDetails = lastError.stack || '';
-    
-    if (lastError.status === 429 || lastError.message?.includes('rate limit')) {
-      throw new ZoomRateLimitError(`Rate limit exceeded. ${errorDetails}`);
-    } else if (lastError.message?.includes('network') || 
-               lastError.message?.includes('timed out') ||
-               lastError.message?.includes('connection')) {
-      throw new ZoomNetworkError(`Network error: ${lastError.message}. ${errorDetails}`);
-    } else if (lastError.message?.includes('Invalid client') || 
-               lastError.message?.includes('Invalid account') || 
-               lastError.message?.includes('client_secret')) {
-      throw new ZoomAuthenticationError(`Authentication error: ${lastError.message}. ${errorDetails}`);
-    } else if (lastError.message?.includes('scopes')) {
-      throw new ZoomScopesError(`${lastError.message}. ${errorDetails}`);
-    } else if (lastError.message?.includes('token') || lastError.message?.includes('expired')) {
-      throw new ZoomTokenError(`Token error: ${lastError.message}. ${errorDetails}`);
-    }
-  }
-  
-  throw lastError || new ZoomAPIError('Operation failed after retries');
-}
-
-// New function: Only validate token generation without testing scopes
-export async function validateTokenOnly(credentials: any) {
-  if (!credentials) {
-    throw new ZoomAPIError('Credentials are required');
-  }
+/**
+ * Verify Zoom credentials by getting a token and checking permissions
+ */
+export async function verifyZoomCredentials(supabase: any, userId: string, credentials: any) {
+  console.log(`Verifying Zoom credentials for user ${userId}`);
   
   try {
-    console.log('Validating Zoom token generation only...');
+    // Step 1: Get an access token
+    const tokenResult = await getZoomJwtToken(
+      credentials.account_id,
+      credentials.client_id,
+      credentials.client_secret
+    );
     
-    // If we already have a valid token, just return it (token validity is checked separately)
-    if (credentials.access_token) {
-      console.log('Using existing access token');
+    if (!tokenResult || !tokenResult.access_token) {
       return {
-        token: credentials.access_token,
-        expires_in: credentials.token_expires_in || 3600 // Default to 1 hour if not specified
+        success: false,
+        message: "Failed to obtain access token from Zoom"
       };
     }
     
-    console.log('No existing token found, requesting new token...');
+    // Step 2: Test OAuth scopes
+    const scopeResult = await testOAuthScopes(tokenResult.access_token);
     
-    // Get a new token with enhanced retry logic
-    const tokenResponse = await withRetry(() => getZoomJwtToken(
-      credentials.account_id,
-      credentials.client_id,
-      credentials.client_secret
-    ));
-    
-    console.log('Successfully obtained token');
-    
-    // The token response includes the token and expiry information
-    return {
-      token: tokenResponse.access_token,
-      expires_in: tokenResponse.expires_in || 3600 // Typical expiry is 1 hour
-    };
-  } catch (error) {
-    console.error('Zoom token validation failed:', error);
-    
-    // Error has already been converted to the appropriate type in withRetry
-    if (error instanceof ZoomAPIError) {
-      throw error;
+    if (!scopeResult.success) {
+      return {
+        success: false,
+        message: scopeResult.error || "Failed to verify OAuth scopes",
+        details: scopeResult.details || null
+      };
     }
     
-    // Enhanced error message based on the type of error
-    if (error.message?.includes('Invalid client_id or client_secret')) {
-      throw new ZoomAuthenticationError('Invalid client ID or client secret. Please check your credentials.');
-    } else if (error.message?.includes('Invalid account_id')) {
-      throw new ZoomAuthenticationError('Invalid account ID. Please check your Zoom account ID.');
-    } else if (error.message?.includes('token')) {
-      throw new ZoomTokenError(`Token generation failed: ${error.message}`);
-    }
-    
-    // Generic error
-    throw new ZoomAPIError(`Invalid Zoom credentials: ${error.message || 'Unknown error'}`);
-  }
-}
-
-// Verify that Zoom credentials are valid
-export async function verifyZoomCredentials(credentials: any) {
-  if (!credentials) {
-    throw new ZoomAPIError('Credentials are required');
-  }
-  
-  try {
-    console.log('Verifying Zoom credentials...');
-    
-    // If we already have a valid token, use it
-    if (credentials.access_token) {
-      console.log('Using existing access token');
-      return credentials.access_token;
-    }
-    
-    console.log('No existing token found, requesting new token...');
-    
-    // Get a new token with enhanced retry logic
-    const tokenResponse = await withRetry(() => getZoomJwtToken(
-      credentials.account_id,
-      credentials.client_id,
-      credentials.client_secret
-    ));
-    
-    console.log('Successfully obtained token');
-    
-    // If we got here, the credentials are valid
-    return tokenResponse.access_token;
-  } catch (error) {
-    console.error('Zoom credential verification failed:', error);
-    
-    // Error has already been converted to the appropriate type in withRetry
-    if (error instanceof ZoomAPIError) {
-      throw error;
-    }
-    
-    // Enhanced error message based on the type of error
-    if (error.message?.includes('Invalid client_id or client_secret')) {
-      throw new ZoomAuthenticationError('Invalid client ID or client secret. Please check your credentials.');
-    } else if (error.message?.includes('Invalid account_id')) {
-      throw new ZoomAuthenticationError('Invalid account ID. Please check your Zoom account ID.');
-    }
-    
-    // Generic error
-    throw new ZoomAPIError(`Invalid Zoom credentials: ${error.message || 'Unknown error'}`);
-  }
-}
-
-// Test OAuth scopes to ensure all required ones are present
-export async function testOAuthScopes(token: string) {
-  console.log('Testing API scopes with a simple request...');
-  
-  // List of expected scopes for clarity
-  const requiredScopes = [
-    'user:read:user:admin', 
-    'user:read:user:master', 
-    'webinar:read:webinar:admin', 
-    'webinar:write:webinar:admin'
-  ];
-  
-  try {
-    // Enhanced retry config for scope testing
-    const scopeRetryConfig: RetryConfig = {
-      ...DEFAULT_RETRY_CONFIG,
-      maxRetries: 2,  // Fewer retries for scope testing
-      baseDelay: 300  // Shorter base delay
-    };
-    
-    // Use enhanced retry logic for API call
-    const scopeTestResponse = await withRetry(
-      () => fetch('https://api.zoom.us/v2/users/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }), 
-      scopeRetryConfig
+    // Step 3: Update credentials verification status
+    const updateResult = await updateCredentialsVerification(
+      supabase,
+      userId,
+      true, // verified
+      tokenResult.access_token,
+      tokenResult.expires_in
     );
-    
-    if (!scopeTestResponse.ok) {
-      const scopeTestData = await scopeTestResponse.json();
-      console.error('Scope test failed:', scopeTestData);
-      
-      // Enhanced error message for missing scopes
-      if (scopeTestData.code === 4711 || scopeTestData.message?.includes('scopes')) {
-        throw new ZoomScopesError(
-          `Your Zoom Server-to-Server OAuth app is missing required scopes. ` +
-          `Please add these scopes to your Zoom app: ${requiredScopes.join(', ')}`
-        );
-      }
-      
-      // Handle other API errors
-      if (scopeTestData.code === 429) {
-        throw new ZoomRateLimitError('Zoom API rate limit exceeded. Please try again later.');
-      } else if (scopeTestData.code >= 500) {
-        throw new ZoomAPIError('Zoom API server error. Please try again later.', 502, 'server_error');
-      } else if (scopeTestData.code === 124) {
-        throw new ZoomTokenError('Access token is expired. Please generate a new token.');
-      }
-      
-      throw new ZoomAPIError(`API scope test failed: ${scopeTestData.message || 'Unknown error'}`);
-    }
-    
-    const scopeTestData = await scopeTestResponse.json();
-    console.log('Scope test succeeded, user data:', scopeTestData.email);
     
     return {
       success: true,
-      user: {
-        email: scopeTestData.email,
-        account_id: scopeTestData.account_id,
-        user_id: scopeTestData.id
-      }
+      verified: true,
+      user_id: userId,
+      user: scopeResult.user,
+      user_email: scopeResult.user?.email
     };
   } catch (error) {
-    console.error('Error testing OAuth scopes:', error);
+    console.error("Error verifying credentials:", error);
+    const parsedError = parseError(error);
     
-    // Error has already been converted to the appropriate type in withRetry
-    if (error instanceof ZoomAPIError) {
-      throw error;
-    }
-    
-    // Convert other errors to appropriate types
-    if (error.message?.includes('scopes')) {
-      throw new ZoomScopesError(error.message);
-    }
-    
-    if (!error.message || 
-        error.message.includes('network') || 
-        error.message.includes('timed out') ||
-        error.message.includes('Failed to fetch')) {
-      throw new ZoomNetworkError('Network error when testing API scopes. Please check your connection and try again.');
-    }
-    
-    // Generic error
-    throw new ZoomAPIError(`Failed to test API scopes: ${error.message || 'Unknown error'}`);
+    return {
+      success: false,
+      message: parsedError.message,
+      error_code: parsedError.code,
+      error_category: parsedError.category
+    };
   }
 }
 
-// New utility function to force token refresh when needed
-export async function refreshZoomToken(credentials: any) {
-  if (!credentials) {
-    throw new ZoomAPIError('Credentials are required');
-  }
-  
+/**
+ * Test whether the token has necessary OAuth scopes
+ */
+export async function testOAuthScopes(accessToken: string) {
   try {
-    // Import the clearTokenCache function to force a refresh
-    const { clearTokenCache } = await import('../auth/tokenService.ts');
+    console.log("Testing OAuth scopes with Zoom API");
     
-    // Clear any cached token
+    // Create API client with token
+    const zoomClient = new ZoomApiClient(accessToken);
+    
+    // Try to access user information as a basic test
+    const userResponse = await zoomClient.get("/users/me");
+    
+    if (!userResponse.ok) {
+      const errorData = await userResponse.json();
+      console.error("User API returned error:", errorData);
+      
+      return {
+        success: false,
+        error: `Failed to access Zoom user profile: ${errorData.message || userResponse.statusText}`,
+        status: userResponse.status
+      };
+    }
+    
+    const userData = await userResponse.json();
+    
+    // Test webinar access
+    const webinarResponse = await zoomClient.get("/users/me/webinars?page_size=1");
+    
+    if (!webinarResponse.ok) {
+      // Check specific error codes for scope issues
+      const errorData = await webinarResponse.json();
+      
+      if (webinarResponse.status === 403 || 
+          (errorData.code === 200 && errorData.message?.includes("scope"))) {
+        return {
+          success: false,
+          error: "Missing required OAuth scopes for webinar access",
+          details: {
+            scopes_missing: ["webinar:read:admin", "webinar:read"],
+            scopes_required: ["webinar:read:admin", "webinar:read"]
+          },
+          status: 403
+        };
+      }
+      
+      // Other API errors
+      return {
+        success: false,
+        error: `Failed to access webinars: ${errorData.message}`,
+        status: webinarResponse.status
+      };
+    }
+    
+    // All checks passed
+    return {
+      success: true,
+      user: userData
+    };
+  } catch (error) {
+    console.error("Error testing OAuth scopes:", error);
+    return {
+      success: false,
+      error: `Failed to test OAuth scopes: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Just validate the token without checking scopes
+ */
+export async function validateTokenOnly(credentials: any) {
+  try {
+    console.log("Validating token only");
+    
+    // Clear any cached token first
     clearTokenCache(credentials.account_id, credentials.client_id);
     
-    // Get a fresh token
-    console.log('Forcing token refresh for Zoom credentials');
-    const tokenResponse = await getZoomJwtToken(
+    // Try to get a fresh token
+    const tokenResult = await getZoomJwtToken(
       credentials.account_id,
       credentials.client_id,
       credentials.client_secret
     );
     
-    if (!tokenResponse || !tokenResponse.access_token) {
-      throw new ZoomTokenError('Failed to obtain fresh token');
+    if (!tokenResult || !tokenResult.access_token) {
+      return {
+        success: false,
+        message: "Failed to obtain access token from Zoom"
+      };
     }
     
-    // Return the fresh token
     return {
-      token: tokenResponse.access_token,
-      expires_in: tokenResponse.expires_in || 3600
+      success: true,
+      token: tokenResult.access_token,
+      expires_in: tokenResult.expires_in
     };
   } catch (error) {
-    console.error('Error refreshing Zoom token:', error);
+    console.error("Error validating token:", error);
+    const parsedError = parseError(error);
     
-    // Convert specific errors to more informative types
-    if (error.message?.includes('Invalid client_id or client_secret')) {
-      throw new ZoomAuthenticationError('Invalid client ID or client secret. Please check your credentials.');
-    } else if (error.message?.includes('Invalid account_id')) {
-      throw new ZoomAuthenticationError('Invalid account ID. Please check your Zoom account ID.');
-    } else if (error.message?.includes('token') || error.message?.includes('expired')) {
-      throw new ZoomTokenError(`Token refresh failed: ${error.message}`);
-    }
-    
-    throw error;
+    return {
+      success: false,
+      message: parsedError.message,
+      error_code: parsedError.code,
+      error_category: parsedError.category
+    };
   }
 }

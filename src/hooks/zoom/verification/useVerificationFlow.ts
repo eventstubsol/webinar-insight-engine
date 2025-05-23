@@ -58,7 +58,7 @@ export function useVerificationFlow() {
         const errorMsg = determineErrorMessage(new Error(tokenResult.error || 'Token validation failed'), 'token');
         failVerification(errorMsg);
         showErrorToast('Token Validation Failed', errorMsg);
-        return;
+        return false;
       }
       
       // Step 2: Validate scopes
@@ -75,7 +75,7 @@ export function useVerificationFlow() {
         
         const errorMsg = determineErrorMessage(new Error(scopesResult.error || 'Missing required OAuth scopes'), 'scopes');
         showErrorToast('Scope Validation Failed', errorMsg);
-        return;
+        return false;
       }
       
       // Step 3: Save credentials
@@ -87,7 +87,7 @@ export function useVerificationFlow() {
         const errorMsg = determineErrorMessage(new Error(saveResult.error || 'Failed to save credentials'), 'save');
         failVerification(errorMsg);
         showErrorToast('Save Failed', errorMsg);
-        return;
+        return false;
       }
       
       // Complete verification successfully
@@ -97,6 +97,8 @@ export function useVerificationFlow() {
       
       // Show success toast
       showSuccessToast(verificationDetails.user_email || verificationDetails.user?.email);
+      
+      return true;
     } catch (err: any) {
       console.error('Verification process error:', err);
       
@@ -117,6 +119,7 @@ export function useVerificationFlow() {
       
       // Show toast
       showErrorToast('Verification Failed', errorMsg);
+      return false;
     } finally {
       setSubmitting(false);
       setErrorSubmitting(false);

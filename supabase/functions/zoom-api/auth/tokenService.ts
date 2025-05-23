@@ -25,9 +25,9 @@ export async function getZoomJwtToken(
     throw new Error('Token service temporarily unavailable due to previous failures');
   }
   
-  // Check cache first
+  // Check cache first - use a 5-minute buffer to ensure we refresh early
   const cached = tokenCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now() + 60000) { // 1-minute buffer
+  if (cached && cached.expiresAt > Date.now() + 300000) { // 5-minute buffer
     console.log('Using cached token that expires in', Math.floor((cached.expiresAt - Date.now()) / 1000), 'seconds');
     return { access_token: cached.token, expires_in: Math.floor((cached.expiresAt - Date.now()) / 1000) };
   }
@@ -76,7 +76,8 @@ export async function getZoomJwtToken(
       throw new Error('Rate limit exceeded when requesting token');
     }
     
-    console.error('Failed to get token:', error.message);
+    // Log full error for debugging
+    console.error('Failed to get token:', error);
     throw error;
   }
 }
@@ -99,6 +100,8 @@ async function requestToken(
     const timeoutId = setTimeout(() => controller.abort(), TOKEN_REQUEST_TIMEOUT);
     
     try {
+      console.log(`[tokenService] Attempting token request (attempt ${retryCount + 1}/${TOKEN_MAX_RETRIES + 1})`);
+      
       const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
@@ -115,7 +118,7 @@ async function requestToken(
       // Handle non-200 responses
       if (!response.ok) {
         console.error(`Token request failed with status ${response.status}`);
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         console.error('Error response:', JSON.stringify(errorData));
         
         // Specific error handling based on response
@@ -130,7 +133,9 @@ async function requestToken(
         throw new Error(`Token request failed: ${errorData.error_description || errorData.error || response.statusText}`);
       }
       
-      return await response.json();
+      const responseData = await response.json();
+      console.log(`[tokenService] Successfully obtained token, expires in ${responseData.expires_in} seconds`);
+      return responseData;
     } finally {
       clearTimeout(timeoutId);
     }
