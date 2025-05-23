@@ -73,9 +73,7 @@ export function useZoomVerificationFlow() {
           account_id: credentials.account_id,
           client_id: credentials.client_id,
           client_secret: credentials.client_secret
-        },
-        // Fix: Set timeout directly in the invoke options, not in a nested 'options' object
-        timeout: 40000 // 40 seconds
+        }
       });
       
       if (saveError) {
@@ -145,12 +143,10 @@ export function useZoomVerificationFlow() {
     try {
       console.log('Verifying credentials...');
       
-      // Fix: Set timeout directly in the invoke options, not in a nested 'options' object
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke('zoom-api', {
         body: { 
           action: 'verify-credentials'
-        },
-        timeout: 40000 // 40 seconds
+        }
       });
       
       if (verifyError) {
