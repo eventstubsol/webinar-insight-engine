@@ -17,6 +17,8 @@ async function withRetry<T>(operation: () => Promise<T>, maxRetries = MAX_RETRIE
     } catch (err) {
       lastError = err;
       
+      console.log(`API call failed on attempt ${attempt + 1}/${maxRetries + 1}:`, err.message || 'Unknown error');
+      
       // Check if we should retry based on the error
       if (err.status === 429 || err.status >= 500 || 
           err.message?.includes('network') || 
@@ -62,6 +64,8 @@ export async function verifyZoomCredentials(credentials: any) {
       credentials.client_id,
       credentials.client_secret
     ));
+    
+    console.log('Successfully obtained token');
     
     // If we got here, the credentials are valid
     return token;

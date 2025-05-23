@@ -129,6 +129,13 @@ export async function handleVerifyCredentials(req: Request, supabaseAdmin: any, 
       return createErrorResponse(`Network error: ${error.message}`, 503);
     }
     
+    // Check for authentication or credential errors
+    if (error.message?.includes('Invalid client') || 
+        error.message?.includes('Invalid account') || 
+        error.message?.includes('unauthorized')) {
+      return createErrorResponse(`Authentication error: ${error.message}`, 401);
+    }
+    
     // Generic credential verification error
     return createErrorResponse(`Verification failed: ${error.message}`, 400);
   }
