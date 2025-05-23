@@ -28,6 +28,7 @@ export async function getZoomJwtToken(
   // Check cache first
   const cached = tokenCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() + 60000) { // 1-minute buffer
+    console.log('Using cached token that expires in', Math.floor((cached.expiresAt - Date.now()) / 1000), 'seconds');
     return { access_token: cached.token, expires_in: Math.floor((cached.expiresAt - Date.now()) / 1000) };
   }
   
@@ -36,6 +37,8 @@ export async function getZoomJwtToken(
     if (!accountId || !clientId || !clientSecret) {
       throw new Error('Missing required Zoom credentials (account_id, client_id, or client_secret)');
     }
+    
+    console.log('Requesting new token from Zoom API');
     
     // Request new token
     const tokenResponse = await requestToken(accountId, clientId, clientSecret);
@@ -58,7 +61,7 @@ export async function getZoomJwtToken(
     // Record success in circuit breaker
     circuitBreaker.recordSuccess();
     
-    console.log('Successfully retrieved new access token');
+    console.log('Successfully retrieved new access token, expires in', expiresIn, 'seconds');
     return tokenResponse;
   } catch (error) {
     // Record failure in circuit breaker
@@ -73,6 +76,7 @@ export async function getZoomJwtToken(
       throw new Error('Rate limit exceeded when requesting token');
     }
     
+    console.error('Failed to get token:', error.message);
     throw error;
   }
 }
@@ -110,7 +114,9 @@ async function requestToken(
       
       // Handle non-200 responses
       if (!response.ok) {
+        console.error(`Token request failed with status ${response.status}`);
         const errorData = await response.json();
+        console.error('Error response:', JSON.stringify(errorData));
         
         // Specific error handling based on response
         if (response.status === 429) {
@@ -144,6 +150,14 @@ async function requestToken(
     
     throw error;
   }
+}
+
+// Force token refresh by removing from cache
+export function clearTokenCache(accountId: string, clientId: string): boolean {
+  const cacheKey = `${accountId}:${clientId}`;
+  const hadToken = tokenCache.has(cacheKey);
+  tokenCache.delete(cacheKey);
+  return hadToken;
 }
 
 export default getZoomJwtToken;

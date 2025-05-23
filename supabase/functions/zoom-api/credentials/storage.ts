@@ -5,38 +5,42 @@ export async function getZoomCredentials(supabase: any, userId: string) {
   console.log(`Getting Zoom credentials for user ${userId}`);
   
   try {
-    const { data: credentials, error } = await supabase
+    const { data, error } = await supabase
       .from('zoom_credentials')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
       
     if (error) {
-      console.error('Error fetching Zoom credentials:', error);
+      console.error('Error fetching credentials:', error);
       return null;
     }
     
-    if (!credentials) {
-      console.log('No Zoom credentials found for this user');
+    if (!data) {
       return null;
     }
     
-    // Check token expiry if we have a token and expiry time
-    if (credentials.access_token && credentials.token_expires_at) {
-      const expiryTime = new Date(credentials.token_expires_at).getTime();
-      const now = new Date().getTime();
+    // Check if the token is expired or will expire soon
+    if (data.access_token && data.token_expires_at) {
+      // Convert the expires_at timestamp to a Date
+      const expiresAt = new Date(data.token_expires_at).getTime();
       
-      // If token is expired or close to expiry (within 5 minutes), mark it as invalid
-      if (expiryTime - now < 5 * 60 * 1000) {
-        console.log('Access token is expired or about to expire');
-        // We keep the token in the response but mark it as needing refresh
-        credentials.token_needs_refresh = true;
+      // If token expires in less than 5 minutes, it will be refreshed on use
+      const expiresInMs = expiresAt - Date.now();
+      const expiresInMinutes = Math.floor(expiresInMs / (1000 * 60));
+      
+      if (expiresInMs <= 0) {
+        console.log('Token is expired, will be refreshed on use');
+      } else if (expiresInMinutes < 5) {
+        console.log(`Token expires soon (in ${expiresInMinutes} minutes), will be refreshed on use`);
+      } else {
+        console.log(`Token valid for ${expiresInMinutes} more minutes`);
       }
     }
     
-    return credentials;
-  } catch (err) {
-    console.error('Exception when fetching Zoom credentials:', err);
+    return data;
+  } catch (e) {
+    console.error('Error in getZoomCredentials:', e);
     return null;
   }
 }
@@ -50,36 +54,42 @@ export async function saveZoomCredentials(
     client_id: string, 
     client_secret: string 
   },
-  isVerified: boolean = false,
-  accessToken?: string,
-  expiresIn?: number
+  token?: string,
+  verified: boolean = false
 ) {
   try {
-    console.log(`Saving credentials for user ${userId}, with token: ${accessToken ? 'present' : 'not present'}`);
+    console.log(`Saving credentials for user ${userId}, with token: ${token ? 'present' : 'not present'}`);
     
-    // Calculate token expiry time if provided
+    // Calculate token expiration time if token is provided
     let tokenExpiresAt = null;
-    if (accessToken && expiresIn) {
-      tokenExpiresAt = new Date(Date.now() + (expiresIn * 1000)).toISOString();
+    if (token && credentials.expires_in) {
+      tokenExpiresAt = new Date(Date.now() + (credentials.expires_in * 1000)).toISOString();
       console.log(`Token will expire at ${tokenExpiresAt}`);
     }
     
+    // Check if credentials already exist for this user
+    const { data: existingData } = await supabase
+      .from('zoom_credentials')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    const upsertData = {
+      user_id: userId,
+      account_id: credentials.account_id,
+      client_id: credentials.client_id,
+      client_secret: credentials.client_secret,
+      is_verified: verified,
+      updated_at: new Date().toISOString(),
+      access_token: token || null,
+      token_expires_at: tokenExpiresAt
+    };
+    
+    // Update or insert credentials
     const { data, error } = await supabase
       .from('zoom_credentials')
-      .upsert({
-        user_id: userId,
-        account_id: credentials.account_id,
-        client_id: credentials.client_id,
-        client_secret: credentials.client_secret,
-        is_verified: isVerified,
-        access_token: accessToken,
-        token_expires_in: expiresIn,
-        token_expires_at: tokenExpiresAt,
-        last_verified_at: isVerified ? new Date().toISOString() : null
-      }, {
-        onConflict: 'user_id'
-      })
-      .select()
+      .upsert(upsertData, { onConflict: 'user_id' })
+      .select('id, is_verified')
       .single();
     
     if (error) {
@@ -87,10 +97,11 @@ export async function saveZoomCredentials(
       throw new Error(`Failed to save credentials: ${error.message}`);
     }
     
+    console.log(`Successfully ${existingData ? 'updated' : 'saved'} credentials for user ${userId}`);
     return data;
-  } catch (error) {
-    console.error('Error saving Zoom credentials:', error);
-    throw error;
+  } catch (e) {
+    console.error('Error in saveZoomCredentials:', e);
+    throw e;
   }
 }
 
@@ -98,45 +109,48 @@ export async function saveZoomCredentials(
 export async function updateCredentialsVerification(
   supabase: any, 
   userId: string, 
-  isVerified: boolean,
-  accessToken?: string,
-  expiresIn?: number
+  verified: boolean,
+  token?: string,
+  tokenExpiresIn?: number
 ) {
   try {
+    // Calculate token expiration time if token is provided
+    let tokenExpiresAt = null;
+    if (token && tokenExpiresIn) {
+      tokenExpiresAt = new Date(Date.now() + (tokenExpiresIn * 1000)).toISOString();
+    }
+    
     const updateData: any = { 
-      is_verified: isVerified
+      is_verified: verified,
+      updated_at: new Date().toISOString()
     };
     
-    if (isVerified) {
-      updateData.last_verified_at = new Date().toISOString();
+    // Add token fields if provided
+    if (token) {
+      updateData.access_token = token;
+      updateData.token_expires_at = tokenExpiresAt;
     }
     
-    // Handle token and expiry information
-    if (accessToken) {
-      console.log(`Updating credentials with new access token for user ${userId}`);
-      updateData.access_token = accessToken;
-      
-      // If we have expiry information, store it
-      if (expiresIn) {
-        updateData.token_expires_in = expiresIn;
-        updateData.token_expires_at = new Date(Date.now() + (expiresIn * 1000)).toISOString();
-        console.log(`Token will expire at ${updateData.token_expires_at}`);
-      }
-    }
-    
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('zoom_credentials')
       .update(updateData)
-      .eq('user_id', userId);
-      
+      .eq('user_id', userId)
+      .select('id, is_verified')
+      .single();
+    
     if (error) {
-      console.error('Error updating credentials verification:', error);
-      throw error;
+      console.error('Error updating verification status:', error);
+      throw new Error(`Failed to update verification status: ${error.message}`);
     }
     
-    console.log(`Successfully updated verification status to ${isVerified} for user ${userId}`);
-  } catch (error) {
-    console.error('Error updating credentials verification:', error);
-    throw error;
+    console.log(`Successfully updated verification status to ${verified} for user ${userId}`);
+    if (token) {
+      console.log(`Updated token with expiry in ${tokenExpiresIn || 'unknown'} seconds`);
+    }
+    
+    return data;
+  } catch (e) {
+    console.error('Error in updateCredentialsVerification:', e);
+    throw e;
   }
 }

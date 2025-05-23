@@ -1,4 +1,3 @@
-
 import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { createErrorResponse, createSuccessResponse } from "./cors.ts";
@@ -68,6 +67,21 @@ export async function executeWithTimeout<T>(
   }
 }
 
+// The main router function with improved error handling and diagnostics
+export async function routeRequest(req: Request, supabaseAdmin: any, user: any, body: any) {
+  const action = body?.action;
+  const requestId = generateRequestId();
+  
+  console.log(`[zoom-api:router] [${requestId}] Routing action: ${action}`);
+  
+  try {
+    return await processLongRunningAction(req, supabaseAdmin, user, body);
+  } catch (error) {
+    console.error(`[zoom-api:router] [${requestId}] Unhandled error:`, error);
+    return handleApiError(error);
+  }
+}
+
 // Process actions that might take longer using background tasks
 export async function processLongRunningAction(
   req: Request, 
@@ -101,32 +115,84 @@ export async function processLongRunningAction(
         return createErrorResponse("Zoom credentials not found", 400);
       }
       
-      // Verify credentials
-      const token = await verifyZoomCredentials(credentials);
-      const apiClient = new ZoomApiClient(token);
-      
-      // Start background task
-      const backgroundTask = executeInBackground(
-        `${action}_${requestId}`,
-        async () => {
+      try {
+        // Verify credentials and refresh token if needed
+        const token = await verifyZoomCredentials(credentials);
+        
+        // If token has changed, update it in the database
+        if (token !== credentials.access_token) {
+          await updateCredentialsVerification(supabaseAdmin, user.id, true, token);
+          console.log(`[zoom-api:router] [${requestId}] Updated access token for user ${user.id}`);
+          credentials.access_token = token; // Update the local credentials object
+        }
+        
+        const apiClient = new ZoomApiClient(token);
+        
+        // Start background task
+        const backgroundTask = executeInBackground(
+          `${action}_${requestId}`,
+          async () => {
+            try {
+              const result = await handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials, apiClient);
+              circuitBreaker.recordSuccess();
+              return result;
+            } catch (error) {
+              circuitBreaker.recordFailure();
+              console.error(`[zoom-api:router] [${requestId}] Background task failed:`, error);
+              return handleApiError(error);
+            }
+          }
+        );
+        
+        // Return immediate success response
+        return createSuccessResponse({
+          message: "Participant update started in the background",
+          requestId,
+          status: "processing"
+        });
+      } catch (credentialError) {
+        console.error(`[zoom-api:router] [${requestId}] Credential verification failed:`, credentialError);
+        
+        // Special handling for token errors - try refreshing
+        if (credentialError.message && 
+            (credentialError.message.includes('token') || 
+             credentialError.message.includes('expired'))) {
           try {
-            const result = await handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials, apiClient);
-            circuitBreaker.recordSuccess();
-            return result;
-          } catch (error) {
-            circuitBreaker.recordFailure();
-            console.error(`[zoom-api:router] [${requestId}] Background task failed:`, error);
-            return handleApiError(error);
+            console.log(`[zoom-api:router] [${requestId}] Attempting to refresh token for user ${user.id}`);
+            const { refreshZoomToken } = await import('./credentials/verification.ts');
+            const refreshResult = await refreshZoomToken(credentials);
+            
+            // Update credentials with new token
+            await updateCredentialsVerification(
+              supabaseAdmin, 
+              user.id, 
+              true, 
+              refreshResult.token, 
+              refreshResult.expires_in
+            );
+            
+            console.log(`[zoom-api:router] [${requestId}] Successfully refreshed token for user ${user.id}`);
+            
+            // Return success with refresh notice
+            return createSuccessResponse({
+              message: "Access token refreshed. Please retry your request.",
+              token_refreshed: true,
+              requestId
+            });
+          } catch (refreshError) {
+            // Token refresh failed, mark credentials as invalid
+            await updateCredentialsVerification(supabaseAdmin, user.id, false);
+            return createErrorResponse(
+              `Token refresh failed: ${refreshError.message || 'Unknown error'}`,
+              401
+            );
           }
         }
-      );
-      
-      // Return immediate success response
-      return createSuccessResponse({
-        message: "Participant update started in the background",
-        requestId,
-        status: "processing"
-      });
+        
+        // For other credential errors
+        await updateCredentialsVerification(supabaseAdmin, user.id, false);
+        return createErrorResponse(`Authentication failed: ${credentialError.message}`, 401);
+      }
     }
     
     // Regular handling for non-background operations
@@ -164,7 +230,6 @@ export async function processLongRunningAction(
         break;
       
       case "validate-token":
-        // New endpoint: only validate token generation
         console.log(`[zoom-api:router] [${requestId}] Getting credentials for token validation for user ${user.id}`);
         const tokenValidationCreds = await getZoomCredentials(supabaseAdmin, user.id);
         if (!tokenValidationCreds) {
@@ -182,7 +247,6 @@ export async function processLongRunningAction(
         break;
         
       case "validate-scopes":
-        // New endpoint: only validate OAuth scopes
         console.log(`[zoom-api:router] [${requestId}] Getting credentials for scope validation for user ${user.id}`);
         const scopeValidationCreds = await getZoomCredentials(supabaseAdmin, user.id);
         if (!scopeValidationCreds) {
@@ -200,7 +264,6 @@ export async function processLongRunningAction(
         break;
       
       case "verify-credentials":
-        // Get Zoom credentials for this action
         console.log(`[zoom-api:router] [${requestId}] Getting credentials for verification for user ${user.id}`);
         const verifyCredentials = await getZoomCredentials(supabaseAdmin, user.id);
         if (!verifyCredentials) {
@@ -237,6 +300,7 @@ export async function processLongRunningAction(
           if (token !== credentials.access_token) {
             await updateCredentialsVerification(supabaseAdmin, user.id, true, token);
             console.log(`[zoom-api:router] [${requestId}] Updated access token for user ${user.id}`);
+            credentials.access_token = token; // Update the local credentials object
           }
           
           // Create API client with rate limiting
@@ -245,18 +309,58 @@ export async function processLongRunningAction(
           // Route to the correct action handler with timeout protection
           switch (action) {
             case "list-webinars":
-              // Use rate limiting for this heavy operation
-              response = await rateRegistry.executeWithRateLimit(
-                RateLimitCategory.HEAVY,
-                async () => {
-                  return await executeWithTimeout(
-                    () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
-                    EXTENDED_OPERATION_TIMEOUT,
-                    "list-webinars",
-                    requestId
-                  );
+              try {
+                // Use rate limiting for this heavy operation
+                response = await rateRegistry.executeWithRateLimit(
+                  RateLimitCategory.HEAVY,
+                  async () => {
+                    return await executeWithTimeout(
+                      () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
+                      EXTENDED_OPERATION_TIMEOUT,
+                      "list-webinars",
+                      requestId
+                    );
+                  }
+                );
+              } catch (webinarError) {
+                console.error(`[zoom-api:router] [${requestId}] Error in list-webinars:`, webinarError);
+                
+                // Check for token expiration errors
+                if (webinarError.message && (
+                  webinarError.message.includes('token') || 
+                  webinarError.message.includes('expired') ||
+                  webinarError.message.includes('authentication')
+                )) {
+                  try {
+                    console.log(`[zoom-api:router] [${requestId}] Attempting to refresh token for webinar list`);
+                    const { refreshZoomToken } = await import('./credentials/verification.ts');
+                    const refreshResult = await refreshZoomToken(credentials);
+                    
+                    await updateCredentialsVerification(
+                      supabaseAdmin, 
+                      user.id, 
+                      true, 
+                      refreshResult.token, 
+                      refreshResult.expires_in
+                    );
+                    
+                    return createSuccessResponse({
+                      message: "Access token refreshed. Please retry your webinar request.",
+                      token_refreshed: true,
+                      requestId
+                    });
+                  } catch (refreshError) {
+                    // Token refresh failed
+                    return createErrorResponse(
+                      `Failed to refresh token: ${refreshError.message}`,
+                      401
+                    );
+                  }
                 }
-              );
+                
+                // If not token-related, bubble up the original error
+                throw webinarError;
+              }
               break;
               
             case "get-webinar":
@@ -335,7 +439,43 @@ export async function processLongRunningAction(
               return createErrorResponse(`Unknown action: ${action}`, 400);
           }
         } catch (credentialError) {
-          // If verification fails, mark credentials as invalid
+          // Special handling for token errors - try refreshing
+          if (credentialError.message && 
+              (credentialError.message.includes('token') || 
+               credentialError.message.includes('expired'))) {
+            try {
+              console.log(`[zoom-api:router] [${requestId}] Attempting to refresh token after credential error`);
+              const { refreshZoomToken } = await import('./credentials/verification.ts');
+              const refreshResult = await refreshZoomToken(credentials);
+              
+              // Update credentials with new token
+              await updateCredentialsVerification(
+                supabaseAdmin, 
+                user.id, 
+                true, 
+                refreshResult.token, 
+                refreshResult.expires_in
+              );
+              
+              console.log(`[zoom-api:router] [${requestId}] Successfully refreshed token for user ${user.id}`);
+              
+              // Return success with refresh notice
+              return createSuccessResponse({
+                message: "Access token refreshed. Please retry your request.",
+                token_refreshed: true,
+                requestId
+              });
+            } catch (refreshError) {
+              // Token refresh failed, mark credentials as invalid
+              await updateCredentialsVerification(supabaseAdmin, user.id, false);
+              return createErrorResponse(
+                `Token refresh failed: ${refreshError.message || 'Unknown error'}`,
+                401
+              );
+            }
+          }
+          
+          // If verification fails for other reasons, mark credentials as invalid
           await updateCredentialsVerification(supabaseAdmin, user.id, false);
           console.error(`[zoom-api:router] [${requestId}] Credential verification failed for user ${user.id}:`, credentialError);
           return createErrorResponse(`Authentication failed: ${credentialError.message}`, 401);
@@ -358,21 +498,6 @@ export async function processLongRunningAction(
     circuitBreaker.recordFailure();
     
     console.error(`[zoom-api:router] [${requestId}] Error in ${action} action:`, error);
-    return handleApiError(error);
-  }
-}
-
-// The main router function with improved error handling and diagnostics
-export async function routeRequest(req: Request, supabaseAdmin: any, user: any, body: any) {
-  const action = body?.action;
-  const requestId = generateRequestId();
-  
-  console.log(`[zoom-api:router] [${requestId}] Routing action: ${action}`);
-  
-  try {
-    return await processLongRunningAction(req, supabaseAdmin, user, body);
-  } catch (error) {
-    console.error(`[zoom-api:router] [${requestId}] Unhandled error:`, error);
     return handleApiError(error);
   }
 }

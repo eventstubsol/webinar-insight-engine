@@ -44,61 +44,82 @@ export class ZoomApiClient {
    */
   private async executeWithRetries(
     url: string,
-    options: RequestInit,
-    retryCount: number = 0
+    options: RequestInit
   ): Promise<Response> {
-    try {
-      const response = await fetch(url, options);
-      
-      // Check for rate limiting and retry with backoff
-      if (response.status === 429 && retryCount < this.maxRetries) {
-        // Get retry-after header or use exponential backoff
-        const retryAfter = response.headers.get('Retry-After');
-        const waitTime = retryAfter ? 
-          parseInt(retryAfter, 10) * 1000 : 
-          Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
+    let lastError: Error | null = null;
+    
+    // Try up to maxRetries times
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        // If not the first attempt, add some exponential backoff delay
+        if (attempt > 0) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          console.log(`Retry attempt ${attempt}/${this.maxRetries} for ${url}, waiting ${delay}ms`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
         
-        console.log(`Rate limited. Retrying after ${waitTime}ms (retry ${retryCount + 1}/${this.maxRetries})`);
+        // Make the request
+        const response = await fetch(url, options);
         
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        return this.executeWithRetries(url, options, retryCount + 1);
-      }
-      
-      // Check for auth issues (token expired)
-      if (response.status === 401) {
-        const errorData = await response.json();
-        console.error('Zoom API error on', url, ':', errorData);
-        throw new Error(`Access token is expired.`);
-      }
-      
-      // Check for server errors and retry
-      if (response.status >= 500 && retryCount < this.maxRetries) {
-        const waitTime = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
-        console.log(`Server error (${response.status}). Retrying after ${waitTime}ms (retry ${retryCount + 1}/${this.maxRetries})`);
+        // Special handling for 401 Unauthorized - could indicate token expiry
+        if (response.status === 401) {
+          const data = await response.json();
+          console.error(`Authentication error: ${data.message || 'Unknown auth error'}`);
+          
+          // Check if it's a token expiration error
+          if (data.message?.includes('expired') || data.message?.includes('token') || data.code === 124) {
+            throw new Error(`Token expired: ${data.message}`);
+          }
+        }
         
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        return this.executeWithRetries(url, options, retryCount + 1);
-      }
-      
-      return response;
-    } catch (error) {
-      // Handle network errors with retries
-      if (retryCount < this.maxRetries && (
-        error.message.includes('Failed to fetch') ||
-        error.message.includes('network') ||
-        error.message.includes('ECONNRESET') ||
-        error.message.includes('ETIMEDOUT')
-      )) {
-        const waitTime = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
-        console.log(`Network error: ${error.message}. Retrying after ${waitTime}ms (retry ${retryCount + 1}/${this.maxRetries})`);
+        // Return the response regardless of status - the caller will handle different statuses
+        return response;
+      } catch (error: any) {
+        lastError = error;
         
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        return this.executeWithRetries(url, options, retryCount + 1);
+        // Determine if this error is retryable
+        const isRetryable = (
+          error.message?.includes('network') ||
+          error.message?.includes('timeout') ||
+          error.message?.includes('fetch failed') ||
+          error.message?.includes('connection') ||
+          error.message?.includes('ECONNRESET') ||
+          error.message?.includes('ETIMEDOUT') ||
+          error.message?.includes('socket hang up')
+        );
+        
+        // If we've used all retries or the error isn't retryable, break out of the loop
+        if (attempt >= this.maxRetries || !isRetryable) {
+          console.log(`Giving up after attempt ${attempt + 1}/${this.maxRetries + 1}: ${error.message}`);
+          break;
+        }
+        
+        console.log(`Request failed (attempt ${attempt + 1}/${this.maxRetries + 1}): ${error.message}`);
       }
-      
-      throw error;
     }
+    
+    // If we got here, all retries failed
+    throw lastError || new Error(`Request failed after ${this.maxRetries} retries`);
+  }
+  
+  /**
+   * Helper method to make a GET request
+   */
+  async get(endpoint: string, options: RequestInit = {}): Promise<Response> {
+    return this.request(endpoint, { ...options, method: 'GET' });
+  }
+  
+  /**
+   * Helper method to make a POST request
+   */
+  async post(endpoint: string, body: any, options: RequestInit = {}): Promise<Response> {
+    return this.request(
+      endpoint, 
+      { 
+        ...options, 
+        method: 'POST',
+        body: JSON.stringify(body)
+      }
+    );
   }
 }
-
-export default ZoomApiClient;

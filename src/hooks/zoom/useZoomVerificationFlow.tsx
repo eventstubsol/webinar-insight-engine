@@ -17,6 +17,12 @@ export function useZoomVerificationFlow() {
     verificationStage: verificationFlow.currentStage,
     savedCredentials: null, // This will be populated by the useZoomCredentialsLoader
     handleVerificationProcess: verificationFlow.handleVerificationProcess,
-    clearScopesError: verificationFlow.clearScopesError
+    clearScopesError: verificationFlow.clearScopesError,
+    
+    // Adding these for backwards compatibility
+    isVerifying: verificationFlow.isVerifying,
+    details: verificationFlow.verificationState.verificationDetails,
+    error: verificationFlow.verificationState.error,
+    stage: verificationFlow.currentStage
   };
 }

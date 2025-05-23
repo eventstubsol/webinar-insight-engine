@@ -1,191 +1,155 @@
 
-import { useState } from 'react';
-import { useToast } from "@/hooks/use-toast";
+import { useCallback } from 'react';
 import { useVerificationState } from './useVerificationState';
 import { useVerificationAPIs } from './useVerificationAPIs';
 import { useVerificationErrorHandler } from './useVerificationErrorHandler';
-import { ZoomCredentials, VerificationStage, VerificationDetails } from './types';
+import { VerificationStage, ZoomCredentials } from './types';
 
 export function useVerificationFlow() {
-  const [error, setError] = useState<string | null>(null);
-  const { 
-    verificationState, 
-    updateVerificationState, 
-    resetVerificationState 
+  // Get necessary hooks
+  const {
+    verificationState,
+    updateStage,
+    setSubmitting,
+    setScopesError,
+    setVerificationDetails,
+    completeVerification,
+    failVerification,
+    resetVerificationState
   } = useVerificationState();
   
-  const { validateToken, validateScopes, saveCredentials } = useVerificationAPIs();
-  const { 
-    setupVerificationTimeout, 
-    clearVerificationTimeout, 
-    setSubmitting,
-    determineErrorMessage,
+  const {
+    validateToken,
+    validateScopes,
+    saveCredentials
+  } = useVerificationAPIs();
+  
+  const {
     showErrorToast,
     showSuccessToast,
-    isSubmitting
-  } = useVerificationErrorHandler();
+    determineErrorMessage,
+    setSubmitting: setErrorSubmitting,
+    setupVerificationTimeout,
+    clearVerificationTimeout
+  } = useVerificationErrorHandler(() => {
+    // Handle timeout by failing verification
+    failVerification('Verification timed out. Please try again.');
+  });
   
-  const { toast } = useToast();
+  // Clear any scope errors that might have been set
+  const clearScopesError = useCallback(() => {
+    setScopesError(false);
+  }, [setScopesError]);
   
-  // Handle verification flow using a step-by-step approach
-  const verifyCredentials = async (credentials: ZoomCredentials): Promise<VerificationDetails | null> => {
-    // Reset any previous errors
-    setError(null);
+  // Handle the verification process
+  const handleVerificationProcess = useCallback(async (credentials: ZoomCredentials) => {
+    resetVerificationState();
     setSubmitting(true);
+    setErrorSubmitting(true);
+    setupVerificationTimeout();
     
     try {
-      // Update state to show we're validating the token
-      updateVerificationState({
-        stage: VerificationStage.TOKEN_VALIDATION,
-        isSubmitting: true
-      });
+      // Step 1: Validate the token
+      updateStage(VerificationStage.TOKEN_VALIDATION);
+      console.log('Validating token...');
       
-      // Set up timeout for the entire operation
-      setupVerificationTimeout(45000); // 45 seconds timeout
-      
-      console.log('Starting token validation...');
-      // Step 1: Validate that we can generate a token
       const tokenResult = await validateToken(credentials);
-      
       if (!tokenResult.success) {
-        throw new Error(tokenResult.error || 'Failed to validate token');
+        const errorMsg = determineErrorMessage(new Error(tokenResult.error || 'Token validation failed'), 'token');
+        failVerification(errorMsg);
+        showErrorToast('Token Validation Failed', errorMsg);
+        return;
       }
       
-      console.log('Token validation successful, checking scopes...');
+      // Step 2: Validate scopes
+      updateStage(VerificationStage.SCOPE_VALIDATION);
+      console.log('Validating scopes...');
       
-      // Update state to show we're validating scopes
-      updateVerificationState({
-        stage: VerificationStage.SCOPE_VALIDATION,
-        isSubmitting: true
-      });
-      
-      // Step 2: Validate that the token has the required scopes
-      const scopeResult = await validateScopes(credentials);
-      
-      if (!scopeResult.success) {
-        throw new Error(scopeResult.error || 'Failed to validate OAuth scopes');
+      const scopesResult = await validateScopes(credentials);
+      if (!scopesResult.success) {
+        // Set scopes error state
+        setScopesError(true);
+        
+        // Update state
+        updateStage(VerificationStage.SCOPE_ERROR);
+        
+        const errorMsg = determineErrorMessage(new Error(scopesResult.error || 'Missing required OAuth scopes'), 'scopes');
+        showErrorToast('Scope Validation Failed', errorMsg);
+        return;
       }
       
-      console.log('Scope validation successful, saving credentials...');
+      // Step 3: Save credentials
+      updateStage(VerificationStage.SAVING);
+      console.log('Saving credentials...');
       
-      // Update state to show we're saving credentials
-      updateVerificationState({
-        stage: VerificationStage.SAVING,
-        isSubmitting: true
-      });
-      
-      // Step 3: Save the credentials with the backend
       const saveResult = await saveCredentials(credentials);
-      
       if (!saveResult.success) {
-        throw new Error(saveResult.error || 'Failed to save credentials');
+        const errorMsg = determineErrorMessage(new Error(saveResult.error || 'Failed to save credentials'), 'save');
+        failVerification(errorMsg);
+        showErrorToast('Save Failed', errorMsg);
+        return;
       }
       
-      console.log('Credentials saved successfully!');
-      
-      // Clear timeout as operation completed successfully
-      clearVerificationTimeout();
-      
-      // All steps completed successfully!
-      updateVerificationState({
-        stage: VerificationStage.COMPLETED,
-        isSubmitting: false,
-        details: {
-          user: saveResult.data?.user,
-          verified: true,
-          scopes: scopeResult.data?.scopes || []
-        }
-      });
+      // Complete verification successfully
+      const verificationDetails = saveResult.data || { success: true };
+      setVerificationDetails(verificationDetails);
+      completeVerification(verificationDetails);
       
       // Show success toast
-      showSuccessToast(saveResult.data?.user?.email);
-      
-      return {
-        user: saveResult.data?.user,
-        verified: true,
-        scopes: scopeResult.data?.scopes || []
-      };
+      showSuccessToast(verificationDetails.user_email || verificationDetails.user?.email);
     } catch (err: any) {
-      console.error('Verification flow error:', err);
+      console.error('Verification process error:', err);
       
-      // Get a user-friendly error message
-      let stage: VerificationStage;
-      let errorContext: 'token' | 'scopes' | 'save' = 'token';
+      // Determine error category and message
+      const errorMsg = determineErrorMessage(err);
       
-      // Determine the stage where the error occurred
-      if (verificationState.stage === VerificationStage.SCOPE_VALIDATION) {
-        stage = VerificationStage.SCOPE_ERROR;
-        errorContext = 'scopes';
-      } else if (verificationState.stage === VerificationStage.SAVING) {
-        stage = VerificationStage.INPUT;
-        errorContext = 'save';
+      // Check if this is a scopes error
+      if (err.message && (
+        err.message.includes('scope') || 
+        err.message.includes('OAuth') || 
+        err.message.includes('permission')
+      )) {
+        setScopesError(true);
+        updateStage(VerificationStage.SCOPE_ERROR);
       } else {
-        stage = VerificationStage.INPUT;
-        errorContext = 'token';
+        failVerification(errorMsg);
       }
       
-      // Get a user-friendly error message
-      const errorMessage = determineErrorMessage(err, errorContext);
-      
-      // Update state with error
-      updateVerificationState({
-        stage,
-        isSubmitting: false,
-        error: errorMessage
-      });
-      
-      // Show error toast
-      showErrorToast(`Verification failed`, errorMessage);
-      
-      // Set error for form display
-      setError(errorMessage);
-      
-      return null;
+      // Show toast
+      showErrorToast('Verification Failed', errorMsg);
     } finally {
-      // Always ensure we clean up and reset state
       setSubmitting(false);
+      setErrorSubmitting(false);
       clearVerificationTimeout();
     }
-  };
-
-  const resetVerification = () => {
-    clearVerificationTimeout();
-    setSubmitting(false);
-    setError(null);
-    resetVerificationState();
-  };
-
-  // Create handleVerificationProcess from verifyCredentials for backwards compatibility
-  const handleVerificationProcess = async (credentials: ZoomCredentials): Promise<boolean> => {
-    const result = await verifyCredentials(credentials);
-    return !!result;
-  };
-
-  // Add clearScopesError method
-  const clearScopesError = () => {
-    updateVerificationState({
-      scopesError: false
-    });
-  };
-
-  // Extract values from verificationState for convenience
-  const scopesError = verificationState.scopesError;
-  const verificationStage = verificationState.stage;
-  const verificationDetails = verificationState.verificationDetails || verificationState.details;
-
+  }, [
+    updateStage, 
+    setSubmitting, 
+    setScopesError,
+    validateToken, 
+    validateScopes, 
+    saveCredentials,
+    completeVerification,
+    failVerification,
+    setVerificationDetails,
+    showSuccessToast,
+    showErrorToast,
+    determineErrorMessage,
+    setErrorSubmitting,
+    setupVerificationTimeout,
+    clearVerificationTimeout,
+    resetVerificationState
+  ]);
+  
   return {
-    verifyCredentials,
-    resetVerification,
-    error,
     verificationState,
-    isSubmitting: isSubmitting(),
-    currentStage: verificationState.stage,
-    verificationDetails,
-    // Add additional properties needed by useZoomIntegrationWizard
-    scopesError,
-    verificationStage,
-    savedCredentials: null, // Will be populated in useZoomIntegrationWizard
     handleVerificationProcess,
-    clearScopesError
+    clearScopesError,
+    resetVerificationState,
+    // Additional properties for convenience
+    isVerifying: verificationState.isSubmitting,
+    currentStage: verificationState.stage,
+    scopesError: verificationState.scopesError,
+    error: verificationState.error
   };
 }

@@ -1,4 +1,3 @@
-
 import { getZoomJwtToken } from '../auth/tokenService.ts';
 import { updateCredentialsVerification } from './storage.ts';
 import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
@@ -131,8 +130,7 @@ async function withRetry<T>(
       
       // Enhanced error logging
       console.log(
-        `Operation failed on attempt ${attempt + 1}/${config.maxRetries + 1}: ${error.message || 'Unknown error'}`,
-        error.stack ? `\nStack: ${error.stack}` : ''
+        `Operation failed on attempt ${attempt + 1}/${config.maxRetries + 1}: ${error.message || 'Unknown error'}`
       );
       
       // Check if we've used all retries
@@ -172,7 +170,7 @@ async function withRetry<T>(
       throw new ZoomAuthenticationError(`Authentication error: ${lastError.message}. ${errorDetails}`);
     } else if (lastError.message?.includes('scopes')) {
       throw new ZoomScopesError(`${lastError.message}. ${errorDetails}`);
-    } else if (lastError.message?.includes('token')) {
+    } else if (lastError.message?.includes('token') || lastError.message?.includes('expired')) {
       throw new ZoomTokenError(`Token error: ${lastError.message}. ${errorDetails}`);
     }
   }
@@ -372,5 +370,51 @@ export async function testOAuthScopes(token: string) {
     
     // Generic error
     throw new ZoomAPIError(`Failed to test API scopes: ${error.message || 'Unknown error'}`);
+  }
+}
+
+// New utility function to force token refresh when needed
+export async function refreshZoomToken(credentials: any) {
+  if (!credentials) {
+    throw new ZoomAPIError('Credentials are required');
+  }
+  
+  try {
+    // Import the clearTokenCache function to force a refresh
+    const { clearTokenCache } = await import('../auth/tokenService.ts');
+    
+    // Clear any cached token
+    clearTokenCache(credentials.account_id, credentials.client_id);
+    
+    // Get a fresh token
+    console.log('Forcing token refresh for Zoom credentials');
+    const tokenResponse = await getZoomJwtToken(
+      credentials.account_id,
+      credentials.client_id,
+      credentials.client_secret
+    );
+    
+    if (!tokenResponse || !tokenResponse.access_token) {
+      throw new ZoomTokenError('Failed to obtain fresh token');
+    }
+    
+    // Return the fresh token
+    return {
+      token: tokenResponse.access_token,
+      expires_in: tokenResponse.expires_in || 3600
+    };
+  } catch (error) {
+    console.error('Error refreshing Zoom token:', error);
+    
+    // Convert specific errors to more informative types
+    if (error.message?.includes('Invalid client_id or client_secret')) {
+      throw new ZoomAuthenticationError('Invalid client ID or client secret. Please check your credentials.');
+    } else if (error.message?.includes('Invalid account_id')) {
+      throw new ZoomAuthenticationError('Invalid account ID. Please check your Zoom account ID.');
+    } else if (error.message?.includes('token') || error.message?.includes('expired')) {
+      throw new ZoomTokenError(`Token refresh failed: ${error.message}`);
+    }
+    
+    throw error;
   }
 }
