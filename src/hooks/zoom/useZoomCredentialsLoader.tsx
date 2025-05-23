@@ -86,10 +86,9 @@ export function useZoomCredentialsLoader() {
         // Add delay before actual request to avoid rapid repeated requests
         await new Promise(resolve => setTimeout(resolve, 300));
         
+        // Fix: Use correct parameter syntax for supabase.functions.invoke
         const { data, error } = await supabase.functions.invoke('zoom-api', {
           body: { action: 'get-credentials' }
-        }, {
-          abortSignal: signal
         });
         
         // Clear the timeout if request completes successfully

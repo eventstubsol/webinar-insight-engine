@@ -2,7 +2,7 @@
 import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
 import { saveZoomCredentials, getZoomCredentials, updateCredentialsVerification } from './storage.ts';
-import { verifyZoomCredentials, testOAuthScopes } from './verification.ts';
+import { verifyZoomCredentials, testOAuthScopes, ZoomAPIError, ZoomScopesError, ZoomNetworkError, ZoomAuthenticationError, ZoomRateLimitError } from './verification.ts';
 
 // Handler to save Zoom credentials
 export async function handleSaveCredentials(req: Request, supabaseAdmin: any, user: any, body: any) {
@@ -32,7 +32,11 @@ export async function handleSaveCredentials(req: Request, supabaseAdmin: any, us
     });
   } catch (error) {
     console.error("[zoom-api:handlers] Error saving credentials:", error);
-    return createErrorResponse(`Failed to save credentials: ${error.message}`, 400);
+    
+    const status = error instanceof ZoomAPIError ? error.status : 400;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    return createErrorResponse(`Failed to save credentials: ${message}`, status);
   }
 }
 
@@ -49,7 +53,11 @@ export async function handleCheckCredentialsStatus(req: Request, supabaseAdmin: 
     });
   } catch (error) {
     console.error("[zoom-api:handlers] Error checking credentials status:", error);
-    return createErrorResponse(`Failed to check credentials status: ${error.message}`, 400);
+    
+    const status = error instanceof ZoomAPIError ? error.status : 400;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    return createErrorResponse(`Failed to check credentials status: ${message}`, status);
   }
 }
 
@@ -71,7 +79,11 @@ export async function handleGetCredentials(req: Request, supabaseAdmin: any, use
     });
   } catch (error) {
     console.error("[zoom-api:handlers] Error getting credentials:", error);
-    return createErrorResponse(`Failed to retrieve credentials: ${error.message}`, 400);
+    
+    const status = error instanceof ZoomAPIError ? error.status : 400;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    return createErrorResponse(`Failed to retrieve credentials: ${message}`, status);
   }
 }
 
@@ -117,26 +129,31 @@ export async function handleVerifyCredentials(req: Request, supabaseAdmin: any, 
       console.error("[zoom-api:handlers] Error updating verification status:", updateError);
     }
     
-    // Check for specific error types
-    if (error.message?.includes('scopes')) {
-      return createErrorResponse(error.message, 403, { 'X-Error-Type': 'missing_scopes', 'X-Error-Code': '4711' });
+    // Handle different error types with appropriate responses
+    if (error instanceof ZoomScopesError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'missing_scopes',
+        'X-Error-Code': '4711'
+      });
     }
     
-    // Check for network timeouts or connection issues
-    if (error.message?.includes('timed out') || 
-        error.message?.includes('network') ||
-        error.message?.includes('connection')) {
-      return createErrorResponse(`Network error: ${error.message}`, 503);
+    if (error instanceof ZoomNetworkError) {
+      return createErrorResponse(`Network error: ${error.message}`, error.status);
     }
     
-    // Check for authentication or credential errors
-    if (error.message?.includes('Invalid client') || 
-        error.message?.includes('Invalid account') || 
-        error.message?.includes('unauthorized')) {
-      return createErrorResponse(`Authentication error: ${error.message}`, 401);
+    if (error instanceof ZoomAuthenticationError) {
+      return createErrorResponse(`Authentication error: ${error.message}`, error.status);
     }
     
-    // Generic credential verification error
-    return createErrorResponse(`Verification failed: ${error.message}`, 400);
+    if (error instanceof ZoomRateLimitError) {
+      return createErrorResponse(`Rate limit exceeded: ${error.message}`, error.status);
+    }
+    
+    if (error instanceof ZoomAPIError) {
+      return createErrorResponse(`Zoom API error: ${error.message}`, error.status);
+    }
+    
+    // Generic error response
+    return createErrorResponse(`Verification failed: ${error.message || 'Unknown error'}`, 400);
   }
 }

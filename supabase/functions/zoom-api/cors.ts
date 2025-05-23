@@ -38,26 +38,33 @@ export function addCorsHeaders(response: Response): Response {
 }
 
 // Helper to create error responses with CORS headers
-export function createErrorResponse(message: string, status: number = 400): Response {
+export function createErrorResponse(message: string, status: number = 400, additionalHeaders: Record<string, string> = {}): Response {
   console.error(`Error response (${status}): ${message}`);
+  
+  // Combine CORS headers with any additional headers
+  const headers = { ...corsHeaders, 'Content-Type': 'application/json', ...additionalHeaders };
+  
   return new Response(
     JSON.stringify({ 
       error: message 
     }),
     {
       status: status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: headers
     }
   );
 }
 
 // Helper to create success responses with CORS headers
-export function createSuccessResponse(data: any, status: number = 200): Response {
+export function createSuccessResponse(data: any, status: number = 200, additionalHeaders: Record<string, string> = {}): Response {
+  // Combine CORS headers with any additional headers
+  const headers = { ...corsHeaders, 'Content-Type': 'application/json', ...additionalHeaders };
+  
   return new Response(
     JSON.stringify(data),
     {
       status: status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: headers
     }
   );
 }
