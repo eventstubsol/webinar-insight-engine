@@ -16,7 +16,7 @@ interface EnterCredentialsStepProps {
   error: string | null;
   isSubmitting: boolean;
   isLoadingCredentials: boolean;
-  verificationStage?: VerificationStage;
+  verificationStage?: string | VerificationStage;
 }
 
 export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
@@ -32,16 +32,19 @@ export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
   // Helper function to get stage-specific UI elements
   const getStageInfo = () => {
     switch (verificationStage) {
+      case VerificationStage.SAVING:
       case 'saving_credentials':
         return {
           icon: <RefreshCw className="mr-2 h-4 w-4 animate-spin" />,
           text: "Saving credentials..."
         };
+      case VerificationStage.TOKEN_VALIDATION:
       case 'validating_token':
         return {
           icon: <RefreshCw className="mr-2 h-4 w-4 animate-spin" />,
           text: "Validating token..."
         };
+      case VerificationStage.SCOPE_VALIDATION:
       case 'validating_scopes':
         return {
           icon: <RefreshCw className="mr-2 h-4 w-4 animate-spin" />,

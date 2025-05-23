@@ -94,19 +94,19 @@ export function useVerificationFlow() {
         stage: VerificationStage.COMPLETED,
         isVerifying: false,
         details: {
-          user: saveResult.user,
+          user: saveResult.data?.user,
           verified: true,
-          scopes: scopeResult.scopes || []
+          scopes: scopeResult.data?.scopes || []
         }
       });
       
       // Show success toast
-      showSuccessToast(saveResult.user?.email);
+      showSuccessToast(saveResult.data?.user?.email);
       
       return {
-        user: saveResult.user,
+        user: saveResult.data?.user,
         verified: true,
-        scopes: scopeResult.scopes || []
+        scopes: scopeResult.data?.scopes || []
       };
     } catch (err: any) {
       console.error('Verification flow error:', err);
@@ -158,6 +158,24 @@ export function useVerificationFlow() {
     resetVerificationState();
   };
 
+  // Create handleVerificationProcess from verifyCredentials for backwards compatibility
+  const handleVerificationProcess = async (credentials: ZoomCredentials): Promise<boolean> => {
+    const result = await verifyCredentials(credentials);
+    return !!result;
+  };
+
+  // Add clearScopesError method
+  const clearScopesError = () => {
+    updateVerificationState({
+      scopesError: false
+    });
+  };
+
+  // Extract values from verificationState for convenience
+  const scopesError = verificationState.scopesError;
+  const verificationStage = verificationState.stage;
+  const verificationDetails = verificationState.verificationDetails || verificationState.details;
+
   return {
     verifyCredentials,
     resetVerification,
@@ -165,6 +183,12 @@ export function useVerificationFlow() {
     verificationState,
     isSubmitting: isSubmitting(),
     currentStage: verificationState.stage,
-    verificationDetails: verificationState.details
+    verificationDetails,
+    // Add additional properties needed by useZoomIntegrationWizard
+    scopesError,
+    verificationStage,
+    savedCredentials: null, // Will be populated in useZoomIntegrationWizard
+    handleVerificationProcess,
+    clearScopesError
   };
 }

@@ -13,11 +13,13 @@ export function useZoomIntegrationWizard({ onComplete }: { onComplete?: () => vo
   const {
     isSubmitting,
     error,
-    scopesError,
     verificationDetails,
+    currentStage,
+    handleVerificationProcess,
+    // Access the properties that were previously missing
+    scopesError,
     verificationStage,
     savedCredentials,
-    handleVerificationProcess,
     clearScopesError
   } = useZoomVerificationFlow();
   

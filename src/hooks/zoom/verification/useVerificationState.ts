@@ -27,6 +27,14 @@ export function useVerificationState() {
     });
   };
   
+  // Update verification state with partial state
+  const updateVerificationState = (updates: Partial<VerificationState>) => {
+    setVerificationState(prev => ({
+      ...prev,
+      ...updates
+    }));
+  };
+  
   // Update verification stage
   const updateStage = (stage: VerificationStage) => {
     setVerificationState(prev => ({
@@ -79,7 +87,8 @@ export function useVerificationState() {
   const setVerificationDetails = (verificationDetails: VerificationState['verificationDetails']) => {
     setVerificationState(prev => ({
       ...prev,
-      verificationDetails
+      verificationDetails,
+      details: verificationDetails // Add this to support both property names
     }));
   };
 
@@ -100,6 +109,7 @@ export function useVerificationState() {
       stage: VerificationStage.Complete,
       isSubmitting: false,
       verificationDetails: details,
+      details: details, // Add this to support both property names
       tokenValidated: true,
       scopesValidated: true
     }));
@@ -119,6 +129,7 @@ export function useVerificationState() {
   return {
     verificationState,
     resetVerificationState,
+    updateVerificationState,
     updateStage,
     setSubmitting,
     setError,

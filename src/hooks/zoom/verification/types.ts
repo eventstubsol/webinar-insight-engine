@@ -2,17 +2,22 @@
 // Types for the verification flow process
 export enum VerificationStage {
   Idle = 'idle',
-  SavingCredentials = 'saving_credentials',
-  ValidatingToken = 'validating_token',
-  ValidatingScopes = 'validating_scopes',
+  INPUT = 'input',
+  TOKEN_VALIDATION = 'validating_token',
+  SCOPE_VALIDATION = 'validating_scopes',
+  SCOPE_ERROR = 'scope_error',
+  SAVING = 'saving_credentials',
   Complete = 'complete',
-  Failed = 'failed'
+  COMPLETED = 'complete',
+  Failed = 'failed',
 }
 
 export interface VerificationDetails {
-  success: boolean;
-  user_email?: string;
   user?: any;
+  user_email?: string;
+  verified?: boolean;
+  scopes?: string[];
+  success?: boolean;
 }
 
 export interface VerificationState {
@@ -23,6 +28,7 @@ export interface VerificationState {
   tokenValidated: boolean;
   scopesValidated: boolean;
   verificationDetails: VerificationDetails | null;
+  details?: VerificationDetails | null;
 }
 
 export interface ZoomCredentials {
