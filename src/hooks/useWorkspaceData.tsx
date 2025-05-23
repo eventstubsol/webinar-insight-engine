@@ -57,8 +57,11 @@ export function useWorkspaceData() {
           throw error;
         }
         
-        // Use proper casting with explicit unknown intermediary step
         return (data ? data as unknown as T[] : []);
+      })
+      .catch((error: Error) => {
+        console.error(`Error in getFromWorkspace:`, error);
+        throw error;
       });
   }, [currentWorkspace]);
 
@@ -83,7 +86,7 @@ export function useWorkspaceData() {
     
     let query = supabase
       .from(table)
-      .insert(dataWithWorkspace);
+      .insert(dataWithWorkspace as any); // Using type assertion for Supabase
     
     if (options?.returning !== false) {
       query = query.select();
@@ -96,8 +99,11 @@ export function useWorkspaceData() {
           throw error;
         }
         
-        // Proper type casting with unknown intermediary
         return (data ? data as unknown as T[] : []);
+      })
+      .catch((error: Error) => {
+        console.error(`Error in insertToWorkspace:`, error);
+        throw error;
       });
   }, [currentWorkspace]);
 
@@ -119,7 +125,7 @@ export function useWorkspaceData() {
     
     let query = supabase
       .from(table)
-      .update(updates)
+      .update(updates as any) // Using type assertion for Supabase
       .eq(idField, id)
       .eq('workspace_id', currentWorkspace.id);
     
@@ -134,8 +140,11 @@ export function useWorkspaceData() {
           throw error;
         }
         
-        // Proper type casting with unknown intermediary
         return data as unknown as T;
+      })
+      .catch((error: Error) => {
+        console.error(`Error in updateInWorkspace:`, error);
+        throw error;
       });
   }, [currentWorkspace]);
 
@@ -164,6 +173,10 @@ export function useWorkspaceData() {
           console.error(`Error deleting from ${table}:`, error);
           throw error;
         }
+      })
+      .catch((error: Error) => {
+        console.error(`Error in deleteFromWorkspace:`, error);
+        throw error;
       });
   }, [currentWorkspace]);
 

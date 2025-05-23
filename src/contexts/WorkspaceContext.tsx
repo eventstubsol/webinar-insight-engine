@@ -3,7 +3,7 @@ import React, { createContext, useContext } from 'react';
 import { useWorkspaceState } from '@/hooks/useWorkspaceState';
 import { WorkspaceContextType } from '@/types/workspace';
 
-export { Workspace, WorkspaceMember, WorkspaceMemberRole } from '@/types/workspace';
+export type { Workspace, WorkspaceMember, WorkspaceMemberRole } from '@/types/workspace';
 
 export const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
