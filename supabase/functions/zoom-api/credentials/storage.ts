@@ -1,4 +1,3 @@
-
 import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
 
 // Get Zoom credentials for a user
@@ -22,6 +21,19 @@ export async function getZoomCredentials(supabase: any, userId: string) {
       return null;
     }
     
+    // Check token expiry if we have a token and expiry time
+    if (credentials.access_token && credentials.token_expires_at) {
+      const expiryTime = new Date(credentials.token_expires_at).getTime();
+      const now = new Date().getTime();
+      
+      // If token is expired or close to expiry (within 5 minutes), mark it as invalid
+      if (expiryTime - now < 5 * 60 * 1000) {
+        console.log('Access token is expired or about to expire');
+        // We keep the token in the response but mark it as needing refresh
+        credentials.token_needs_refresh = true;
+      }
+    }
+    
     return credentials;
   } catch (err) {
     console.error('Exception when fetching Zoom credentials:', err);
@@ -39,10 +51,18 @@ export async function saveZoomCredentials(
     client_secret: string 
   },
   isVerified: boolean = false,
-  accessToken?: string
+  accessToken?: string,
+  expiresIn?: number
 ) {
   try {
     console.log(`Saving credentials for user ${userId}, with token: ${accessToken ? 'present' : 'not present'}`);
+    
+    // Calculate token expiry time if provided
+    let tokenExpiresAt = null;
+    if (accessToken && expiresIn) {
+      tokenExpiresAt = new Date(Date.now() + (expiresIn * 1000)).toISOString();
+      console.log(`Token will expire at ${tokenExpiresAt}`);
+    }
     
     const { data, error } = await supabase
       .from('zoom_credentials')
@@ -53,6 +73,8 @@ export async function saveZoomCredentials(
         client_secret: credentials.client_secret,
         is_verified: isVerified,
         access_token: accessToken,
+        token_expires_in: expiresIn,
+        token_expires_at: tokenExpiresAt,
         last_verified_at: isVerified ? new Date().toISOString() : null
       }, {
         onConflict: 'user_id'
@@ -77,7 +99,8 @@ export async function updateCredentialsVerification(
   supabase: any, 
   userId: string, 
   isVerified: boolean,
-  accessToken?: string
+  accessToken?: string,
+  expiresIn?: number
 ) {
   try {
     const updateData: any = { 
@@ -88,9 +111,17 @@ export async function updateCredentialsVerification(
       updateData.last_verified_at = new Date().toISOString();
     }
     
+    // Handle token and expiry information
     if (accessToken) {
       console.log(`Updating credentials with new access token for user ${userId}`);
       updateData.access_token = accessToken;
+      
+      // If we have expiry information, store it
+      if (expiresIn) {
+        updateData.token_expires_in = expiresIn;
+        updateData.token_expires_at = new Date(Date.now() + (expiresIn * 1000)).toISOString();
+        console.log(`Token will expire at ${updateData.token_expires_at}`);
+      }
     }
     
     const { error } = await supabase

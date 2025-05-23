@@ -44,6 +44,13 @@ export class ZoomRateLimitError extends ZoomAPIError {
   }
 }
 
+export class ZoomTokenError extends ZoomAPIError {
+  constructor(message: string) {
+    super(message, 401, 'token_error');
+    this.name = 'ZoomTokenError';
+  }
+}
+
 // Retry configuration
 interface RetryConfig {
   maxRetries: number;
@@ -165,10 +172,68 @@ async function withRetry<T>(
       throw new ZoomAuthenticationError(`Authentication error: ${lastError.message}. ${errorDetails}`);
     } else if (lastError.message?.includes('scopes')) {
       throw new ZoomScopesError(`${lastError.message}. ${errorDetails}`);
+    } else if (lastError.message?.includes('token')) {
+      throw new ZoomTokenError(`Token error: ${lastError.message}. ${errorDetails}`);
     }
   }
   
   throw lastError || new ZoomAPIError('Operation failed after retries');
+}
+
+// New function: Only validate token generation without testing scopes
+export async function validateTokenOnly(credentials: any) {
+  if (!credentials) {
+    throw new ZoomAPIError('Credentials are required');
+  }
+  
+  try {
+    console.log('Validating Zoom token generation only...');
+    
+    // If we already have a valid token, just return it (token validity is checked separately)
+    if (credentials.access_token) {
+      console.log('Using existing access token');
+      return {
+        token: credentials.access_token,
+        expires_in: credentials.token_expires_in || 3600 // Default to 1 hour if not specified
+      };
+    }
+    
+    console.log('No existing token found, requesting new token...');
+    
+    // Get a new token with enhanced retry logic
+    const tokenResponse = await withRetry(() => getZoomJwtToken(
+      credentials.account_id,
+      credentials.client_id,
+      credentials.client_secret
+    ));
+    
+    console.log('Successfully obtained token');
+    
+    // The token response includes the token and expiry information
+    return {
+      token: tokenResponse.access_token,
+      expires_in: tokenResponse.expires_in || 3600 // Typical expiry is 1 hour
+    };
+  } catch (error) {
+    console.error('Zoom token validation failed:', error);
+    
+    // Error has already been converted to the appropriate type in withRetry
+    if (error instanceof ZoomAPIError) {
+      throw error;
+    }
+    
+    // Enhanced error message based on the type of error
+    if (error.message?.includes('Invalid client_id or client_secret')) {
+      throw new ZoomAuthenticationError('Invalid client ID or client secret. Please check your credentials.');
+    } else if (error.message?.includes('Invalid account_id')) {
+      throw new ZoomAuthenticationError('Invalid account ID. Please check your Zoom account ID.');
+    } else if (error.message?.includes('token')) {
+      throw new ZoomTokenError(`Token generation failed: ${error.message}`);
+    }
+    
+    // Generic error
+    throw new ZoomAPIError(`Invalid Zoom credentials: ${error.message || 'Unknown error'}`);
+  }
 }
 
 // Verify that Zoom credentials are valid
@@ -189,7 +254,7 @@ export async function verifyZoomCredentials(credentials: any) {
     console.log('No existing token found, requesting new token...');
     
     // Get a new token with enhanced retry logic
-    const token = await withRetry(() => getZoomJwtToken(
+    const tokenResponse = await withRetry(() => getZoomJwtToken(
       credentials.account_id,
       credentials.client_id,
       credentials.client_secret
@@ -198,7 +263,7 @@ export async function verifyZoomCredentials(credentials: any) {
     console.log('Successfully obtained token');
     
     // If we got here, the credentials are valid
-    return token;
+    return tokenResponse.access_token;
   } catch (error) {
     console.error('Zoom credential verification failed:', error);
     
@@ -267,6 +332,8 @@ export async function testOAuthScopes(token: string) {
         throw new ZoomRateLimitError('Zoom API rate limit exceeded. Please try again later.');
       } else if (scopeTestData.code >= 500) {
         throw new ZoomAPIError('Zoom API server error. Please try again later.', 502, 'server_error');
+      } else if (scopeTestData.code === 124) {
+        throw new ZoomTokenError('Access token is expired. Please generate a new token.');
       }
       
       throw new ZoomAPIError(`API scope test failed: ${scopeTestData.message || 'Unknown error'}`);

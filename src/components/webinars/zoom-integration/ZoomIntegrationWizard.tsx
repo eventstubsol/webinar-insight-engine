@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { useAuth } from '@/hooks/useAuth';
 import { useZoomCredentialsLoader } from '@/hooks/zoom/useZoomCredentialsLoader';
-import { useZoomVerificationFlow } from '@/hooks/zoom/useZoomVerificationFlow';
+import { useZoomVerificationFlow, VerificationStage } from '@/hooks/zoom/useZoomVerificationFlow';
 import { ZoomCredentials, WizardStep } from './types';
 import { ProgressIndicator } from './ProgressIndicator';
 import { IntroductionStep } from './IntroductionStep';
@@ -36,9 +36,10 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     error,
     scopesError,
     verificationDetails,
+    verificationStage,
     savedCredentials,
     handleVerificationProcess,
-    setScopesError
+    clearScopesError
   } = useZoomVerificationFlow();
   
   const [currentStep, setCurrentStep] = useState<WizardStep>(WizardStep.Introduction);
@@ -70,7 +71,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     }
   }, [user, fetchSavedCredentials]);
   
-  // Update step when verification completes
+  // Update step when verification completes or when scopes error occurs
   useEffect(() => {
     if (verificationDetails) {
       setCurrentStep(WizardStep.Success);
@@ -78,6 +79,11 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
       setCurrentStep(WizardStep.ConfigureScopes);
     }
   }, [verificationDetails, scopesError]);
+  
+  // Monitor verification stage
+  useEffect(() => {
+    console.log(`Verification stage changed to: ${verificationStage}`);
+  }, [verificationStage]);
 
   const handleChangeCredentials = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCredentials({
@@ -108,6 +114,10 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   };
 
   const handleBack = () => {
+    if (currentStep === WizardStep.ConfigureScopes && scopesError) {
+      // If we're going back from the scopes error screen, clear the error
+      clearScopesError();
+    }
     setCurrentStep(prev => prev - 1 as WizardStep);
   };
 
@@ -156,6 +166,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
             error={error}
             isSubmitting={isSubmitting}
             isLoadingCredentials={isLoadingCredentials}
+            verificationStage={verificationStage}
           />
         );
         

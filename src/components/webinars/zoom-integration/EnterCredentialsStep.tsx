@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ChevronLeft, Info, AlertTriangle, RefreshCw, ChevronRight, Loader2 } from "lucide-react";
 import { ZoomCredentials } from './types';
+import { VerificationStage } from '@/hooks/zoom/useZoomVerificationFlow';
 
 interface EnterCredentialsStepProps {
   onVerify: () => void;
@@ -15,6 +16,7 @@ interface EnterCredentialsStepProps {
   error: string | null;
   isSubmitting: boolean;
   isLoadingCredentials: boolean;
+  verificationStage?: VerificationStage;
 }
 
 export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
@@ -24,8 +26,37 @@ export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
   onChange,
   error,
   isSubmitting,
-  isLoadingCredentials
+  isLoadingCredentials,
+  verificationStage = 'idle'
 }) => {
+  // Helper function to get stage-specific UI elements
+  const getStageInfo = () => {
+    switch (verificationStage) {
+      case 'saving_credentials':
+        return {
+          icon: <RefreshCw className="mr-2 h-4 w-4 animate-spin" />,
+          text: "Saving credentials..."
+        };
+      case 'validating_token':
+        return {
+          icon: <RefreshCw className="mr-2 h-4 w-4 animate-spin" />,
+          text: "Validating token..."
+        };
+      case 'validating_scopes':
+        return {
+          icon: <RefreshCw className="mr-2 h-4 w-4 animate-spin" />,
+          text: "Checking app permissions..."
+        };
+      default:
+        return {
+          icon: isSubmitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null,
+          text: isSubmitting ? "Verifying..." : "Verify & Save"
+        };
+    }
+  };
+  
+  const stageInfo = getStageInfo();
+  
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-medium">Step 3: Enter Your Zoom API Credentials</h3>
@@ -58,6 +89,7 @@ export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
             placeholder="Enter your Zoom Account ID"
             value={credentials.account_id}
             onChange={onChange}
+            disabled={isSubmitting}
           />
           <p className="text-xs text-muted-foreground">
             Found on your Zoom Account Profile page
@@ -72,6 +104,7 @@ export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
             placeholder="Enter your Client ID"
             value={credentials.client_id}
             onChange={onChange}
+            disabled={isSubmitting}
           />
           <p className="text-xs text-muted-foreground">
             Found on your app's Credentials tab in Zoom Marketplace
@@ -87,6 +120,7 @@ export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
             placeholder="Enter your Client Secret"
             value={credentials.client_secret}
             onChange={onChange}
+            disabled={isSubmitting}
           />
           <p className="text-xs text-muted-foreground">
             Found on your app's Credentials tab in Zoom Marketplace
@@ -101,9 +135,37 @@ export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      
+      {/* Verification stage progress indicator */}
+      {isSubmitting && (
+        <div className="bg-sky-50 border border-sky-100 rounded-md p-3">
+          <div className="flex items-center space-x-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-sky-800">
+                {stageInfo.text}
+              </div>
+              {verificationStage !== 'idle' && (
+                <div className="mt-1 flex items-center space-x-2">
+                  <div className="bg-sky-100 w-full h-2 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-sky-500 rounded-full transition-all duration-300"
+                      style={{ 
+                        width: verificationStage === 'saving_credentials' ? '33%' : 
+                               verificationStage === 'validating_token' ? '66%' : 
+                               verificationStage === 'validating_scopes' ? '90%' : '100%' 
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <Loader2 className="h-5 w-5 text-sky-500 animate-spin" />
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
-        <Button variant="outline" onClick={onBack}>
+        <Button variant="outline" onClick={onBack} disabled={isSubmitting}>
           <ChevronLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
@@ -114,8 +176,8 @@ export const EnterCredentialsStep: React.FC<EnterCredentialsStepProps> = ({
         >
           {isSubmitting ? (
             <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Verifying...
+              {stageInfo.icon}
+              {stageInfo.text}
             </>
           ) : (
             <>

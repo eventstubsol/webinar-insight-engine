@@ -1,4 +1,3 @@
-
 import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { createErrorResponse, createSuccessResponse } from "./cors.ts";
@@ -12,6 +11,8 @@ import {
   getZoomCredentials,
   verifyZoomCredentials,
   handleVerifyCredentials,
+  handleValidateToken,
+  handleValidateScopes,
   handleGetCredentials,
   updateCredentialsVerification
 } from "./credentials/index.ts";
@@ -74,6 +75,40 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
           () => handleGetCredentials(req, supabaseAdmin, user),
           OPERATION_TIMEOUT,
           "get-credentials"
+        );
+        break;
+      
+      case "validate-token":
+        // New endpoint: only validate token generation
+        console.log(`[zoom-api:router] Getting credentials for token validation for user ${user.id}`);
+        const tokenValidationCreds = await getZoomCredentials(supabaseAdmin, user.id);
+        if (!tokenValidationCreds) {
+          console.error(`[zoom-api:router] No credentials found for user ${user.id} during token validation`);
+          return createErrorResponse("Zoom credentials not found. Please save credentials first.", 400);
+        }
+        
+        console.log(`[zoom-api:router] Found credentials, proceeding with token validation for user ${user.id}`);
+        response = await executeWithTimeout(
+          () => handleValidateToken(req, supabaseAdmin, user, tokenValidationCreds),
+          OPERATION_TIMEOUT,
+          "validate-token"
+        );
+        break;
+        
+      case "validate-scopes":
+        // New endpoint: only validate OAuth scopes
+        console.log(`[zoom-api:router] Getting credentials for scope validation for user ${user.id}`);
+        const scopeValidationCreds = await getZoomCredentials(supabaseAdmin, user.id);
+        if (!scopeValidationCreds) {
+          console.error(`[zoom-api:router] No credentials found for user ${user.id} during scope validation`);
+          return createErrorResponse("Zoom credentials not found. Please save credentials first.", 400);
+        }
+        
+        console.log(`[zoom-api:router] Found credentials, proceeding with scope validation for user ${user.id}`);
+        response = await executeWithTimeout(
+          () => handleValidateScopes(req, supabaseAdmin, user, scopeValidationCreds),
+          OPERATION_TIMEOUT,
+          "validate-scopes"
         );
         break;
       

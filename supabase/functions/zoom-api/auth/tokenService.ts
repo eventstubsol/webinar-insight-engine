@@ -1,6 +1,6 @@
 
 // Get JWT token for Zoom API
-export async function getZoomJwtToken(accountId: string, clientId: string, clientSecret: string): Promise<string> {
+export async function getZoomJwtToken(accountId: string, clientId: string, clientSecret: string): Promise<{ access_token: string, expires_in: number }> {
   try {
     const tokenEndpoint = 'https://zoom.us/oauth/token';
     
@@ -30,7 +30,12 @@ export async function getZoomJwtToken(accountId: string, clientId: string, clien
     }
     
     console.log('Successfully retrieved new access token');
-    return data.access_token;
+    
+    // Return both token and expiry information
+    return {
+      access_token: data.access_token, 
+      expires_in: data.expires_in || 3600 // Default to 1 hour if not specified
+    };
   } catch (error) {
     console.error('Error getting Zoom JWT token:', error);
     throw error;

@@ -1,8 +1,7 @@
-
 import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { corsHeaders, createErrorResponse, createSuccessResponse } from '../cors.ts';
 import { saveZoomCredentials, getZoomCredentials, updateCredentialsVerification } from './storage.ts';
-import { verifyZoomCredentials, testOAuthScopes, ZoomAPIError, ZoomScopesError, ZoomNetworkError, ZoomAuthenticationError, ZoomRateLimitError } from './verification.ts';
+import { verifyZoomCredentials, testOAuthScopes, validateTokenOnly, ZoomAPIError, ZoomScopesError, ZoomNetworkError, ZoomAuthenticationError, ZoomRateLimitError } from './verification.ts';
 
 // Handler to save Zoom credentials
 export async function handleSaveCredentials(req: Request, supabaseAdmin: any, user: any, body: any) {
@@ -37,6 +36,155 @@ export async function handleSaveCredentials(req: Request, supabaseAdmin: any, us
     const message = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return createErrorResponse(`Failed to save credentials: ${message}`, status);
+  }
+}
+
+// New handler: Validate token generation only (Stage 1)
+export async function handleValidateToken(req: Request, supabaseAdmin: any, user: any, credentials: any) {
+  try {
+    console.log(`[zoom-api:handlers] Token validation started for user ${user.id}`);
+    
+    if (!credentials) {
+      console.error(`[zoom-api:handlers] No credentials found for user ${user.id} during token validation`);
+      return createErrorResponse("Credentials not found. Please save credentials first.", 404);
+    }
+    
+    // Only validate token generation, don't test API scopes
+    console.log(`[zoom-api:handlers] Attempting to validate token for user ${user.id}`);
+    const { token, expires_in } = await validateTokenOnly(credentials);
+    console.log(`[zoom-api:handlers] Successfully validated token for user ${user.id}`);
+    
+    // Store the token but don't mark as fully verified yet
+    await updateCredentialsVerification(supabaseAdmin, user.id, false, token, expires_in);
+    console.log(`[zoom-api:handlers] Updated token for user ${user.id}`);
+    
+    return createSuccessResponse({
+      success: true,
+      token_validated: true,
+      message: "Token validation successful",
+      expires_in
+    });
+  } catch (error) {
+    console.error("[zoom-api:handlers] Token validation error:", error);
+    
+    try {
+      // Don't change verification status on token validation failure
+      // We only want to update verification status after the full process
+      console.log(`[zoom-api:handlers] Not updating verification status after token error`);
+    } catch (updateError) {
+      console.error("[zoom-api:handlers] Error during status handling:", updateError);
+    }
+    
+    // Handle different error types with appropriate responses
+    if (error instanceof ZoomAuthenticationError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'authentication_error',
+        'X-Error-Code': error.code
+      });
+    }
+    
+    if (error instanceof ZoomNetworkError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'network_error',
+        'X-Error-Code': error.code
+      });
+    }
+    
+    if (error instanceof ZoomRateLimitError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'rate_limit_error',
+        'X-Error-Code': error.code
+      });
+    }
+    
+    if (error instanceof ZoomAPIError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'zoom_api_error',
+        'X-Error-Code': error.code
+      });
+    }
+    
+    return createErrorResponse(`Token validation failed: ${error.message || 'Unknown error'}`, 400);
+  }
+}
+
+// New handler: Validate OAuth scopes only (Stage 2)
+export async function handleValidateScopes(req: Request, supabaseAdmin: any, user: any, credentials: any) {
+  try {
+    console.log(`[zoom-api:handlers] Scope validation started for user ${user.id}`);
+    
+    if (!credentials) {
+      console.error(`[zoom-api:handlers] No credentials found for user ${user.id} during scope validation`);
+      return createErrorResponse("Credentials not found. Please save credentials first.", 404);
+    }
+    
+    if (!credentials.access_token) {
+      console.error(`[zoom-api:handlers] No access token found. Run token validation first.`);
+      return createErrorResponse("No access token available. Please validate token first.", 400, {
+        'X-Error-Type': 'missing_token',
+        'X-Error-Code': 'token_required'
+      });
+    }
+    
+    // Test scopes with the existing token
+    console.log(`[zoom-api:handlers] Testing OAuth scopes for user ${user.id}`);
+    const scopeResult = await testOAuthScopes(credentials.access_token);
+    console.log(`[zoom-api:handlers] Scope test passed for user ${user.id}`);
+    
+    // Update verification status - fully verified now
+    await updateCredentialsVerification(supabaseAdmin, user.id, true);
+    console.log(`[zoom-api:handlers] Updated verification status to true for user ${user.id}`);
+    
+    return createSuccessResponse({
+      success: true,
+      scopes_validated: true,
+      verified: true,
+      message: "OAuth scopes validated successfully",
+      user: scopeResult.user,
+      user_email: scopeResult.user?.email
+    });
+  } catch (error) {
+    console.error("[zoom-api:handlers] Scope validation error:", error);
+    
+    // Update verification status to false on scope failure
+    try {
+      await updateCredentialsVerification(supabaseAdmin, user.id, false);
+      console.log(`[zoom-api:handlers] Updated verification status to false for user ${user.id} after scope error`);
+    } catch (updateError) {
+      console.error("[zoom-api:handlers] Error updating verification status:", updateError);
+    }
+    
+    // Handle different error types with appropriate responses
+    if (error instanceof ZoomScopesError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'missing_scopes',
+        'X-Error-Code': '4711'
+      });
+    }
+    
+    if (error instanceof ZoomNetworkError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'network_error',
+        'X-Error-Code': error.code
+      });
+    }
+    
+    if (error instanceof ZoomAuthenticationError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'authentication_error',
+        'X-Error-Code': error.code
+      });
+    }
+    
+    if (error instanceof ZoomRateLimitError) {
+      return createErrorResponse(error.message, error.status, {
+        'X-Error-Type': 'rate_limit_error',
+        'X-Error-Code': error.code
+      });
+    }
+    
+    // Generic error response
+    return createErrorResponse(`Scope validation failed: ${error.message || 'Unknown error'}`, 400);
   }
 }
 
@@ -87,7 +235,7 @@ export async function handleGetCredentials(req: Request, supabaseAdmin: any, use
   }
 }
 
-// Handler to verify credentials
+// Handler to verify credentials (original combined approach - kept for backward compatibility)
 export async function handleVerifyCredentials(req: Request, supabaseAdmin: any, user: any, credentials: any) {
   try {
     console.log(`[zoom-api:handlers] Verifying credentials for user ${user.id}`);
