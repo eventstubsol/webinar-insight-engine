@@ -41,11 +41,14 @@
 }
 
 /* Ensure chart containers are responsive */
-.recharts-wrapper {
+.recharts-wrapper, .recharts-surface {
   width: 100% !important;
+  height: 100% !important;
 }
-.recharts-surface {
+
+.recharts-responsive-container {
   width: 100% !important;
+  height: 100% !important;
 }
 
 /* Add proper layout styling for the app layout */

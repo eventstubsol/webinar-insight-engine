@@ -1,3 +1,4 @@
+
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -7,6 +8,7 @@ import {
   Users,
   Settings,
   ChevronDown,
+  MenuIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -30,14 +32,14 @@ export function AppSidebar({ className, isCollapsed }: SidebarNavProps) {
   return (
     <div
       className={cn(
-        "flex flex-col h-screen border-r bg-background shrink-0",
-        isCollapsed ? "w-[80px]" : "w-[240px]",
+        "flex flex-col h-screen border-r bg-background shrink-0 transition-all duration-300",
+        isCollapsed ? "w-[70px]" : "w-[240px]",
         className
       )}
     >
       <div className={cn(
-        "flex items-center h-16 border-b px-4",
-        isCollapsed ? "justify-center" : "px-6"
+        "flex items-center h-16 border-b",
+        isCollapsed ? "justify-center px-2" : "px-4"
       )}>
         {!isCollapsed && <WorkspaceSwitcher />}
         {isCollapsed && (
@@ -55,13 +57,13 @@ export function AppSidebar({ className, isCollapsed }: SidebarNavProps) {
         >
           <NavItem
             to="/dashboard"
-            icon={<Gauge />}
+            icon={<Gauge className="h-4 w-4" />}
             label="Dashboard"
             isCollapsed={isCollapsed}
           />
           <NavItem
             to="/webinars"
-            icon={<Video />}
+            icon={<Video className="h-4 w-4" />}
             label="Webinars"
             isCollapsed={isCollapsed}
           />
@@ -76,14 +78,14 @@ export function AppSidebar({ className, isCollapsed }: SidebarNavProps) {
           {isAdmin && (
             <NavItem
               to="/workspace/members"
-              icon={<Users />}
+              icon={<Users className="h-4 w-4" />}
               label="Members"
               isCollapsed={isCollapsed}
             />
           )}
           <NavItem
             to="/workspace/settings"
-            icon={<Settings />}
+            icon={<Settings className="h-4 w-4" />}
             label="Settings"
             isCollapsed={isCollapsed}
           />
@@ -125,7 +127,7 @@ function NavItem({ to, icon, label, isCollapsed, children }: NavItemProps) {
             }
           >
             <div className="flex items-center gap-2">
-              <div className={isCollapsed ? "" : "w-4 h-4"}>{icon}</div>
+              {icon}
               {!isCollapsed && <span>{label}</span>}
             </div>
             {!isCollapsed && children && (
@@ -156,7 +158,7 @@ function NavItem({ to, icon, label, isCollapsed, children }: NavItemProps) {
         )
       }
     >
-      <div className={isCollapsed ? "" : "w-4 h-4"}>{icon}</div>
+      {icon}
       {!isCollapsed && <span>{label}</span>}
     </NavLink>
   );
