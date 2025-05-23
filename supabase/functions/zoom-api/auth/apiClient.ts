@@ -13,6 +13,24 @@ export class ZoomApiClient {
     this.rateLimiter = new RateLimiter(90, 1000);
   }
   
+  async request(endpoint: string, options: RequestInit = {}, priority: 'light' | 'medium' | 'heavy' = 'medium'): Promise<Response> {
+    // Adjust wait time based on priority to handle rate limits better
+    const waitMultiplier = priority === 'light' ? 0.5 : priority === 'heavy' ? 2 : 1;
+    await this.rateLimiter.waitForToken(waitMultiplier);
+    
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers = {
+      'Authorization': `Bearer ${this.token}`,
+      'Content-Type': 'application/json',
+      ...options.headers
+    };
+    
+    return fetch(url, {
+      ...options,
+      headers
+    });
+  }
+  
   async get(endpoint: string, params: Record<string, any> = {}) {
     await this.rateLimiter.waitForToken();
     
@@ -99,7 +117,6 @@ export class ZoomApiClient {
     return response.status === 204 ? null : response.json();
   }
   
-  // Helper method to paginate through all results
   async getPaginated(endpoint: string, params: Record<string, any> = {}) {
     let allResults: any[] = [];
     let page = 1;
