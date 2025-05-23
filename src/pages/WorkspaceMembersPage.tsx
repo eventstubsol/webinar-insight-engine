@@ -204,10 +204,8 @@ export default function WorkspaceMembersPage() {
                   <TableRow key={member.id}>
                     <TableCell className="flex items-center gap-2">
                       <UserAvatar
-                        user={{
-                          name: member.profile?.display_name || 'User',
-                          avatarUrl: member.profile?.avatar_url || undefined
-                        }}
+                        name={member.profile?.display_name || 'User'} 
+                        avatarUrl={member.profile?.avatar_url || undefined}
                       />
                       <div>
                         <p>{member.profile?.display_name || 'User'}</p>

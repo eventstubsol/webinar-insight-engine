@@ -12,7 +12,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <AppSidebar />
+        <AppSidebar isCollapsed={false} />
         <div className="flex flex-col flex-1">
           <TopNav />
           <main className="flex-1 p-4 md:p-6">

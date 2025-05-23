@@ -2,7 +2,6 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
-import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 
 /**
  * Hook to handle workspace-scoped data operations
@@ -16,7 +15,7 @@ export function useWorkspaceData() {
   const getFromWorkspace = useCallback(async <T extends Record<string, any>>(
     table: string,
     columns: string = '*',
-    additionalFilters?: (query: PostgrestFilterBuilder<any, any, any>) => PostgrestFilterBuilder<any, any, any>
+    additionalFilters?: (query: any) => any
   ): Promise<T[]> => {
     if (!currentWorkspace) {
       console.warn('No workspace selected, cannot fetch data');
@@ -47,7 +46,7 @@ export function useWorkspaceData() {
    */
   const insertToWorkspace = useCallback(async <T extends Record<string, any>>(
     table: string,
-    data: Omit<T, 'workspace_id'>[] | Omit<T, 'workspace_id'>,
+    data: Omit<T, 'workspace_id'> | Omit<T, 'workspace_id'>[],
     options?: { returning?: boolean }
   ): Promise<T[]> => {
     if (!currentWorkspace) {
@@ -63,7 +62,7 @@ export function useWorkspaceData() {
     
     const query = supabase
       .from(table)
-      .insert(dataWithWorkspace);
+      .insert(dataWithWorkspace as any);
     
     if (options?.returning !== false) {
       query.select();

@@ -1,6 +1,5 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User } from '@/types/auth';
 
 export interface UserAvatarProps {
   name?: string;

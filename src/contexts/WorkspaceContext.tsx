@@ -327,8 +327,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         role: item.role as WorkspaceMemberRole,
         joined_at: item.joined_at,
         profile: item.profiles ? {
-          display_name: item.profiles.display_name,
-          avatar_url: item.profiles.avatar_url
+          display_name: item.profiles.display_name || null,
+          avatar_url: item.profiles.avatar_url || null
         } : undefined
       }));
 
