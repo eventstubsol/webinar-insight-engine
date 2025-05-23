@@ -3,12 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ZoomParticipants } from './types';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export function useZoomWebinarParticipants(webinarId: string | null) {
   const { user } = useAuth();
-  const { currentWorkspace } = useWorkspace();
-  const workspaceId = currentWorkspace?.id;
   
   const {
     data,
@@ -17,33 +14,24 @@ export function useZoomWebinarParticipants(webinarId: string | null) {
     refetch,
     isRefetching
   } = useQuery({
-    queryKey: ['zoom-webinar-participants', user?.id, webinarId, workspaceId],
+    queryKey: ['zoom-webinar-participants', user?.id, webinarId],
     queryFn: async () => {
       if (!user || !webinarId) return { registrants: [], attendees: [] };
       
       // First try to get from database
-      let registrantsQuery = supabase
+      const { data: registrants, error: registrantsError } = await supabase
         .from('zoom_webinar_participants')
         .select('*')
         .eq('user_id', user.id)
         .eq('webinar_id', webinarId)
         .eq('participant_type', 'registrant');
         
-      let attendeesQuery = supabase
+      const { data: attendees, error: attendeesError } = await supabase
         .from('zoom_webinar_participants')
         .select('*')
         .eq('user_id', user.id)
         .eq('webinar_id', webinarId)
         .eq('participant_type', 'attendee');
-      
-      // Add workspace filtering if available
-      if (workspaceId) {
-        registrantsQuery = registrantsQuery.eq('workspace_id', workspaceId);
-        attendeesQuery = attendeesQuery.eq('workspace_id', workspaceId);
-      }
-      
-      const { data: registrants, error: registrantsError } = await registrantsQuery;
-      const { data: attendees, error: attendeesError } = await attendeesQuery;
       
       // If we have data in the database, use it
       if (!registrantsError && !attendeesError && 
@@ -56,18 +44,11 @@ export function useZoomWebinarParticipants(webinarId: string | null) {
       }
       
       // If not in database, fetch from API
-      const params: Record<string, any> = { 
-        action: 'get-participants',
-        id: webinarId
-      };
-      
-      // Add workspace context if available
-      if (workspaceId) {
-        params.workspace_id = workspaceId;
-      }
-      
       const { data, error } = await supabase.functions.invoke('zoom-api', {
-        body: params
+        body: { 
+          action: 'get-participants',
+          id: webinarId
+        }
       });
       
       if (error) throw new Error(error.message);

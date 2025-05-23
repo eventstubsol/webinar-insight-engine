@@ -13,21 +13,11 @@ export class WebinarService extends BaseZoomService {
   static async fetchWebinarsFromDatabase(userId: string): Promise<ZoomWebinar[] | null> {
     console.log('[WebinarService] Fetching webinars from database');
     
-    // Get current workspace
-    const workspaceId = this.getCurrentWorkspaceId();
-    
-    let query = supabase
+    const { data: dbWebinars, error: dbError } = await supabase
       .from('zoom_webinars')
       .select('*')
       .eq('user_id', userId)
       .order('start_time', { ascending: false });
-    
-    // If workspace is selected, filter by it
-    if (workspaceId) {
-      query = query.eq('workspace_id', workspaceId);
-    }
-    
-    const { data: dbWebinars, error: dbError } = await query;
     
     if (dbError) {
       console.error('[WebinarService] Error:', dbError);
@@ -80,8 +70,7 @@ export class WebinarService extends BaseZoomService {
         type: item.type,
         registrants_count: parsedRawData?.registrants_count || 0,
         participants_count: parsedRawData?.participants_count || 0,
-        raw_data: parsedRawData,
-        workspace_id: item.workspace_id
+        raw_data: parsedRawData
       };
       
       return webinar;
@@ -94,10 +83,7 @@ export class WebinarService extends BaseZoomService {
   static async fetchWebinarsFromAPI(forceSync: boolean = false): Promise<ZoomWebinar[]> {
     console.log(`[WebinarService] Fetching webinars from API with force_sync=${forceSync}`);
     
-    // Add workspace context if available
-    const params = this.addWorkspaceContext({ force_sync: forceSync });
-    
-    return await BaseZoomService.invokeEdgeFunction('list-webinars', params);
+    return await BaseZoomService.invokeEdgeFunction('list-webinars', { force_sync: forceSync });
   }
 
   /**
@@ -106,10 +92,7 @@ export class WebinarService extends BaseZoomService {
   static async refreshWebinarsFromAPI(userId: string, force: boolean = false): Promise<any> {
     console.log(`[WebinarService] Starting refresh with force=${force}`);
     
-    // Add workspace context if available
-    const params = this.addWorkspaceContext({ force_sync: force });
-    
-    const refreshData = await BaseZoomService.invokeEdgeFunction('list-webinars', params);
+    const refreshData = await BaseZoomService.invokeEdgeFunction('list-webinars', { force_sync: force });
     
     console.log('[WebinarService] Sync completed successfully:', refreshData);
     

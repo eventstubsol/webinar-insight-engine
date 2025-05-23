@@ -1,17 +1,10 @@
-
-/* Reset restrictive styles that were causing layout issues */
 #root {
-  /* Remove max-width constraint */
-  max-width: none;
-  width: 100%;
-  /* Remove padding that was pushing content inward */
-  padding: 0;
-  /* Remove center alignment that was affecting all text */
-  text-align: left;
-  margin: 0;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
 }
 
-/* Keep logo animations */
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -40,41 +33,10 @@
   }
 }
 
-/* Ensure chart containers are responsive */
-.recharts-wrapper, .recharts-surface {
-  width: 100% !important;
-  height: 100% !important;
+.card {
+  padding: 2em;
 }
 
-.recharts-responsive-container {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Add proper layout styling for the app layout */
-.app-container {
-  display: flex;
-  width: 100%;
-  min-height: 100vh;
-}
-
-.main-content {
-  flex: 1;
-  overflow-x: hidden;
-}
-
-/* Add animation for content */
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.read-the-docs {
+  color: #888;
 }
