@@ -30,7 +30,7 @@ export function useZoomIntegrationWizard() {
   // Watch for changes in verification state
   useEffect(() => {
     // If verification is complete, move to success step
-    if (currentStage === VerificationStage.COMPLETE && !isOnSuccessStep) {
+    if (currentStage === VerificationStage.Complete && !isOnSuccessStep) {
       setCurrentStep(4); // Success step
       setShowNextStep(true);
       setIsOnSuccessStep(true);
