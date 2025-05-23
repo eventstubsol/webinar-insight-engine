@@ -2,10 +2,12 @@
 // Export all types
 export * from './types';
 export * from './types/webinarTypes';
+export * from './verification/types';
 
 // Export hooks
 export * from './useZoomCredentials';
 export * from './useZoomCredentialsLoader';
+export * from './useZoomVerificationFlow';
 export * from './useZoomWebinars';
 export * from './useZoomWebinarDetails';
 export * from './useZoomWebinarParticipants';
@@ -14,6 +16,7 @@ export * from './useZoomInstanceParticipants';
 export * from './useZoomWebinarQAndA';
 export * from './useZoomWebinarPolls';
 export * from './useZoomWebinarRecordings';
+export * from './verification';
 
 // Export utilities for backward compatibility
 export * from './utils/webinarUtils';
