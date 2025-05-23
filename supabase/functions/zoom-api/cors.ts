@@ -49,3 +49,14 @@ export function createErrorResponse(message: string, status: number = 400): Resp
     }
   );
 }
+
+// Helper to create success responses with CORS headers
+export function createSuccessResponse(data: any, status: number = 200): Response {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status: status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  );
+}
