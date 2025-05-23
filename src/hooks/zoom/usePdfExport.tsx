@@ -70,7 +70,7 @@ export const usePdfExport = (webinar: ZoomWebinar, participants?: ZoomParticipan
       
       <div style="margin-bottom: 30px;">
         <h2 style="margin-bottom: 10px; color: #444; font-size: 18px;">Webinar Details</h2>
-        <p><strong>Date:</strong> ${formatDate(webinar.start_time || new Date())}</p>
+        <p><strong>Date:</strong> ${webinar.start_time ? formatDate(new Date(webinar.start_time)) : formatDate(new Date())}</p>
         <p><strong>Duration:</strong> ${webinar.duration || 0} minutes</p>
         <p><strong>Host:</strong> ${webinar.host_email || 'Unknown'}</p>
         <p><strong>Status:</strong> ${webinar.status || 'Unknown'}</p>
@@ -111,7 +111,7 @@ export const usePdfExport = (webinar: ZoomWebinar, participants?: ZoomParticipan
         attendeeTable += `
           <tr>
             <td style="border: 1px solid #ddd; padding: 8px;">${attendee.name || 'Unknown'}</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${attendee.email || 'Unknown'}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${attendee.user_email || 'Unknown'}</td>
             <td style="border: 1px solid #ddd; padding: 8px;">${Math.floor((attendee.duration || 0) / 60)} minutes</td>
           </tr>
         `;

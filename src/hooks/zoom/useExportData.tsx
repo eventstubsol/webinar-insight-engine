@@ -71,15 +71,10 @@ export const useExportData = (webinar: ZoomWebinar, participants?: ZoomParticipa
     // Process registrant data to make it suitable for CSV export
     const registrantData = participants.registrants.map(registrant => ({
       Email: registrant.email || '',
-      Name: registrant.name || '',
+      Name: `${registrant.first_name || ''} ${registrant.last_name || ''}`,
       RegistrationTime: registrant.create_time || '',
       Status: registrant.status || '',
-      Source: registrant.source || '',
-      JoinUrl: registrant.join_url || '',
-      ...registrant.custom_questions?.reduce((acc, q) => ({
-        ...acc,
-        [q.title]: q.value
-      }), {})
+      JoinUrl: registrant.join_url || ''
     }));
     
     await exportToCSV(registrantData, `${webinar.topic}-registrants`);
@@ -97,13 +92,11 @@ export const useExportData = (webinar: ZoomWebinar, participants?: ZoomParticipa
     
     // Process attendee data for CSV export
     const attendeeData = participants.attendees.map(attendee => ({
-      Email: attendee.email || '',
+      Email: attendee.user_email || '',
       Name: attendee.name || '',
       JoinTime: attendee.join_time || '',
       LeaveTime: attendee.leave_time || '',
-      Duration: `${Math.floor((attendee.duration || 0) / 60)} minutes`,
-      AttentionScore: attendee.attentiveness || 'N/A',
-      UserType: attendee.user_type || ''
+      Duration: `${Math.floor((attendee.duration || 0) / 60)} minutes`
     }));
     
     await exportToCSV(attendeeData, `${webinar.topic}-attendees`);
@@ -113,7 +106,7 @@ export const useExportData = (webinar: ZoomWebinar, participants?: ZoomParticipa
     // Prepare analytics data combining multiple data sources
     const analyticsData = [{
       WebinarName: webinar.topic,
-      Date: formatDate(webinar.start_time || new Date()),
+      Date: formatDate(webinar.start_time ? new Date(webinar.start_time) : new Date()),
       TotalRegistrants: participants?.registrants?.length || 0,
       TotalAttendees: participants?.attendees?.length || 0,
       AttendanceRate: participants?.registrants?.length ? 
