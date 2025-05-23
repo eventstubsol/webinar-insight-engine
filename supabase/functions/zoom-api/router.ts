@@ -1,3 +1,4 @@
+
 import { Request } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { createErrorResponse, createSuccessResponse } from "./cors.ts";
@@ -25,107 +26,194 @@ import {
   handleGetInstanceParticipants,
   handleGetWebinarExtendedData
 } from "./webinar-operations/index.ts";
+import { executeInBackground } from './backgroundTasks.ts';
+import { handleApiError, ErrorCategory } from './errorHandling.ts';
+import { CircuitState, circuitRegistry } from './circuitBreaker.ts';
+import { RateLimitCategory, rateRegistry } from './rateLimiter.ts';
 
-// Operation timeout (increased from 10 seconds to 30 seconds to prevent client timeouts)
-const OPERATION_TIMEOUT = 30000;
+// Operation timeout settings (default, can be overridden for specific operations)
+const DEFAULT_OPERATION_TIMEOUT = 30000; // 30 seconds
+const EXTENDED_OPERATION_TIMEOUT = 60000; // 60 seconds for heavier operations
 
-// Helper to execute a function with timeout
-export async function executeWithTimeout<T>(operation: () => Promise<T>, timeoutMs: number, operationName: string): Promise<T> {
-  console.log(`[zoom-api:router] Starting operation ${operationName} with ${timeoutMs}ms timeout`);
-  
-  return Promise.race([
-    operation(),
-    new Promise<T>((_, reject) => {
-      setTimeout(() => {
-        console.error(`[zoom-api:router] Operation ${operationName} timed out after ${timeoutMs}ms`);
-        reject(new Error(`Operation ${operationName} timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-    })
-  ]);
+// Generate a unique request ID for tracking
+function generateRequestId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 }
 
-// The main router function
-export async function routeRequest(req: Request, supabaseAdmin: any, user: any, body: any) {
-  const action = body?.action;
-  console.log(`[zoom-api:router] Routing action: ${action}`);
+// Helper to execute a function with timeout and error handling
+export async function executeWithTimeout<T>(
+  operation: () => Promise<T>, 
+  timeoutMs: number, 
+  operationName: string,
+  requestId: string
+): Promise<T> {
+  console.log(`[zoom-api:router] [${requestId}] Starting operation ${operationName} with ${timeoutMs}ms timeout`);
   
-  // Route to the appropriate handler based on action with timeout protection
+  // Create a timeout promise
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Operation ${operationName} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  
   try {
-    let response;
+    // Race between the operation and timeout
+    return await Promise.race([
+      operation(),
+      timeoutPromise
+    ]);
+  } catch (error) {
+    console.error(`[zoom-api:router] [${requestId}] Operation ${operationName} failed:`, error);
+    throw error;
+  }
+}
+
+// Process actions that might take longer using background tasks
+export async function processLongRunningAction(
+  req: Request, 
+  supabaseAdmin: any, 
+  user: any, 
+  body: any
+) {
+  const action = body?.action;
+  const requestId = generateRequestId();
+  
+  console.log(`[zoom-api:router] [${requestId}] Processing long-running action: ${action}`);
+  
+  // Get the circuit breaker for this action
+  const circuitBreaker = circuitRegistry.getBreaker(`api:${action}`);
+  
+  // Check circuit breaker state
+  if (!circuitBreaker.canRequest()) {
+    console.warn(`[zoom-api:router] [${requestId}] Circuit breaker open for ${action}, rejecting request`);
+    return createErrorResponse(
+      "Service temporarily unavailable due to previous failures. Please try again later.",
+      503,
+      { 'Retry-After': '60' }
+    );
+  }
+  
+  try {
+    // For update webinar participants, start as a background task and return early
+    if (action === "update-webinar-participants") {
+      const credentials = await getZoomCredentials(supabaseAdmin, user.id);
+      if (!credentials) {
+        return createErrorResponse("Zoom credentials not found", 400);
+      }
+      
+      // Verify credentials
+      const token = await verifyZoomCredentials(credentials);
+      const apiClient = new ZoomApiClient(token);
+      
+      // Start background task
+      const backgroundTask = executeInBackground(
+        `${action}_${requestId}`,
+        async () => {
+          try {
+            const result = await handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials, apiClient);
+            circuitBreaker.recordSuccess();
+            return result;
+          } catch (error) {
+            circuitBreaker.recordFailure();
+            console.error(`[zoom-api:router] [${requestId}] Background task failed:`, error);
+            return handleApiError(error);
+          }
+        }
+      );
+      
+      // Return immediate success response
+      return createSuccessResponse({
+        message: "Participant update started in the background",
+        requestId,
+        status: "processing"
+      });
+    }
     
+    // Regular handling for non-background operations
+    let response;
+    const operationTimeout = action === "list-webinars" ? 
+      EXTENDED_OPERATION_TIMEOUT : DEFAULT_OPERATION_TIMEOUT;
+    
+    // Route to the appropriate handler based on action
     switch (action) {
       case "save-credentials":
         response = await executeWithTimeout(
           () => handleSaveCredentials(req, supabaseAdmin, user, body),
-          OPERATION_TIMEOUT,
-          "save-credentials"
+          operationTimeout,
+          "save-credentials",
+          requestId
         );
         break;
       
       case "check-credentials-status":
         response = await executeWithTimeout(
           () => handleCheckCredentialsStatus(req, supabaseAdmin, user),
-          OPERATION_TIMEOUT,
-          "check-credentials-status"
+          operationTimeout,
+          "check-credentials-status",
+          requestId
         );
         break;
       
       case "get-credentials":
         response = await executeWithTimeout(
           () => handleGetCredentials(req, supabaseAdmin, user),
-          OPERATION_TIMEOUT,
-          "get-credentials"
+          operationTimeout,
+          "get-credentials",
+          requestId
         );
         break;
       
       case "validate-token":
         // New endpoint: only validate token generation
-        console.log(`[zoom-api:router] Getting credentials for token validation for user ${user.id}`);
+        console.log(`[zoom-api:router] [${requestId}] Getting credentials for token validation for user ${user.id}`);
         const tokenValidationCreds = await getZoomCredentials(supabaseAdmin, user.id);
         if (!tokenValidationCreds) {
-          console.error(`[zoom-api:router] No credentials found for user ${user.id} during token validation`);
+          console.error(`[zoom-api:router] [${requestId}] No credentials found for user ${user.id} during token validation`);
           return createErrorResponse("Zoom credentials not found. Please save credentials first.", 400);
         }
         
-        console.log(`[zoom-api:router] Found credentials, proceeding with token validation for user ${user.id}`);
+        console.log(`[zoom-api:router] [${requestId}] Found credentials, proceeding with token validation for user ${user.id}`);
         response = await executeWithTimeout(
           () => handleValidateToken(req, supabaseAdmin, user, tokenValidationCreds),
-          OPERATION_TIMEOUT,
-          "validate-token"
+          operationTimeout,
+          "validate-token",
+          requestId
         );
         break;
         
       case "validate-scopes":
         // New endpoint: only validate OAuth scopes
-        console.log(`[zoom-api:router] Getting credentials for scope validation for user ${user.id}`);
+        console.log(`[zoom-api:router] [${requestId}] Getting credentials for scope validation for user ${user.id}`);
         const scopeValidationCreds = await getZoomCredentials(supabaseAdmin, user.id);
         if (!scopeValidationCreds) {
-          console.error(`[zoom-api:router] No credentials found for user ${user.id} during scope validation`);
+          console.error(`[zoom-api:router] [${requestId}] No credentials found for user ${user.id} during scope validation`);
           return createErrorResponse("Zoom credentials not found. Please save credentials first.", 400);
         }
         
-        console.log(`[zoom-api:router] Found credentials, proceeding with scope validation for user ${user.id}`);
+        console.log(`[zoom-api:router] [${requestId}] Found credentials, proceeding with scope validation for user ${user.id}`);
         response = await executeWithTimeout(
           () => handleValidateScopes(req, supabaseAdmin, user, scopeValidationCreds),
-          OPERATION_TIMEOUT,
-          "validate-scopes"
+          operationTimeout,
+          "validate-scopes",
+          requestId
         );
         break;
       
       case "verify-credentials":
         // Get Zoom credentials for this action
-        console.log(`[zoom-api:router] Getting credentials for verification for user ${user.id}`);
+        console.log(`[zoom-api:router] [${requestId}] Getting credentials for verification for user ${user.id}`);
         const verifyCredentials = await getZoomCredentials(supabaseAdmin, user.id);
         if (!verifyCredentials) {
-          console.error(`[zoom-api:router] No credentials found for user ${user.id} during verification`);
+          console.error(`[zoom-api:router] [${requestId}] No credentials found for user ${user.id} during verification`);
           return createErrorResponse("Zoom credentials not found. Please save credentials first.", 400);
         }
         
-        console.log(`[zoom-api:router] Found credentials, proceeding with verification for user ${user.id}`);
+        console.log(`[zoom-api:router] [${requestId}] Found credentials, proceeding with verification for user ${user.id}`);
         response = await executeWithTimeout(
           () => handleVerifyCredentials(req, supabaseAdmin, user, verifyCredentials),
-          OPERATION_TIMEOUT,
-          "verify-credentials"
+          operationTimeout,
+          "verify-credentials",
+          requestId
         );
         break;
         
@@ -140,14 +228,15 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
           // Verify credentials for actions that require valid credentials
           const token = await executeWithTimeout(
             () => verifyZoomCredentials(credentials),
-            OPERATION_TIMEOUT,
-            "verify-zoom-credentials"
+            operationTimeout,
+            "verify-zoom-credentials",
+            requestId
           );
           
           // If token has changed, update it in the database
           if (token !== credentials.access_token) {
             await updateCredentialsVerification(supabaseAdmin, user.id, true, token);
-            console.log(`Updated access token for user ${user.id}`);
+            console.log(`[zoom-api:router] [${requestId}] Updated access token for user ${user.id}`);
           }
           
           // Create API client with rate limiting
@@ -156,58 +245,89 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
           // Route to the correct action handler with timeout protection
           switch (action) {
             case "list-webinars":
-              response = await executeWithTimeout(
-                () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
-                OPERATION_TIMEOUT,
-                "list-webinars"
+              // Use rate limiting for this heavy operation
+              response = await rateRegistry.executeWithRateLimit(
+                RateLimitCategory.HEAVY,
+                async () => {
+                  return await executeWithTimeout(
+                    () => handleListWebinars(req, supabaseAdmin, user, credentials, body.force_sync || false, apiClient),
+                    EXTENDED_OPERATION_TIMEOUT,
+                    "list-webinars",
+                    requestId
+                  );
+                }
               );
               break;
               
             case "get-webinar":
-              response = await executeWithTimeout(
-                () => handleGetWebinar(req, supabaseAdmin, user, credentials, body.id, apiClient),
-                OPERATION_TIMEOUT,
-                "get-webinar"
+              // Use medium rate limiting
+              response = await rateRegistry.executeWithRateLimit(
+                RateLimitCategory.MEDIUM,
+                async () => {
+                  return await executeWithTimeout(
+                    () => handleGetWebinar(req, supabaseAdmin, user, credentials, body.id, apiClient),
+                    operationTimeout,
+                    "get-webinar",
+                    requestId
+                  );
+                }
               );
               break;
               
             case "get-participants":
-              response = await executeWithTimeout(
-                () => handleGetParticipants(req, supabaseAdmin, user, credentials, body.id, apiClient),
-                OPERATION_TIMEOUT,
-                "get-participants"
-              );
-              break;
-              
-            case "update-webinar-participants":
-              response = await executeWithTimeout(
-                () => handleUpdateWebinarParticipants(req, supabaseAdmin, user, credentials, apiClient),
-                OPERATION_TIMEOUT,
-                "update-webinar-participants"
+              // Use medium rate limiting
+              response = await rateRegistry.executeWithRateLimit(
+                RateLimitCategory.MEDIUM,
+                async () => {
+                  return await executeWithTimeout(
+                    () => handleGetParticipants(req, supabaseAdmin, user, credentials, body.id, apiClient),
+                    operationTimeout,
+                    "get-participants",
+                    requestId
+                  );
+                }
               );
               break;
               
             case "get-webinar-instances":
-              response = await executeWithTimeout(
-                () => handleGetWebinarInstances(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
-                OPERATION_TIMEOUT,
-                "get-webinar-instances"
+              response = await rateRegistry.executeWithRateLimit(
+                RateLimitCategory.MEDIUM,
+                async () => {
+                  return await executeWithTimeout(
+                    () => handleGetWebinarInstances(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
+                    operationTimeout,
+                    "get-webinar-instances",
+                    requestId
+                  );
+                }
               );
               break;
               
             case "get-instance-participants":
-              response = await executeWithTimeout(
-                () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id, apiClient),
-                OPERATION_TIMEOUT,
-                "get-instance-participants"
+              response = await rateRegistry.executeWithRateLimit(
+                RateLimitCategory.MEDIUM,
+                async () => {
+                  return await executeWithTimeout(
+                    () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id, apiClient),
+                    operationTimeout,
+                    "get-instance-participants",
+                    requestId
+                  );
+                }
               );
               break;
               
             case "get-webinar-extended-data":
-              response = await executeWithTimeout(
-                () => handleGetWebinarExtendedData(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
-                OPERATION_TIMEOUT,
-                "get-webinar-extended-data"
+              response = await rateRegistry.executeWithRateLimit(
+                RateLimitCategory.HEAVY,
+                async () => {
+                  return await executeWithTimeout(
+                    () => handleGetWebinarExtendedData(req, supabaseAdmin, user, credentials, body.webinar_id, apiClient),
+                    EXTENDED_OPERATION_TIMEOUT,
+                    "get-webinar-extended-data",
+                    requestId
+                  );
+                }
               );
               break;
               
@@ -217,33 +337,42 @@ export async function routeRequest(req: Request, supabaseAdmin: any, user: any, 
         } catch (credentialError) {
           // If verification fails, mark credentials as invalid
           await updateCredentialsVerification(supabaseAdmin, user.id, false);
-          console.error(`Credential verification failed for user ${user.id}:`, credentialError);
+          console.error(`[zoom-api:router] [${requestId}] Credential verification failed for user ${user.id}:`, credentialError);
           return createErrorResponse(`Authentication failed: ${credentialError.message}`, 401);
         }
     }
     
-    return response;
+    // Record success in circuit breaker
+    circuitBreaker.recordSuccess();
+    
+    // Add request ID to response for tracking
+    const responseData = await response.json();
+    const enhancedResponse = createSuccessResponse({
+      ...responseData,
+      requestId
+    }, response.status);
+    
+    return enhancedResponse;
   } catch (error) {
-    console.error(`[zoom-api] Error in ${action} action:`, error);
+    // Record failure in circuit breaker
+    circuitBreaker.recordFailure();
     
-    // For timeouts or network errors
-    if (error.message && error.message.includes('timed out')) {
-      return createErrorResponse("Operation timed out. Please try again later.", 504);
-    }
-    
-    // Check for specific error types for better error messages
-    if (error.message && error.message.toLowerCase().includes('scopes')) {
-      return createErrorResponse("Missing required OAuth scopes. Please check your Zoom app configuration.", 403);
-    }
-    
-    // Network related errors
-    if (error.message && 
-        (error.message.includes('Failed to send') || 
-         error.message.toLowerCase().includes('network') ||
-         error.message.toLowerCase().includes('connection'))) {
-      return createErrorResponse("Network error. Please check your connection and try again.", 503);
-    }
-    
-    return createErrorResponse(error.message || "An unknown error occurred", 400);
+    console.error(`[zoom-api:router] [${requestId}] Error in ${action} action:`, error);
+    return handleApiError(error);
+  }
+}
+
+// The main router function with improved error handling and diagnostics
+export async function routeRequest(req: Request, supabaseAdmin: any, user: any, body: any) {
+  const action = body?.action;
+  const requestId = generateRequestId();
+  
+  console.log(`[zoom-api:router] [${requestId}] Routing action: ${action}`);
+  
+  try {
+    return await processLongRunningAction(req, supabaseAdmin, user, body);
+  } catch (error) {
+    console.error(`[zoom-api:router] [${requestId}] Unhandled error:`, error);
+    return handleApiError(error);
   }
 }

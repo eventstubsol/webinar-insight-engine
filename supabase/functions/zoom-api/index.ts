@@ -3,8 +3,12 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { corsHeaders, handleCors, addCorsHeaders, createErrorResponse } from "./cors.ts";
 import { routeRequest } from "./router.ts";
+import { handleApiError } from './errorHandling.ts';
+import { circuitRegistry } from './circuitBreaker.ts';
+import { rateRegistry } from './rateLimiter.ts';
+import { taskTracker } from './backgroundTasks.ts';
 
-// Simple in-memory rate limiter
+// Simple in-memory rate limiter for overall request rate
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 60; // 60 requests per minute per user
 const requestLog: Record<string, { count: number, timestamp: number }> = {};
@@ -29,6 +33,45 @@ function checkRateLimit(userId: string): boolean {
   return false;
 }
 
+// Service health check endpoint
+function handleHealthCheck(req: Request): Response {
+  if (req.url.endsWith('/health')) {
+    const health = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      circuits: circuitRegistry.getAllStatus(),
+      rateLimits: rateRegistry.getStatus(),
+      activeBackgroundTasks: taskTracker.getActiveTasksCount()
+    };
+    
+    return new Response(
+      JSON.stringify(health),
+      { 
+        status: 200, 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }
+  
+  return null;
+}
+
+// Register shutdown handler for clean resource release
+if (typeof addEventListener !== 'undefined') {
+  addEventListener('beforeunload', (event) => {
+    console.log(`[zoom-api] Function shutting down due to: ${event.detail?.reason || 'unknown reason'}`);
+    
+    // Log active resources
+    const activeTasks = taskTracker.getActiveTasksCount();
+    if (activeTasks > 0) {
+      console.log(`[zoom-api] ${activeTasks} background tasks still active`);
+    }
+  });
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight requests - this must come first
   const corsResponse = await handleCors(req);
@@ -36,9 +79,18 @@ serve(async (req: Request) => {
     console.log("Returning CORS preflight response");
     return corsResponse;
   }
-
+  
+  // Health check endpoint
+  const healthResponse = handleHealthCheck(req);
+  if (healthResponse) {
+    return healthResponse;
+  }
+  
   try {
-    // Get the request body
+    // Generate a request ID for tracing
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    
+    // Parse request body with better error handling
     let body;
     try {
       const bodyText = await req.text();
@@ -59,7 +111,7 @@ serve(async (req: Request) => {
       return createErrorResponse("Missing 'action' parameter", 400);
     }
 
-    console.log(`[zoom-api] Processing action: ${action}`);
+    console.log(`[zoom-api] [${requestId}] Processing action: ${action}`);
 
     // Create client
     let supabaseAdmin;
@@ -96,12 +148,12 @@ serve(async (req: Request) => {
         return createErrorResponse("Invalid token or user not found", 401);
       }
       user = data.user;
-      console.log(`[zoom-api] Authenticated user: ${user.id}`);
+      console.log(`[zoom-api] [${requestId}] Authenticated user: ${user.id}`);
       
       // Apply rate limiting
       const isWithinLimit = checkRateLimit(user.id);
       if (!isWithinLimit) {
-        console.warn(`[zoom-api] Rate limit exceeded for user ${user.id}`);
+        console.warn(`[zoom-api] [${requestId}] Rate limit exceeded for user ${user.id}`);
         return createErrorResponse(
           "Too many requests. Please wait a moment before trying again.", 
           429, 
@@ -121,6 +173,6 @@ serve(async (req: Request) => {
     return addCorsHeaders(response);
   } catch (error) {
     console.error("[zoom-api] Unhandled error:", error);
-    return createErrorResponse(error.message || "An unknown error occurred", 500);
+    return handleApiError(error);
   }
 });
