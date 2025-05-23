@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { Json } from '@/integrations/supabase/types';
 
 export interface Workspace {
   id: string;
@@ -15,11 +16,13 @@ export interface Workspace {
   created_by: string | null;
 }
 
+export type WorkspaceMemberRole = 'owner' | 'admin' | 'analyst' | 'viewer';
+
 export interface WorkspaceMember {
   id: string;
   workspace_id: string;
   user_id: string;
-  role: 'owner' | 'admin' | 'analyst' | 'viewer';
+  role: WorkspaceMemberRole;
   joined_at: string;
   profile?: {
     display_name: string | null;
@@ -77,13 +80,13 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         throw new Error(`Error fetching workspaces: ${workspacesError.message}`);
       }
 
-      // Transform data to extract just the workspace info
-      const userWorkspaces = data.map(item => ({
+      // Transform data to extract just the workspace info and ensure correct typing
+      const userWorkspaces: Workspace[] = data.map(item => ({
         id: item.id,
         name: item.name,
         slug: item.slug,
         description: item.description,
-        settings: item.settings,
+        settings: item.settings as Record<string, any>,
         created_at: item.created_at,
         updated_at: item.updated_at,
         created_by: item.created_by
@@ -145,8 +148,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return null;
       }
 
-      setUserRole(data.role);
-      return data.role;
+      const role = data.role as WorkspaceMemberRole;
+      setUserRole(role);
+      return role;
     } catch (err) {
       console.error('Error in fetchUserRole:', err);
       return null;
@@ -186,11 +190,23 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (error) throw new Error(`Failed to create workspace: ${error.message}`);
 
+      // Transform data to ensure correct typing
+      const createdWorkspace: Workspace = {
+        id: newWorkspace.id,
+        name: newWorkspace.name,
+        slug: newWorkspace.slug,
+        description: newWorkspace.description,
+        settings: newWorkspace.settings as Record<string, any>,
+        created_at: newWorkspace.created_at,
+        updated_at: newWorkspace.updated_at,
+        created_by: newWorkspace.created_by
+      };
+
       // Automatically add the creator as an owner
       const { error: memberError } = await supabase
         .from('workspace_members')
         .insert({
-          workspace_id: newWorkspace.id,
+          workspace_id: createdWorkspace.id,
           user_id: user.id,
           role: 'owner',
         });
@@ -208,7 +224,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         description: `${data.name} workspace has been created successfully.`,
       });
 
-      return newWorkspace;
+      return createdWorkspace;
     } catch (err) {
       console.error('Error creating workspace:', err);
       toast({
@@ -303,18 +319,20 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (error) throw new Error(`Failed to fetch workspace members: ${error.message}`);
 
-      // Transform to match our interface
-      return data.map(item => ({
+      // Transform to match our interface with proper typing
+      const members: WorkspaceMember[] = data.map(item => ({
         id: item.id,
         workspace_id: item.workspace_id,
         user_id: item.user_id,
-        role: item.role,
+        role: item.role as WorkspaceMemberRole,
         joined_at: item.joined_at,
         profile: item.profiles ? {
           display_name: item.profiles.display_name,
           avatar_url: item.profiles.avatar_url
         } : undefined
       }));
+
+      return members;
     } catch (err) {
       console.error('Error fetching workspace members:', err);
       toast({
@@ -326,7 +344,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
-  const inviteWorkspaceMember = useCallback(async (workspaceId: string, email: string, role: WorkspaceMember['role']) => {
+  const inviteWorkspaceMember = useCallback(async (workspaceId: string, email: string, role: WorkspaceMemberRole) => {
     try {
       // First, check if the user exists
       const { data: userData, error: userError } = await supabase
@@ -382,7 +400,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
-  const updateWorkspaceMember = useCallback(async (memberId: string, role: WorkspaceMember['role']) => {
+  const updateWorkspaceMember = useCallback(async (memberId: string, role: WorkspaceMemberRole) => {
     try {
       const { error } = await supabase
         .from('workspace_members')

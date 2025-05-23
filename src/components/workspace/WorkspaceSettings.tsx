@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useWorkspace, WorkspaceMember } from '@/contexts/WorkspaceContext';
 import { Button } from '@/components/ui/button';
@@ -214,11 +213,9 @@ export function WorkspaceSettings() {
               {members.map((member) => (
                 <TableRow key={member.id}>
                   <TableCell className="flex items-center gap-2">
-                    <UserAvatar
-                      user={{
-                        name: member.profile?.display_name || 'User',
-                        avatarUrl: member.profile?.avatar_url || undefined
-                      }}
+                    <UserAvatar 
+                      name={member.profile?.display_name || 'User'} 
+                      avatarUrl={member.profile?.avatar_url || undefined} 
                     />
                     <span>{member.profile?.display_name || 'User'}</span>
                   </TableCell>

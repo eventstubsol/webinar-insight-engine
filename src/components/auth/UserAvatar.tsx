@@ -1,39 +1,29 @@
 
-import React from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { User } from '@/types/auth';
 
-interface UserAvatarProps {
-  className?: string;
+export interface UserAvatarProps {
+  name?: string;
+  avatarUrl?: string;
 }
 
-export const UserAvatar: React.FC<UserAvatarProps> = ({ className }) => {
-  const { user, profile } = useAuth();
-
-  if (!user) {
-    return null;
-  }
-
-  // Get initials from display name or email
-  const getInitials = () => {
-    if (profile?.display_name) {
-      return profile.display_name
-        .split(' ')
-        .map(name => name[0])
-        .join('')
+export function UserAvatar({ name, avatarUrl }: UserAvatarProps) {
+  // Get initials from name
+  const initials = name
+    ? name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
         .toUpperCase()
-        .substring(0, 2);
-    }
-    
-    return user.email?.[0].toUpperCase() || 'U';
-  };
+        .substring(0, 2)
+    : "??";
 
   return (
-    <Avatar className={className}>
-      <AvatarImage src={profile?.avatar_url || ''} alt={profile?.display_name || 'User avatar'} />
-      <AvatarFallback className="bg-brand-100 text-brand-800">
-        {getInitials()}
-      </AvatarFallback>
+    <Avatar>
+      {avatarUrl ? (
+        <AvatarImage src={avatarUrl} alt={name || "User avatar"} />
+      ) : null}
+      <AvatarFallback>{initials}</AvatarFallback>
     </Avatar>
   );
-};
+}
