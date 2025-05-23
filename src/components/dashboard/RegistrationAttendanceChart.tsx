@@ -1,6 +1,9 @@
 
 import { RegistrationAttendanceAreaChart } from './RegistrationAttendanceAreaChart';
+import { RegistrationAttendanceBarChart } from './RegistrationAttendanceBarChart';
 
-// Re-export the area chart implementation as the default chart
-export { RegistrationAttendanceAreaChart as RegistrationAttendanceChart };
+// Export both chart types for flexibility
+export { RegistrationAttendanceAreaChart, RegistrationAttendanceBarChart }; 
+
+// Default export is now the area chart implementation (the more visually appealing one)
 export default RegistrationAttendanceAreaChart;

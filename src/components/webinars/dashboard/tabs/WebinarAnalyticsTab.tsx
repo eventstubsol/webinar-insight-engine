@@ -2,7 +2,7 @@
 import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RegistrationAttendanceChart } from '@/components/dashboard/RegistrationAttendanceChart';
+import { RegistrationAttendanceBarChart } from '@/components/dashboard/RegistrationAttendanceBarChart';
 import { AttendanceChart } from '@/components/dashboard/AttendanceChart';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
@@ -56,7 +56,7 @@ export const WebinarAnalyticsTab: React.FC<WebinarAnalyticsTabProps> = ({
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              <RegistrationAttendanceChart 
+              <RegistrationAttendanceBarChart 
                 data={registrationAttendanceData} 
               />
             </div>
