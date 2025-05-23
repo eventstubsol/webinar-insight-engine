@@ -23,7 +23,7 @@ export function useWorkspaceData() {
     }
 
     let query = supabase
-      .from(table)
+      .from(table as any)
       .select(columns)
       .eq('workspace_id', currentWorkspace.id);
     
@@ -61,7 +61,7 @@ export function useWorkspaceData() {
     }));
     
     const query = supabase
-      .from(table)
+      .from(table as any)
       .insert(dataWithWorkspace as any);
     
     if (options?.returning !== false) {
@@ -95,7 +95,7 @@ export function useWorkspaceData() {
     const idField = options?.idField || 'id';
     
     const query = supabase
-      .from(table)
+      .from(table as any)
       .update(updates)
       .eq(idField, id)
       .eq('workspace_id', currentWorkspace.id);
@@ -130,7 +130,7 @@ export function useWorkspaceData() {
     const idField = options?.idField || 'id';
     
     const { error } = await supabase
-      .from(table)
+      .from(table as any)
       .delete()
       .eq(idField, id)
       .eq('workspace_id', currentWorkspace.id);

@@ -3,7 +3,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-import { Json } from '@/integrations/supabase/types';
 
 export interface Workspace {
   id: string;
@@ -148,9 +147,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return null;
       }
 
-      const role = data.role as WorkspaceMemberRole;
-      setUserRole(role);
-      return role;
+      setUserRole(data.role as WorkspaceMemberRole);
+      return data.role as WorkspaceMemberRole;
     } catch (err) {
       console.error('Error in fetchUserRole:', err);
       return null;
@@ -320,17 +318,22 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (error) throw new Error(`Failed to fetch workspace members: ${error.message}`);
 
       // Transform to match our interface with proper typing
-      const members: WorkspaceMember[] = data.map(item => ({
-        id: item.id,
-        workspace_id: item.workspace_id,
-        user_id: item.user_id,
-        role: item.role as WorkspaceMemberRole,
-        joined_at: item.joined_at,
-        profile: item.profiles ? {
-          display_name: item.profiles.display_name || null,
-          avatar_url: item.profiles.avatar_url || null
-        } : undefined
-      }));
+      const members: WorkspaceMember[] = data.map(item => {
+        // Safely handle profiles data with type checking
+        const profileData = item.profiles as { display_name: string | null, avatar_url: string | null } | null;
+        
+        return {
+          id: item.id,
+          workspace_id: item.workspace_id,
+          user_id: item.user_id,
+          role: item.role as WorkspaceMemberRole,
+          joined_at: item.joined_at,
+          profile: profileData ? {
+            display_name: profileData.display_name || null,
+            avatar_url: profileData.avatar_url || null
+          } : undefined
+        };
+      });
 
       return members;
     } catch (err) {
