@@ -23,6 +23,7 @@ export interface VerificationDetails {
 export interface VerificationState {
   stage: VerificationStage;
   isSubmitting: boolean;
+  isVerifying?: boolean; // Add this property since it's being used
   error: string | null;
   scopesError: boolean;
   tokenValidated: boolean;

@@ -1,115 +1,109 @@
 
-import { useRef, useEffect } from 'react';
-import { useToast } from "@/hooks/use-toast";
+import { useState, useCallback } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
-export function useVerificationErrorHandler(onTimeout: () => void) {
+export function useVerificationErrorHandler(timeoutCallback?: () => void) {
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
-  const verificationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isSubmittingRef = useRef<boolean>(false);
-  
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      if (verificationTimeoutRef.current) {
-        clearTimeout(verificationTimeoutRef.current);
+
+  // Set up a timeout for the verification process
+  const setupVerificationTimeout = useCallback((timeout: number = 30000) => {
+    setIsVerifying(true);
+    
+    // Clear any existing timeout
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    
+    // Set a new timeout
+    const id = setTimeout(() => {
+      setIsVerifying(false);
+      if (timeoutCallback) {
+        timeoutCallback();
       }
-      isSubmittingRef.current = false;
-    };
+    }, timeout);
+    
+    setTimeoutId(id);
+  }, [timeoutId, timeoutCallback]);
+
+  // Clear the timeout
+  const clearVerificationTimeout = useCallback(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      setTimeoutId(null);
+    }
+    setIsVerifying(false);
+  }, [timeoutId]);
+
+  // Update submitting state
+  const setSubmitting = useCallback((isSubmitting: boolean) => {
+    setIsVerifying(isSubmitting);
   }, []);
-  
-  // Set up a verification timeout with proper cleanup
-  const setupVerificationTimeout = (timeoutMs: number = 45000) => {
-    if (verificationTimeoutRef.current) {
-      clearTimeout(verificationTimeoutRef.current);
-    }
-    
-    verificationTimeoutRef.current = setTimeout(() => {
-      if (isSubmittingRef.current) {
-        console.log('Operation timed out');
-        onTimeout();
-        
-        isSubmittingRef.current = false;
-        
-        toast({
-          title: 'Operation Timed Out',
-          description: 'The server took too long to respond. Please try again.',
-          variant: 'destructive'
-        });
-      }
-    }, timeoutMs);
-  };
-  
-  // Clear timeout if exists
-  const clearVerificationTimeout = () => {
-    if (verificationTimeoutRef.current) {
-      clearTimeout(verificationTimeoutRef.current);
-      verificationTimeoutRef.current = null;
-    }
-  };
-  
-  // Set submitting state
-  const setSubmitting = (isSubmitting: boolean) => {
-    isSubmittingRef.current = isSubmitting;
-  };
-  
-  // Helper function to determine user-friendly error messages
-  const determineErrorMessage = (error: any, context: 'token' | 'scopes' | 'save'): string => {
-    const message = error.message?.toLowerCase() || '';
-    
-    if (message.includes('timeout') || message.includes('timed out')) {
-      return `The ${context} validation process timed out. This could be due to network issues or server load.`;
-    }
-    
-    if (message.includes('network') || message.includes('connection')) {
-      return `Network error during ${context} validation. Please check your internet connection and try again.`;
-    }
-    
-    if (message.includes('invalid client') || message.includes('client_id') || message.includes('client_secret')) {
-      return 'Invalid client credentials. Please check your Client ID and Client Secret.';
-    }
-    
-    if (message.includes('invalid account') || message.includes('account_id')) {
-      return 'Invalid account ID. Please verify your Zoom Account ID.';
-    }
-    
-    if (message.includes('rate limit')) {
-      return 'Rate limit exceeded. Please wait a moment before trying again.';
-    }
-    
-    if (context === 'save') {
-      return error.message || 'Failed to save Zoom API credentials';
-    } else if (context === 'token') {
-      if (message.includes('token')) {
-        return 'Token generation failed. Please check your Zoom API credentials.';
-      }
-      return error.message || 'Failed to validate Zoom API credentials';
-    } else if (context === 'scopes') {
-      if (message.includes('scopes')) {
-        return 'Missing required OAuth scopes. Please check your Zoom app configuration.';
-      }
-      return error.message || 'Failed to validate Zoom app permissions';
-    }
-    
-    return error.message || `Failed during ${context} validation`;
-  };
-  
-  // Show appropriate toast based on error
-  const showErrorToast = (title: string, errorMessage: string) => {
+
+  // Handle showing an error toast
+  const showErrorToast = useCallback((title: string, message: string) => {
     toast({
       title,
-      description: errorMessage,
+      description: message,
       variant: 'destructive'
     });
-  };
-  
-  // Show success toast
-  const showSuccessToast = (userEmail?: string) => {
+  }, [toast]);
+
+  // Handle showing a success toast
+  const showSuccessToast = useCallback((email?: string) => {
+    const message = email 
+      ? `Successfully connected to Zoom account: ${email}` 
+      : 'Successfully connected to Zoom account';
+    
     toast({
-      title: 'Zoom Integration Successful',
-      description: `Connected as ${userEmail || 'Zoom User'}`
+      title: 'Verification Successful',
+      description: message,
+      variant: 'success'
     });
-  };
-  
+  }, [toast]);
+
+  // Determine appropriate error messages for different error contexts
+  const determineErrorMessage = useCallback((err: Error | any, context: 'token' | 'scopes' | 'save' = 'token') => {
+    const message = err?.message || 'An unknown error occurred';
+    
+    // Default error messages for each context
+    const defaultMessages = {
+      token: 'Failed to validate API credentials. Please check your Account ID, Client ID, and Client Secret.',
+      scopes: 'Your Zoom app is missing required OAuth scopes. Please update your app configuration.',
+      save: 'Failed to save credentials. Please try again later.'
+    };
+    
+    // Check for specific error patterns
+    if (message.includes('401') || message.includes('unauthorized') || message.includes('invalid_client')) {
+      return 'Authentication failed. Please check your credentials and try again.';
+    }
+    
+    if (message.includes('403') || message.includes('forbidden')) {
+      return 'Your account does not have permission to access Zoom Webinars. Please check your account type and permissions.';
+    }
+    
+    if (message.includes('429') || message.includes('rate limit')) {
+      return 'Rate limit exceeded. Please try again in a few minutes.';
+    }
+    
+    if (message.includes('timeout') || message.includes('timed out')) {
+      return 'The request timed out. Please check your internet connection and try again.';
+    }
+    
+    if (message.includes('network') || message.includes('NETWORK_ERROR')) {
+      return 'Network error. Please check your internet connection and try again.';
+    }
+    
+    // If no specific pattern is matched, return context-specific default message
+    return message.includes('Failed to') ? message : defaultMessages[context];
+  }, []);
+
+  // Function to check if we're currently submitting
+  const isSubmitting = useCallback(() => {
+    return isVerifying;
+  }, [isVerifying]);
+
   return {
     setupVerificationTimeout,
     clearVerificationTimeout,
@@ -117,6 +111,7 @@ export function useVerificationErrorHandler(onTimeout: () => void) {
     determineErrorMessage,
     showErrorToast,
     showSuccessToast,
-    isSubmitting: () => isSubmittingRef.current
+    isVerifying,
+    isSubmitting
   };
 }

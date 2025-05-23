@@ -7,6 +7,7 @@ export function useVerificationState() {
   const [verificationState, setVerificationState] = useState<VerificationState>({
     stage: VerificationStage.Idle,
     isSubmitting: false,
+    isVerifying: false,
     error: null,
     scopesError: false,
     tokenValidated: false,
@@ -19,6 +20,7 @@ export function useVerificationState() {
     setVerificationState({
       stage: VerificationStage.Idle,
       isSubmitting: false,
+      isVerifying: false,
       error: null,
       scopesError: false,
       tokenValidated: false,
@@ -47,7 +49,8 @@ export function useVerificationState() {
   const setSubmitting = (isSubmitting: boolean) => {
     setVerificationState(prev => ({
       ...prev,
-      isSubmitting
+      isSubmitting,
+      isVerifying: isSubmitting
     }));
   };
   
@@ -98,6 +101,7 @@ export function useVerificationState() {
       ...prev,
       stage,
       isSubmitting,
+      isVerifying: isSubmitting,
       error
     }));
   };
@@ -108,6 +112,7 @@ export function useVerificationState() {
       ...prev,
       stage: VerificationStage.Complete,
       isSubmitting: false,
+      isVerifying: false,
       verificationDetails: details,
       details: details, // Add this to support both property names
       tokenValidated: true,
@@ -121,6 +126,7 @@ export function useVerificationState() {
       ...prev,
       stage: VerificationStage.Failed,
       isSubmitting: false,
+      isVerifying: false,
       error,
       scopesError: isScopesError
     }));

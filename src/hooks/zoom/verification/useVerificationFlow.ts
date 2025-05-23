@@ -8,7 +8,12 @@ import { ZoomCredentials, VerificationStage, VerificationDetails } from './types
 
 export function useVerificationFlow() {
   const [error, setError] = useState<string | null>(null);
-  const { verificationState, updateVerificationState, resetVerificationState } = useVerificationState();
+  const { 
+    verificationState, 
+    updateVerificationState, 
+    resetVerificationState 
+  } = useVerificationState();
+  
   const { validateToken, validateScopes, saveCredentials } = useVerificationAPIs();
   const { 
     setupVerificationTimeout, 
@@ -18,15 +23,7 @@ export function useVerificationFlow() {
     showErrorToast,
     showSuccessToast,
     isSubmitting
-  } = useVerificationErrorHandler(() => {
-    // Handle timeout
-    setSubmitting(false);
-    updateVerificationState({
-      stage: VerificationStage.INPUT,
-      isVerifying: false,
-      error: 'Operation timed out. The server took too long to respond.'
-    });
-  });
+  } = useVerificationErrorHandler();
   
   const { toast } = useToast();
   
@@ -40,7 +37,7 @@ export function useVerificationFlow() {
       // Update state to show we're validating the token
       updateVerificationState({
         stage: VerificationStage.TOKEN_VALIDATION,
-        isVerifying: true
+        isSubmitting: true
       });
       
       // Set up timeout for the entire operation
@@ -59,7 +56,7 @@ export function useVerificationFlow() {
       // Update state to show we're validating scopes
       updateVerificationState({
         stage: VerificationStage.SCOPE_VALIDATION,
-        isVerifying: true
+        isSubmitting: true
       });
       
       // Step 2: Validate that the token has the required scopes
@@ -74,7 +71,7 @@ export function useVerificationFlow() {
       // Update state to show we're saving credentials
       updateVerificationState({
         stage: VerificationStage.SAVING,
-        isVerifying: true
+        isSubmitting: true
       });
       
       // Step 3: Save the credentials with the backend
@@ -92,7 +89,7 @@ export function useVerificationFlow() {
       // All steps completed successfully!
       updateVerificationState({
         stage: VerificationStage.COMPLETED,
-        isVerifying: false,
+        isSubmitting: false,
         details: {
           user: saveResult.data?.user,
           verified: true,
@@ -133,7 +130,7 @@ export function useVerificationFlow() {
       // Update state with error
       updateVerificationState({
         stage,
-        isVerifying: false,
+        isSubmitting: false,
         error: errorMessage
       });
       
