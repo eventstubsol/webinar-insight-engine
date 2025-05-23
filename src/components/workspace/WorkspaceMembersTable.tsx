@@ -35,7 +35,7 @@ interface WorkspaceMembersTableProps {
   isLoading: boolean;
   isAdmin: boolean;
   currentUserRole: WorkspaceMemberRole | null;
-  onUpdateRole: (memberId: string, role: WorkspaceMember['role']) => Promise<void>;
+  onUpdateRole: (memberId: string, role: WorkspaceMemberRole) => Promise<void>;
   onRemoveMember: (memberId: string) => Promise<void>;
 }
 
@@ -85,7 +85,7 @@ export function WorkspaceMembersTable({
               <span>{member.profile?.display_name || 'User'}</span>
             </TableCell>
             <TableCell>
-              <RoleTag role={member.role} />
+              <RoleTag role={member.role as WorkspaceMemberRole} />
             </TableCell>
             {isAdmin && (
               <TableCell className="flex gap-2">
@@ -150,9 +150,9 @@ function MemberActions({ member, onUpdateRole, onRemove, currentUserRole }: Memb
           </DialogHeader>
           
           <Select 
-            defaultValue={member.role}
-            onValueChange={(value: WorkspaceMemberRole) => {
-              onUpdateRole(value);
+            defaultValue={member.role as string}
+            onValueChange={(value: string) => {
+              onUpdateRole(value as WorkspaceMemberRole);
               setIsChangeRoleOpen(false);
             }}
           >

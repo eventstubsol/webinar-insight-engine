@@ -22,12 +22,6 @@ type ValidTableName =
   | 'zoom_webinar_recordings'
   | 'zoom_webinars';
 
-// Simple type for Supabase query results
-interface SupabaseQueryResult<T = any> {
-  data: T | null;
-  error: any;
-}
-
 /**
  * Hook to handle workspace-scoped data operations
  */
@@ -57,14 +51,14 @@ export function useWorkspaceData() {
         query = additionalFilters(query);
       }
       
-      const { data, error }: SupabaseQueryResult<T[]> = await query;
+      const { data, error } = await query;
       
       if (error) {
         console.error(`Error fetching ${table} data:`, error);
         throw error;
       }
       
-      return data || [];
+      return (data || []) as T[];
     } catch (error) {
       console.error(`Error in getFromWorkspace:`, error);
       throw error;
@@ -99,14 +93,14 @@ export function useWorkspaceData() {
         query = query.select();
       }
       
-      const { data: result, error }: SupabaseQueryResult<T[]> = await query;
+      const { data: result, error } = await query;
       
       if (error) {
         console.error(`Error inserting into ${table}:`, error);
         throw error;
       }
       
-      return result || [];
+      return (result || []) as T[];
     } catch (error) {
       console.error(`Error in insertToWorkspace:`, error);
       throw error;
@@ -137,17 +131,21 @@ export function useWorkspaceData() {
         .eq('workspace_id', currentWorkspace.id);
       
       if (options?.returning !== false) {
-        query = query.select().single();
+        query = query.select();
       }
       
-      const { data: result, error }: SupabaseQueryResult<T> = await query;
+      if (options?.returning !== false) {
+        query = query.single();
+      }
+      
+      const { data: result, error } = await query;
       
       if (error) {
         console.error(`Error updating in ${table}:`, error);
         throw error;
       }
       
-      return result;
+      return result as T | null;
     } catch (error) {
       console.error(`Error in updateInWorkspace:`, error);
       throw error;

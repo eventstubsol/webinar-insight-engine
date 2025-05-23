@@ -177,7 +177,7 @@ export async function fetchWorkspaceMembers(workspaceId: string): Promise<Worksp
   // Transform to match our interface with proper null handling
   const members: WorkspaceMember[] = data.map(item => {
     // Fix: Properly handle the profiles data which could be null
-    const profileData = item.profiles;
+    const profileData = item.profiles || null;
     
     return {
       id: item.id,
@@ -185,7 +185,7 @@ export async function fetchWorkspaceMembers(workspaceId: string): Promise<Worksp
       user_id: item.user_id,
       role: item.role as WorkspaceMemberRole,
       joined_at: item.joined_at,
-      profile: profileData && typeof profileData === 'object' && !Array.isArray(profileData) ? {
+      profile: profileData ? {
         display_name: profileData.display_name || null,
         avatar_url: profileData.avatar_url || null
       } : undefined
@@ -241,7 +241,7 @@ export async function inviteUserToWorkspace(
     .insert({
       workspace_id: workspaceId,
       user_id: userData.id,
-      role,
+      role: role as string, // Explicit casting to avoid type issues
     });
 
   if (addError) throw new Error(`Failed to add member: ${addError.message}`);
@@ -258,7 +258,7 @@ export async function inviteUserToWorkspace(
 export async function updateWorkspaceMemberRole(memberId: string, role: WorkspaceMemberRole) {
   const { error } = await supabase
     .from('workspace_members')
-    .update({ role })
+    .update({ role: role as string }) // Explicit casting to avoid type issues
     .eq('id', memberId);
 
   if (error) throw new Error(`Failed to update member role: ${error.message}`);
