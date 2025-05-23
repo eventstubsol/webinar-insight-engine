@@ -57,7 +57,8 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    return (data || []) as T[];
+    // Use proper casting with explicit unknown intermediary step
+    return (data ? data as unknown as T[] : []) as T[];
   }, [currentWorkspace]);
 
   /**
@@ -94,7 +95,8 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    return responseData as unknown as T[];
+    // Proper type casting with unknown intermediary
+    return (responseData ? responseData as unknown as T[] : []) as T[];
   }, [currentWorkspace]);
 
   /**
@@ -130,7 +132,8 @@ export function useWorkspaceData() {
       throw error;
     }
     
-    return data as unknown as T;
+    // Proper type casting with unknown intermediary
+    return (data ? data as unknown as T : null) as T;
   }, [currentWorkspace]);
 
   /**
