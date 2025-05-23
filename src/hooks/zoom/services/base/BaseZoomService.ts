@@ -36,4 +36,25 @@ export class BaseZoomService {
       throw error;
     }
   }
+
+  /**
+   * Get current workspace ID from localStorage
+   */
+  protected static getCurrentWorkspaceId(): string | null {
+    return localStorage.getItem('currentWorkspaceId');
+  }
+
+  /**
+   * Add workspace ID to parameters if available
+   */
+  protected static addWorkspaceContext(params: Record<string, any> = {}): Record<string, any> {
+    const workspaceId = this.getCurrentWorkspaceId();
+    if (workspaceId) {
+      return {
+        ...params,
+        workspace_id: workspaceId
+      };
+    }
+    return params;
+  }
 }

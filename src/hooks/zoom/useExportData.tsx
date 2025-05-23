@@ -8,6 +8,7 @@ import {
   generateAttendeeReportData,
   generateAnalyticsReportData
 } from './csv/reportGenerators';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 interface ExportOptions {
   includeAttendees?: boolean;
@@ -19,6 +20,7 @@ interface ExportOptions {
 export const useExportData = (webinar: ZoomWebinar, participants?: ZoomParticipants) => {
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
+  const { currentWorkspace } = useWorkspace();
 
   const exportRegistrationReport = async (options: ExportOptions = {}) => {
     if (!participants?.registrants || participants.registrants.length === 0) {
@@ -30,10 +32,11 @@ export const useExportData = (webinar: ZoomWebinar, participants?: ZoomParticipa
       return;
     }
     
+    const workspacePrefix = currentWorkspace ? `${currentWorkspace.name.toLowerCase().replace(/\s+/g, '-')}-` : '';
     const registrantData = generateRegistrantReportData(webinar, participants);
     await handleExportWithNotification(
       registrantData, 
-      `${webinar.topic}-registrants`,
+      `${workspacePrefix}${webinar.topic}-registrants`,
       toast,
       setIsExporting
     );
@@ -49,20 +52,22 @@ export const useExportData = (webinar: ZoomWebinar, participants?: ZoomParticipa
       return;
     }
     
+    const workspacePrefix = currentWorkspace ? `${currentWorkspace.name.toLowerCase().replace(/\s+/g, '-')}-` : '';
     const attendeeData = generateAttendeeReportData(webinar, participants);
     await handleExportWithNotification(
       attendeeData,
-      `${webinar.topic}-attendees`,
+      `${workspacePrefix}${webinar.topic}-attendees`,
       toast,
       setIsExporting
     );
   };
 
   const exportAnalyticsReport = async (options: ExportOptions = {}) => {
+    const workspacePrefix = currentWorkspace ? `${currentWorkspace.name.toLowerCase().replace(/\s+/g, '-')}-` : '';
     const analyticsData = generateAnalyticsReportData(webinar, participants);
     await handleExportWithNotification(
       analyticsData,
-      `${webinar.topic}-analytics`,
+      `${workspacePrefix}${webinar.topic}-analytics`,
       toast,
       setIsExporting
     );
