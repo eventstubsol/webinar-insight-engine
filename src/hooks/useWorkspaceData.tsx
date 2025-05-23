@@ -22,6 +22,9 @@ type ValidTableName =
   | 'zoom_webinar_recordings'
   | 'zoom_webinars';
 
+// Type for a generic Supabase query to break recursive typing
+type SupabaseQuery = any;
+
 /**
  * Hook to handle workspace-scoped data operations
  */
@@ -35,7 +38,7 @@ export function useWorkspaceData() {
     async (
       table: ValidTableName,
       columns: string = '*',
-      additionalFilters?: (query: any) => any
+      additionalFilters?: (query: SupabaseQuery) => SupabaseQuery
     ): Promise<any[]> => {
       if (!currentWorkspace) {
         console.warn('No workspace selected, cannot fetch data');
@@ -43,10 +46,11 @@ export function useWorkspaceData() {
       }
 
       try {
+        // Use type assertion to break recursive type inference
         let query = supabase
           .from(table)
           .select(columns)
-          .eq('workspace_id', currentWorkspace.id);
+          .eq('workspace_id', currentWorkspace.id) as SupabaseQuery;
         
         if (additionalFilters) {
           query = additionalFilters(query);
@@ -122,12 +126,14 @@ export function useWorkspaceData() {
       try {
         const idField = options?.idField || 'id';
         
-        const { data: result, error } = await supabase
+        // Use type assertion to break recursive type inference
+        const query = supabase
           .from(table)
           .update(updates)
           .eq(idField, id)
-          .eq('workspace_id', currentWorkspace.id)
-          .select(options?.returning !== false ? '*' : undefined);
+          .eq('workspace_id', currentWorkspace.id) as SupabaseQuery;
+        
+        const { data: result, error } = await query.select(options?.returning !== false ? '*' : undefined);
         
         if (error) {
           console.error(`Error updating in ${table}:`, error);
