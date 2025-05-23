@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { WorkspaceMember } from '@/types/workspace';
+import { WorkspaceMember, WorkspaceMemberRole } from '@/types/workspace';
 import {
   Table,
   TableBody,
@@ -34,7 +34,7 @@ interface WorkspaceMembersTableProps {
   members: WorkspaceMember[];
   isLoading: boolean;
   isAdmin: boolean;
-  currentUserRole: string | null;
+  currentUserRole: WorkspaceMemberRole | null;
   onUpdateRole: (memberId: string, role: WorkspaceMember['role']) => Promise<void>;
   onRemoveMember: (memberId: string) => Promise<void>;
 }
@@ -47,8 +47,8 @@ export function WorkspaceMembersTable({
   onUpdateRole,
   onRemoveMember,
 }: WorkspaceMembersTableProps) {
-  const RoleTag = ({ role }: { role: string }) => {
-    const variants: Record<string, string> = {
+  const RoleTag = ({ role }: { role: WorkspaceMemberRole }) => {
+    const variants: Record<WorkspaceMemberRole, string> = {
       owner: 'bg-purple-100 text-purple-800',
       admin: 'bg-blue-100 text-blue-800',
       analyst: 'bg-green-100 text-green-800',
@@ -56,7 +56,7 @@ export function WorkspaceMembersTable({
     };
     
     return (
-      <Badge variant="outline" className={variants[role] || variants.viewer}>
+      <Badge variant="outline" className={variants[role]}>
         {role}
       </Badge>
     );
@@ -106,9 +106,9 @@ export function WorkspaceMembersTable({
 
 interface MemberActionsProps {
   member: WorkspaceMember;
-  onUpdateRole: (role: WorkspaceMember['role']) => void;
+  onUpdateRole: (role: WorkspaceMemberRole) => void;
   onRemove: () => void;
-  currentUserRole: WorkspaceMember['role'];
+  currentUserRole: WorkspaceMemberRole;
 }
 
 function MemberActions({ member, onUpdateRole, onRemove, currentUserRole }: MemberActionsProps) {
@@ -151,8 +151,8 @@ function MemberActions({ member, onUpdateRole, onRemove, currentUserRole }: Memb
           
           <Select 
             defaultValue={member.role}
-            onValueChange={(value) => {
-              onUpdateRole(value as WorkspaceMember['role']);
+            onValueChange={(value: WorkspaceMemberRole) => {
+              onUpdateRole(value);
               setIsChangeRoleOpen(false);
             }}
           >
