@@ -13,8 +13,6 @@ export * from './useZoomInstanceParticipants';
 export * from './useZoomWebinarQAndA';
 export * from './useZoomWebinarPolls';
 export * from './useZoomWebinarRecordings';
-export * from './usePdfExport';
-export * from './useExportData';
 
 // Export utilities for backward compatibility
 export * from './utils/webinarUtils';
