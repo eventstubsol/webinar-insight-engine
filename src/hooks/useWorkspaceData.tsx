@@ -22,8 +22,11 @@ type ValidTableName =
   | 'zoom_webinar_recordings'
   | 'zoom_webinars';
 
-// Type for a generic Supabase query to break recursive typing
-type SupabaseQuery = any;
+// Break the recursive type inference by using a simpler type
+type SupabaseQueryResult = {
+  data: any[] | null;
+  error: any;
+};
 
 /**
  * Hook to handle workspace-scoped data operations
@@ -38,7 +41,7 @@ export function useWorkspaceData() {
     async (
       table: ValidTableName,
       columns: string = '*',
-      additionalFilters?: (query: SupabaseQuery) => SupabaseQuery
+      additionalFilters?: (query: any) => any
     ): Promise<any[]> => {
       if (!currentWorkspace) {
         console.warn('No workspace selected, cannot fetch data');
@@ -46,17 +49,20 @@ export function useWorkspaceData() {
       }
 
       try {
-        // Use type assertion to break recursive type inference
-        let query = supabase
+        // Create the base query with the correct table and workspace filtering
+        let query: any = supabase
           .from(table)
           .select(columns)
-          .eq('workspace_id', currentWorkspace.id) as SupabaseQuery;
+          .eq('workspace_id', currentWorkspace.id);
         
+        // Apply any additional filters if provided
         if (additionalFilters) {
           query = additionalFilters(query);
         }
         
-        const { data, error } = await query;
+        // Execute the query
+        const result = await query as unknown as SupabaseQueryResult;
+        const { data, error } = result;
         
         if (error) {
           console.error(`Error fetching ${table} data:`, error);
@@ -126,25 +132,32 @@ export function useWorkspaceData() {
       try {
         const idField = options?.idField || 'id';
         
-        // Use type assertion to break recursive type inference
-        const query = supabase
+        // Create base update query
+        let query: any = supabase
           .from(table)
           .update(updates)
           .eq(idField, id)
-          .eq('workspace_id', currentWorkspace.id) as SupabaseQuery;
+          .eq('workspace_id', currentWorkspace.id);
         
-        const { data: result, error } = await query.select(options?.returning !== false ? '*' : undefined);
+        // Add select clause if needed
+        if (options?.returning !== false) {
+          query = query.select('*');
+        }
+        
+        // Execute the query with appropriate type casting
+        const result = await query as unknown as SupabaseQueryResult;
+        const { data, error } = result;
         
         if (error) {
           console.error(`Error updating in ${table}:`, error);
           throw error;
         }
         
-        if (!result || !Array.isArray(result) || result.length === 0) {
+        if (!data || !Array.isArray(data) || data.length === 0) {
           return null;
         }
         
-        return result[0];
+        return data[0];
       } catch (error) {
         console.error(`Error in updateInWorkspace:`, error);
         throw error;
