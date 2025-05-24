@@ -6,6 +6,7 @@ import { RegistrationAttendanceChart } from '@/components/dashboard/Registration
 import { AttendanceChart } from '@/components/dashboard/AttendanceChart';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface WebinarAnalyticsTabProps {
   webinar: ZoomWebinar;
@@ -31,10 +32,14 @@ export const WebinarAnalyticsTab: React.FC<WebinarAnalyticsTabProps> = ({
     );
   }
   
-  // Prepare the data for the registration & attendance chart
+  // Prepare the data for the registration & attendance chart in the correct MonthlyAttendanceData format
   const registrationAttendanceData = [
-    { name: 'Registrants', value: webinar.raw_data?.registrants_count || 0 },
-    { name: 'Attendees', value: webinar.raw_data?.participants_count || 0 }
+    {
+      month: webinar.start_time ? format(new Date(webinar.start_time), 'MMMyy') : 'N/A',
+      monthDate: webinar.start_time ? new Date(webinar.start_time) : new Date(),
+      registrants: webinar.raw_data?.registrants_count || 0,
+      attendees: webinar.raw_data?.participants_count || 0
+    }
   ];
 
   // Prepare the data for the attendance distribution chart
