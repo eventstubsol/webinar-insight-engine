@@ -18,8 +18,8 @@ import {
   handleGetInstanceParticipants
 } from "./webinars.ts";
 
-// Maximum timeout for operations (30 seconds)
-const OPERATION_TIMEOUT = 30000;
+// Reduced timeout for faster feedback (25 seconds)
+const OPERATION_TIMEOUT = 25000;
 
 // Helper to execute a function with timeout
 async function executeWithTimeout<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> {
@@ -32,6 +32,9 @@ async function executeWithTimeout<T>(operation: () => Promise<T>, timeoutMs: num
 }
 
 serve(async (req: Request) => {
+  // Track request start time for timeout management
+  (req as any).startTime = Date.now();
+  
   // Handle CORS preflight requests
   const corsResponse = await handleCors(req);
   if (corsResponse) {
@@ -192,7 +195,7 @@ serve(async (req: Request) => {
       
       // For timeouts or network errors
       if (error.message && error.message.includes('timed out')) {
-        return createErrorResponse("Operation timed out. Please try again later.", 504);
+        return createErrorResponse("Operation timed out. The sync may still be running in the background.", 504);
       }
       
       return createErrorResponse(error.message || "An unknown error occurred", 400);

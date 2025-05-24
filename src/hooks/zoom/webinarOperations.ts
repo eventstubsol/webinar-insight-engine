@@ -1,3 +1,4 @@
+
 import { QueryClient } from '@tanstack/react-query';
 import { 
   refreshWebinarsFromAPI, 
@@ -10,8 +11,8 @@ import {
 } from './utils/notificationUtils';
 import { toast } from '@/hooks/use-toast';
 
-// Operation timeout in milliseconds (45 seconds - allowing for edge function's 30s timeout)
-const OPERATION_TIMEOUT = 45000;
+// Reduced timeout to match edge function timeout (25 seconds)
+const OPERATION_TIMEOUT = 25000;
 
 /**
  * Execute a function with a timeout
@@ -79,7 +80,7 @@ export async function refreshWebinarsOperation(
         timeoutTriggered = true;
         toast({
           title: 'Sync taking longer than expected',
-          description: 'The operation is still running in the background. You can continue using the app.',
+          description: 'The operation may still be running in the background. Refresh the page to see updated data.',
           variant: 'default'
         });
       }
@@ -87,33 +88,43 @@ export async function refreshWebinarsOperation(
     
     isCompleted = true;
 
-    // Also update participant data for completed webinars (silently)
-    try {
-      const participantData = await updateParticipantDataOperation(userId, queryClient, true);
-      participantsUpdated = participantData?.updated || 0;
-    } catch (err) {
-      console.error('[refreshWebinarsOperation] Error updating participant data:', err);
-      // Don't throw here, as we want the main sync to succeed even if participant data fails
+    // Handle partial sync results
+    if (refreshData.syncResults?.partial) {
+      toast({
+        title: 'Partial sync completed',
+        description: `Updated ${refreshData.syncResults.itemsUpdated} of ${refreshData.syncResults.totalFetched} webinars. Some data may still be processing.`,
+        variant: 'warning'
+      });
+    } else {
+      // Also update participant data for completed webinars (silently)
+      try {
+        const participantData = await updateParticipantDataOperation(userId, queryClient, true);
+        participantsUpdated = participantData?.updated || 0;
+      } catch (err) {
+        console.error('[refreshWebinarsOperation] Error updating participant data:', err);
+        // Don't throw here, as we want the main sync to succeed even if participant data fails
+      }
+
+      // Show a consolidated notification with both webinar and participant data
+      if (refreshData.syncResults) {
+        const webinarsUpdated = refreshData.syncResults.itemsUpdated || 0;
+        
+        toast({
+          title: 'Sync completed successfully',
+          description: `Updated ${webinarsUpdated} webinars${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`,
+          variant: 'success'
+        });
+      } else {
+        toast({
+          title: 'Webinars synced',
+          description: `Webinar data has been updated from Zoom${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`
+        });
+      }
     }
 
     // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
     
-    // Show a consolidated notification with both webinar and participant data
-    if (refreshData.syncResults) {
-      const webinarsUpdated = refreshData.syncResults.itemsUpdated || 0;
-      
-      toast({
-        title: 'Sync completed successfully',
-        description: `Updated ${webinarsUpdated} webinars${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`,
-        variant: 'success'
-      });
-    } else {
-      toast({
-        title: 'Webinars synced',
-        description: `Webinar data has been updated from Zoom${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`
-      });
-    }
   } catch (err: any) {
     isCompleted = true;
     
@@ -123,11 +134,23 @@ export async function refreshWebinarsOperation(
     if (timeoutTriggered) {
       toast({
         title: 'Sync may be incomplete',
-        description: 'The operation took too long. Data may be partially updated.',
+        description: 'The operation took too long. Data may be partially updated. Try refreshing the page.',
         variant: 'warning'
       });
     } else {
-      showErrorNotification(err, 'Sync failed');
+      // Handle specific error messages
+      let errorMessage = err.message || 'Could not refresh webinar data';
+      
+      if (errorMessage.includes('504') || errorMessage.includes('Gateway Timeout')) {
+        errorMessage = 'Sync is taking longer than expected. Your data may still be updating in the background.';
+        toast({
+          title: 'Sync timeout',
+          description: errorMessage,
+          variant: 'warning'
+        });
+      } else {
+        showErrorNotification(err, 'Sync failed');
+      }
     }
     
     throw err;
@@ -166,7 +189,7 @@ export async function updateParticipantDataOperation(
         if (!silent) {
           toast({
             title: 'Update taking longer than expected',
-            description: 'The participant data update is still running in the background.',
+            description: 'The participant data update may still be running in the background.',
             variant: 'default'
           });
         }

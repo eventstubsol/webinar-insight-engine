@@ -298,6 +298,179 @@ export async function handleGetInstanceParticipants(
   }
 }
 
+// Helper function to process webinars in batches with concurrent API calls
+async function processWebinarBatch(
+  webinars: any[],
+  accessToken: string,
+  supabaseAdmin: any,
+  userId: string,
+  workspaceId: string | null
+): Promise<{ processed: any[], errors: string[] }> {
+  const processed = [];
+  const errors = [];
+  
+  // Process up to 5 webinars concurrently to avoid overwhelming the API
+  const concurrencyLimit = 5;
+  const chunks = [];
+  
+  for (let i = 0; i < webinars.length; i += concurrencyLimit) {
+    chunks.push(webinars.slice(i, i + concurrencyLimit));
+  }
+  
+  for (const chunk of chunks) {
+    const promises = chunk.map(async (webinar) => {
+      try {
+        // Fetch detailed webinar information
+        const detailResponse = await fetch(
+          `https://api.zoom.us/v2/webinars/${webinar.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        let detailedWebinar = webinar;
+        if (detailResponse.ok) {
+          detailedWebinar = await detailResponse.json();
+        }
+
+        // Create comprehensive raw data
+        const comprehensiveRawData = {
+          ...detailedWebinar,
+          original_list_data: webinar,
+          detailed_data: detailedWebinar,
+          settings: detailedWebinar.settings || {},
+          recurrence: detailedWebinar.recurrence,
+          tracking_fields: detailedWebinar.tracking_fields,
+          occurrences: detailedWebinar.occurrences,
+          fetched_at: new Date().toISOString(),
+          api_version: 'v2'
+        };
+
+        // Prepare data for database insertion
+        const webinarData = {
+          user_id: userId,
+          workspace_id: workspaceId,
+          webinar_id: detailedWebinar.id.toString(),
+          webinar_uuid: detailedWebinar.uuid,
+          topic: detailedWebinar.topic,
+          agenda: detailedWebinar.agenda || '',
+          start_time: detailedWebinar.start_time,
+          duration: detailedWebinar.duration,
+          timezone: detailedWebinar.timezone,
+          status: detailedWebinar.status,
+          type: detailedWebinar.type,
+          host_email: detailedWebinar.host_email,
+          raw_data: JSON.stringify(comprehensiveRawData),
+          host_id: detailedWebinar.host_id,
+          join_url: detailedWebinar.join_url,
+          registration_url: detailedWebinar.registration_url,
+          password: detailedWebinar.password,
+          start_url: detailedWebinar.start_url,
+          webinar_created_at: detailedWebinar.created_at,
+          is_simulive: detailedWebinar.is_simulive || false,
+          auto_recording_type: detailedWebinar.settings?.auto_recording,
+          approval_type: detailedWebinar.settings?.approval_type,
+          registration_type: detailedWebinar.settings?.registration_type,
+          contact_name: detailedWebinar.settings?.contact_name,
+          contact_email: detailedWebinar.settings?.contact_email,
+          enforce_login: detailedWebinar.settings?.enforce_login || false,
+          on_demand: detailedWebinar.settings?.on_demand || false,
+          practice_session: detailedWebinar.settings?.practice_session || false,
+          hd_video: detailedWebinar.settings?.hd_video || false,
+          host_video: detailedWebinar.settings?.host_video ?? true,
+          panelists_video: detailedWebinar.settings?.panelists_video ?? true,
+          audio_type: detailedWebinar.settings?.audio || 'both',
+          language: detailedWebinar.settings?.language || 'en-US'
+        };
+
+        return { success: true, data: webinarData, detailedWebinar };
+      } catch (error) {
+        console.error(`Error processing webinar ${webinar.id}:`, error);
+        return { success: false, error: error.message, webinarId: webinar.id };
+      }
+    });
+
+    const results = await Promise.all(promises);
+    
+    for (const result of results) {
+      if (result.success) {
+        processed.push(result);
+      } else {
+        errors.push(`Webinar ${result.webinarId}: ${result.error}`);
+      }
+    }
+    
+    // Small delay between chunks to respect rate limits
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  
+  return { processed, errors };
+}
+
+// Helper function to batch upsert webinars to database
+async function batchUpsertWebinars(
+  webinars: any[],
+  supabaseAdmin: any,
+  userId: string,
+  workspaceId: string | null
+): Promise<number> {
+  if (webinars.length === 0) return 0;
+  
+  const batchSize = 10;
+  let totalUpserted = 0;
+  
+  for (let i = 0; i < webinars.length; i += batchSize) {
+    const batch = webinars.slice(i, i + batchSize);
+    
+    try {
+      const { error } = await supabaseAdmin
+        .from('zoom_webinars')
+        .upsert(batch.map(w => w.data), {
+          onConflict: 'user_id,webinar_id',
+          ignoreDuplicates: false
+        });
+
+      if (error) {
+        console.error('Batch upsert error:', error);
+        // Try individual upserts for this batch
+        for (const webinar of batch) {
+          try {
+            await supabaseAdmin
+              .from('zoom_webinars')
+              .upsert(webinar.data, {
+                onConflict: 'user_id,webinar_id',
+                ignoreDuplicates: false
+              });
+            totalUpserted++;
+          } catch (individualError) {
+            console.error(`Individual upsert error for webinar ${webinar.data.webinar_id}:`, individualError);
+          }
+        }
+      } else {
+        totalUpserted += batch.length;
+        
+        // Process additional data for each webinar in the batch
+        for (const webinar of batch) {
+          try {
+            await processRecurrenceData(supabaseAdmin, userId, workspaceId, webinar.detailedWebinar);
+            await processTrackingFields(supabaseAdmin, userId, workspaceId, webinar.detailedWebinar);
+            await processOccurrences(supabaseAdmin, userId, workspaceId, webinar.detailedWebinar);
+          } catch (error) {
+            console.error(`Error processing additional data for webinar ${webinar.data.webinar_id}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Batch processing error:', error);
+    }
+  }
+  
+  return totalUpserted;
+}
+
 export async function handleListWebinars(
   req: Request,
   supabaseAdmin: any,
@@ -306,9 +479,9 @@ export async function handleListWebinars(
   forceSync: boolean = false
 ): Promise<Response> {
   try {
-    console.log(`[handleListWebinars] Starting for user ${user.id}, forceSync: ${forceSync}`);
+    console.log(`[handleListWebinars] Starting optimized sync for user ${user.id}, forceSync: ${forceSync}`);
     
-    // Get workspace for the user (if applicable)
+    // Get workspace for the user
     const { data: workspaceData } = await supabaseAdmin
       .from('workspace_members')
       .select('workspace_id')
@@ -352,7 +525,7 @@ export async function handleListWebinars(
     // Get access token
     const accessToken = await getValidAccessToken(supabaseAdmin, user.id, credentials);
     
-    // Fetch webinars from Zoom API with enhanced data collection
+    // Fetch webinars list from Zoom API (this is quick)
     const webinarsResponse = await fetch(
       `https://api.zoom.us/v2/users/me/webinars?page_size=300&type=all`,
       {
@@ -370,122 +543,77 @@ export async function handleListWebinars(
     }
 
     const webinarsData = await webinarsResponse.json();
-    console.log(`[handleListWebinars] Fetched ${webinarsData.webinars?.length || 0} webinars from Zoom`);
+    const allWebinars = webinarsData.webinars || [];
+    
+    console.log(`[handleListWebinars] Fetched ${allWebinars.length} webinars from Zoom API`);
 
-    let itemsUpdated = 0;
-    const processedWebinars = [];
+    // Process webinars in batches to avoid timeout
+    const batchSize = 15; // Reduced batch size for better performance
+    let totalProcessed = 0;
+    const allProcessedWebinars = [];
+    const allErrors = [];
 
-    // Process each webinar with enhanced data collection
-    for (const webinar of webinarsData.webinars || []) {
+    // Process in batches
+    for (let i = 0; i < allWebinars.length; i += batchSize) {
+      const batch = allWebinars.slice(i, i + batchSize);
+      console.log(`[handleListWebinars] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(allWebinars.length / batchSize)}`);
+      
       try {
-        // Fetch detailed webinar information to get all missing fields
-        const detailResponse = await fetch(
-          `https://api.zoom.us/v2/webinars/${webinar.id}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-          }
+        const { processed, errors } = await processWebinarBatch(
+          batch,
+          accessToken,
+          supabaseAdmin,
+          user.id,
+          workspaceId
         );
-
-        let detailedWebinar = webinar;
-        if (detailResponse.ok) {
-          detailedWebinar = await detailResponse.json();
-          console.log(`[handleListWebinars] Fetched detailed data for webinar ${webinar.id}`);
-        }
-
-        // Extract comprehensive webinar data including all missing fields
-        const comprehensiveRawData = {
-          ...detailedWebinar,
-          // Preserve original API response
-          original_list_data: webinar,
-          detailed_data: detailedWebinar,
-          // Extract settings safely
-          settings: detailedWebinar.settings || {},
-          // Extract recurrence if present
-          recurrence: detailedWebinar.recurrence,
-          // Extract tracking fields if present
-          tracking_fields: detailedWebinar.tracking_fields,
-          // Extract occurrences for recurring webinars
-          occurrences: detailedWebinar.occurrences,
-          // Additional metadata
-          fetched_at: new Date().toISOString(),
-          api_version: 'v2'
-        };
-
-        // Prepare data for database insertion with enhanced field extraction
-        const webinarData = {
-          user_id: user.id,
-          workspace_id: workspaceId,
-          webinar_id: detailedWebinar.id.toString(),
-          webinar_uuid: detailedWebinar.uuid,
-          topic: detailedWebinar.topic,
-          agenda: detailedWebinar.agenda || '',
-          start_time: detailedWebinar.start_time,
-          duration: detailedWebinar.duration,
-          timezone: detailedWebinar.timezone,
-          status: detailedWebinar.status,
-          type: detailedWebinar.type,
-          host_email: detailedWebinar.host_email,
-          raw_data: JSON.stringify(comprehensiveRawData),
-          
-          // Enhanced fields from WebinarDetails interface
-          host_id: detailedWebinar.host_id,
-          join_url: detailedWebinar.join_url,
-          registration_url: detailedWebinar.registration_url,
-          password: detailedWebinar.password,
-          start_url: detailedWebinar.start_url,
-          webinar_created_at: detailedWebinar.created_at,
-          is_simulive: detailedWebinar.is_simulive || false,
-          auto_recording_type: detailedWebinar.settings?.auto_recording,
-          approval_type: detailedWebinar.settings?.approval_type,
-          registration_type: detailedWebinar.settings?.registration_type,
-          contact_name: detailedWebinar.settings?.contact_name,
-          contact_email: detailedWebinar.settings?.contact_email,
-          enforce_login: detailedWebinar.settings?.enforce_login || false,
-          on_demand: detailedWebinar.settings?.on_demand || false,
-          practice_session: detailedWebinar.settings?.practice_session || false,
-          hd_video: detailedWebinar.settings?.hd_video || false,
-          host_video: detailedWebinar.settings?.host_video ?? true,
-          panelists_video: detailedWebinar.settings?.panelists_video ?? true,
-          audio_type: detailedWebinar.settings?.audio || 'both',
-          language: detailedWebinar.settings?.language || 'en-US'
-        };
-
-        // Upsert webinar data
-        const { error: upsertError } = await supabaseAdmin
-          .from('zoom_webinars')
-          .upsert(webinarData, {
-            onConflict: 'user_id,webinar_id',
-            ignoreDuplicates: false
-          });
-
-        if (upsertError) {
-          console.error('[handleListWebinars] Error upserting webinar:', upsertError);
-        } else {
-          itemsUpdated++;
-          processedWebinars.push(webinarData);
-          
-          // Process recurrence data if present
-          await processRecurrenceData(supabaseAdmin, user.id, workspaceId, detailedWebinar);
-          
-          // Process tracking fields if present
-          await processTrackingFields(supabaseAdmin, user.id, workspaceId, detailedWebinar);
-          
-          // Process occurrences if present
-          await processOccurrences(supabaseAdmin, user.id, workspaceId, detailedWebinar);
-        }
-
-        // Add small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
         
-      } catch (webinarError) {
-        console.error(`[handleListWebinars] Error processing webinar ${webinar.id}:`, webinarError);
+        // Upsert this batch to database
+        const upserted = await batchUpsertWebinars(processed, supabaseAdmin, user.id, workspaceId);
+        totalProcessed += upserted;
+        
+        allProcessedWebinars.push(...processed);
+        allErrors.push(...errors);
+        
+        console.log(`[handleListWebinars] Batch ${Math.floor(i / batchSize) + 1} complete: ${upserted} webinars processed`);
+        
+        // Check if we're approaching timeout (leave 5 seconds buffer)
+        const elapsedTime = Date.now() - (req as any).startTime || 0;
+        if (elapsedTime > 20000) { // 20 seconds elapsed, return partial results
+          console.log(`[handleListWebinars] Approaching timeout, returning partial results`);
+          
+          // Record partial sync
+          await supabaseAdmin
+            .from('zoom_sync_history')
+            .insert({
+              user_id: user.id,
+              workspace_id: workspaceId,
+              sync_type: 'webinars',
+              status: 'partial',
+              items_synced: totalProcessed,
+              message: `Partial sync completed: ${totalProcessed}/${allWebinars.length} webinars processed`
+            });
+
+          return new Response(JSON.stringify({
+            webinars: allProcessedWebinars.map(w => w.data),
+            syncResults: {
+              itemsUpdated: totalProcessed,
+              totalFetched: allWebinars.length,
+              partial: true,
+              errors: allErrors
+            }
+          }), {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+        
+      } catch (batchError) {
+        console.error(`[handleListWebinars] Error processing batch ${Math.floor(i / batchSize) + 1}:`, batchError);
+        allErrors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${batchError.message}`);
       }
     }
 
-    // Record sync history
+    // Record successful sync
     await supabaseAdmin
       .from('zoom_sync_history')
       .insert({
@@ -493,18 +621,19 @@ export async function handleListWebinars(
         workspace_id: workspaceId,
         sync_type: 'webinars',
         status: 'success',
-        items_synced: itemsUpdated,
-        message: `Successfully synced ${itemsUpdated} webinars with enhanced data`
+        items_synced: totalProcessed,
+        message: `Successfully synced ${totalProcessed} webinars with enhanced data${allErrors.length > 0 ? ` (${allErrors.length} errors)` : ''}`
       });
 
-    console.log(`[handleListWebinars] Successfully synced ${itemsUpdated} webinars with enhanced data`);
+    console.log(`[handleListWebinars] Complete sync finished: ${totalProcessed} webinars processed`);
 
     return new Response(JSON.stringify({
-      webinars: processedWebinars,
+      webinars: allProcessedWebinars.map(w => w.data),
       syncResults: {
-        itemsUpdated,
-        totalFetched: webinarsData.webinars?.length || 0,
-        enhanced: true
+        itemsUpdated: totalProcessed,
+        totalFetched: allWebinars.length,
+        enhanced: true,
+        errors: allErrors
       }
     }), {
       headers: { "Content-Type": "application/json" },
