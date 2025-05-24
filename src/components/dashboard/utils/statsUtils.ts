@@ -1,11 +1,54 @@
+
 import { ZoomWebinar } from '@/hooks/zoom';
 import { startOfMonth, subMonths, isAfter, isBefore } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
+// Database query functions for accurate participant counts
+export const getTotalRegistrantsFromDB = async (userId: string): Promise<number> => {
+  try {
+    const { count, error } = await supabase
+      .from('zoom_webinar_participants')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('participant_type', 'registrant');
+    
+    if (error) {
+      console.error('Error fetching registrants count:', error);
+      return 0;
+    }
+    
+    return count || 0;
+  } catch (error) {
+    console.error('Error in getTotalRegistrantsFromDB:', error);
+    return 0;
+  }
+};
+
+export const getTotalAttendeesFromDB = async (userId: string): Promise<number> => {
+  try {
+    const { count, error } = await supabase
+      .from('zoom_webinar_participants')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('participant_type', 'attendee');
+    
+    if (error) {
+      console.error('Error fetching attendees count:', error);
+      return 0;
+    }
+    
+    return count || 0;
+  } catch (error) {
+    console.error('Error in getTotalAttendeesFromDB:', error);
+    return 0;
+  }
+};
+
+// Fallback functions for when database query fails or for local calculations
 export const getTotalWebinars = (webinars: ZoomWebinar[]): number => webinars.length;
 
 export const getTotalRegistrants = (webinars: ZoomWebinar[]): number => {
   return webinars.reduce((total, webinar) => {
-    // Get registrants from raw_data or direct property
     let registrantCount = 0;
     
     if (webinar.raw_data && typeof webinar.raw_data === 'object') {
@@ -20,7 +63,6 @@ export const getTotalRegistrants = (webinars: ZoomWebinar[]): number => {
 
 export const getTotalAttendees = (webinars: ZoomWebinar[]): number => {
   return webinars.reduce((total, webinar) => {
-    // Get attendees from raw_data or direct property
     let attendeeCount = 0;
     
     if (webinar.raw_data && typeof webinar.raw_data === 'object') {
@@ -33,80 +75,11 @@ export const getTotalAttendees = (webinars: ZoomWebinar[]): number => {
   }, 0);
 };
 
-export const getAttendanceRate = (webinars: ZoomWebinar[]): string => {
-  const registrants = getTotalRegistrants(webinars);
-  const attendees = getTotalAttendees(webinars);
-  
+export const getAttendanceRate = (registrants: number, attendees: number): string => {
   if (registrants === 0) return "0%";
   
   const rate = Math.round((attendees / registrants) * 100);
   return `${rate}%`;
-};
-
-// Check if any webinar has participant data (registrants OR attendees)
-export const hasParticipantData = (webinars: ZoomWebinar[]): boolean => {
-  return webinars.some(webinar => {
-    const hasRegistrants = (webinar.raw_data?.registrants_count ?? 0) > 0 || 
-                          (webinar.registrants_count ?? 0) > 0;
-    const hasParticipants = (webinar.raw_data?.participants_count ?? 0) > 0 || 
-                           (webinar.participants_count ?? 0) > 0;
-    return hasRegistrants || hasParticipants;
-  });
-};
-
-// Check if participant data was updated (has the update timestamp)
-export const hasRecentParticipantUpdate = (webinars: ZoomWebinar[]): boolean => {
-  return webinars.some(webinar => {
-    return webinar.raw_data?.participant_data_updated_at !== undefined;
-  });
-};
-
-// Check if we have attendee data specifically
-export const hasAttendeeData = (webinars: ZoomWebinar[]): boolean => {
-  return webinars.some(webinar => {
-    const attendeeCount = webinar.raw_data?.participants_count ?? webinar.participants_count ?? 0;
-    return attendeeCount > 0;
-  });
-};
-
-// Check if we need to sync - only show if we have no data or very old data
-export const needsSync = (webinars: ZoomWebinar[], lastSyncTime: Date | null): boolean => {
-  // If no webinars at all, we need to sync
-  if (webinars.length === 0) return true;
-  
-  // If no sync history, we might need to sync
-  if (!lastSyncTime) return true;
-  
-  // If last sync was more than 24 hours ago, suggest sync
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  return lastSyncTime < oneDayAgo;
-};
-
-// Get webinars with fetch errors
-export const getWebinarsWithFetchErrors = (webinars: ZoomWebinar[]): ZoomWebinar[] => {
-  return webinars.filter(webinar => {
-    return webinar.raw_data?.participants_fetch_error || webinar.raw_data?.registrants_fetch_error;
-  });
-};
-
-// Check if webinars have completed
-export const getCompletedWebinarsCount = (webinars: ZoomWebinar[]): number => {
-  const now = new Date();
-  return webinars.filter(webinar => {
-    if (!webinar.start_time) return false;
-    
-    const startTime = new Date(webinar.start_time);
-    const estimatedEndTime = new Date(startTime.getTime() + (webinar.duration || 60) * 60 * 1000);
-    
-    // Check if webinar ended more than 30 minutes ago
-    const bufferTime = 30 * 60 * 1000; // 30 minutes
-    return estimatedEndTime.getTime() + bufferTime < now.getTime();
-  }).length;
-};
-
-export const getTotalEngagement = (): string => {
-  // This would ideally be calculated from actual engagement metrics
-  return "0h 00m";
 };
 
 export const getAverageDuration = (webinars: ZoomWebinar[]): string => {
@@ -119,15 +92,25 @@ export const getAverageDuration = (webinars: ZoomWebinar[]): string => {
   const hours = Math.floor(avgMinutes / 60);
   const minutes = avgMinutes % 60;
   
-  // Ensure minutes are always displayed with two digits
   const formattedMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
   
   return `${hours}h ${formattedMinutes}m`;
 };
 
-// New utility functions for month-over-month comparison
+export const getTotalEngagement = (): string => {
+  return "0h 00m";
+};
 
-// Filter webinars for current month
+// Check if we need to sync - only show if we have no data or very old data
+export const needsSync = (webinars: ZoomWebinar[], lastSyncTime: Date | null): boolean => {
+  if (webinars.length === 0) return true;
+  if (!lastSyncTime) return true;
+  
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  return lastSyncTime < oneDayAgo;
+};
+
+// Month-over-month comparison utilities
 export const getCurrentMonthWebinars = (webinars: ZoomWebinar[]): ZoomWebinar[] => {
   const now = new Date();
   const startOfCurrentMonth = startOfMonth(now);
@@ -139,7 +122,6 @@ export const getCurrentMonthWebinars = (webinars: ZoomWebinar[]): ZoomWebinar[] 
   });
 };
 
-// Filter webinars for previous month
 export const getPreviousMonthWebinars = (webinars: ZoomWebinar[]): ZoomWebinar[] => {
   const now = new Date();
   const startOfCurrentMonth = startOfMonth(now);
@@ -153,15 +135,12 @@ export const getPreviousMonthWebinars = (webinars: ZoomWebinar[]): ZoomWebinar[]
   });
 };
 
-// Calculate percentage change
 export const calculatePercentageChange = (current: number, previous: number): number => {
   if (previous === 0) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
 };
 
-// Format trend data with proper direction typing
 export const formatTrendData = (percentageChange: number) => {
-  // Explicitly type the direction as the union type expected by TrendData
   const direction: 'up' | 'down' | 'flat' = 
     percentageChange > 0 ? 'up' : 
     percentageChange < 0 ? 'down' : 

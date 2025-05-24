@@ -37,13 +37,12 @@ const Dashboard = () => {
   
   const handleWizardComplete = async () => {
     setShowWizard(false);
-    // Re-check credentials status
     await checkCredentialsStatus();
   };
 
   const handleSyncData = async () => {
     try {
-      await refreshWebinars(true); // Force sync
+      await refreshWebinars(true);
     } catch (error) {
       console.error('Error syncing data:', error);
     }
@@ -90,7 +89,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Show Zoom setup banner for new users without credentials */}
+        {/* Only show Zoom setup banner for users without credentials */}
         {!credentialsLoading && !hasZoomCredentials && (
           <Alert className="bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
