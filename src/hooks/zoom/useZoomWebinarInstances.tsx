@@ -1,7 +1,7 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { fetchWebinarInstancesFromDatabase } from './services/databaseService';
-import { fetchWebinarInstancesAPI } from './services/apiService';
+import { fetchWebinarInstancesFromDatabase, fetchWebinarInstancesAPI } from './services/webinarApiService';
 
 export interface WebinarInstance {
   id: string;

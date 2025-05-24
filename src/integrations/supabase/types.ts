@@ -486,48 +486,6 @@ export type Database = {
           },
         ]
       }
-      zoom_webinar_occurrences: {
-        Row: {
-          created_at: string
-          duration: number | null
-          id: string
-          occurrence_id: string
-          raw_data: Json
-          start_time: string | null
-          status: string | null
-          updated_at: string
-          user_id: string
-          webinar_id: string
-          workspace_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          duration?: number | null
-          id?: string
-          occurrence_id: string
-          raw_data?: Json
-          start_time?: string | null
-          status?: string | null
-          updated_at?: string
-          user_id: string
-          webinar_id: string
-          workspace_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          duration?: number | null
-          id?: string
-          occurrence_id?: string
-          raw_data?: Json
-          start_time?: string | null
-          status?: string | null
-          updated_at?: string
-          user_id?: string
-          webinar_id?: string
-          workspace_id?: string | null
-        }
-        Relationships: []
-      }
       zoom_webinar_participants: {
         Row: {
           created_at: string
@@ -851,210 +809,57 @@ export type Database = {
           },
         ]
       }
-      zoom_webinar_recurrence: {
-        Row: {
-          created_at: string
-          end_date_time: string | null
-          end_times: number | null
-          id: string
-          monthly_day: number | null
-          monthly_week: number | null
-          monthly_week_day: number | null
-          raw_data: Json
-          recurrence_type: number | null
-          repeat_interval: number | null
-          updated_at: string
-          user_id: string
-          webinar_id: string
-          weekly_days: string | null
-          workspace_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          end_date_time?: string | null
-          end_times?: number | null
-          id?: string
-          monthly_day?: number | null
-          monthly_week?: number | null
-          monthly_week_day?: number | null
-          raw_data?: Json
-          recurrence_type?: number | null
-          repeat_interval?: number | null
-          updated_at?: string
-          user_id: string
-          webinar_id: string
-          weekly_days?: string | null
-          workspace_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          end_date_time?: string | null
-          end_times?: number | null
-          id?: string
-          monthly_day?: number | null
-          monthly_week?: number | null
-          monthly_week_day?: number | null
-          raw_data?: Json
-          recurrence_type?: number | null
-          repeat_interval?: number | null
-          updated_at?: string
-          user_id?: string
-          webinar_id?: string
-          weekly_days?: string | null
-          workspace_id?: string | null
-        }
-        Relationships: []
-      }
-      zoom_webinar_tracking_fields: {
-        Row: {
-          created_at: string
-          field_name: string
-          field_value: string | null
-          id: string
-          is_required: boolean | null
-          is_visible: boolean | null
-          updated_at: string
-          user_id: string
-          webinar_id: string
-          workspace_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          field_name: string
-          field_value?: string | null
-          id?: string
-          is_required?: boolean | null
-          is_visible?: boolean | null
-          updated_at?: string
-          user_id: string
-          webinar_id: string
-          workspace_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          field_name?: string
-          field_value?: string | null
-          id?: string
-          is_required?: boolean | null
-          is_visible?: boolean | null
-          updated_at?: string
-          user_id?: string
-          webinar_id?: string
-          workspace_id?: string | null
-        }
-        Relationships: []
-      }
       zoom_webinars: {
         Row: {
           agenda: string | null
-          approval_type: number | null
-          audio_type: string | null
-          auto_recording_type: string | null
-          contact_email: string | null
-          contact_name: string | null
           created_at: string
           duration: number | null
-          enforce_login: boolean | null
-          hd_video: boolean | null
           host_email: string | null
-          host_id: string | null
-          host_video: boolean | null
           id: string
-          is_simulive: boolean | null
-          join_url: string | null
-          language: string | null
-          on_demand: boolean | null
-          panelists_video: boolean | null
-          password: string | null
-          practice_session: boolean | null
           raw_data: Json
-          registration_type: number | null
-          registration_url: string | null
           start_time: string | null
-          start_url: string | null
           status: string | null
           timezone: string | null
           topic: string
           type: number | null
           updated_at: string
           user_id: string
-          webinar_created_at: string | null
           webinar_id: string
           webinar_uuid: string
           workspace_id: string | null
         }
         Insert: {
           agenda?: string | null
-          approval_type?: number | null
-          audio_type?: string | null
-          auto_recording_type?: string | null
-          contact_email?: string | null
-          contact_name?: string | null
           created_at?: string
           duration?: number | null
-          enforce_login?: boolean | null
-          hd_video?: boolean | null
           host_email?: string | null
-          host_id?: string | null
-          host_video?: boolean | null
           id?: string
-          is_simulive?: boolean | null
-          join_url?: string | null
-          language?: string | null
-          on_demand?: boolean | null
-          panelists_video?: boolean | null
-          password?: string | null
-          practice_session?: boolean | null
           raw_data: Json
-          registration_type?: number | null
-          registration_url?: string | null
           start_time?: string | null
-          start_url?: string | null
           status?: string | null
           timezone?: string | null
           topic: string
           type?: number | null
           updated_at?: string
           user_id: string
-          webinar_created_at?: string | null
           webinar_id: string
           webinar_uuid: string
           workspace_id?: string | null
         }
         Update: {
           agenda?: string | null
-          approval_type?: number | null
-          audio_type?: string | null
-          auto_recording_type?: string | null
-          contact_email?: string | null
-          contact_name?: string | null
           created_at?: string
           duration?: number | null
-          enforce_login?: boolean | null
-          hd_video?: boolean | null
           host_email?: string | null
-          host_id?: string | null
-          host_video?: boolean | null
           id?: string
-          is_simulive?: boolean | null
-          join_url?: string | null
-          language?: string | null
-          on_demand?: boolean | null
-          panelists_video?: boolean | null
-          password?: string | null
-          practice_session?: boolean | null
           raw_data?: Json
-          registration_type?: number | null
-          registration_url?: string | null
           start_time?: string | null
-          start_url?: string | null
           status?: string | null
           timezone?: string | null
           topic?: string
           type?: number | null
           updated_at?: string
           user_id?: string
-          webinar_created_at?: string | null
           webinar_id?: string
           webinar_uuid?: string
           workspace_id?: string | null

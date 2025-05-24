@@ -5,12 +5,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { useZoomCredentials } from './useZoomCredentials';
 import { 
   fetchWebinarsFromDatabase, 
+  fetchWebinarsFromAPI,
   fetchSyncHistory 
-} from './services/databaseService';
+} from './services/webinarApiService';
 import { 
   refreshWebinarsOperation, 
   updateParticipantDataOperation 
-} from './operations';
+} from './webinarOperations';
 import { parseErrorDetails } from './utils/errorUtils';
 import { enhanceErrorMessage } from './utils/errorUtils';
 import { toast } from '@/hooks/use-toast';
@@ -24,7 +25,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
   const { credentialsStatus } = useZoomCredentials();
   const [syncHistory, setSyncHistory] = useState<any[]>([]);
 
-  // Main query to fetch webinars - ONLY from database, no API calls
+  // Main query to fetch webinars
   const { data, error, refetch } = useQuery({
     queryKey: ['zoom-webinars', user?.id],
     queryFn: async () => {
@@ -32,19 +33,20 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
       
       try {
         setIsLoading(true);
-        console.log('[useZoomWebinars] Fetching webinars from database only');
+        console.log('[useZoomWebinars] Fetching webinars from database or API');
         
-        // Always fetch from database first and only
+        // Try to get webinars from database first
         const dbWebinars = await fetchWebinarsFromDatabase(user.id);
         
+        // If we have webinars in the database, return them immediately
         if (dbWebinars && dbWebinars.length > 0) {
           console.log(`[useZoomWebinars] Returning ${dbWebinars.length} webinars from database`);
           return dbWebinars;
         }
         
-        // If no webinars in database, return empty array (don't call API automatically)
-        console.log('[useZoomWebinars] No webinars in database, returning empty array');
-        return [];
+        // If not in database or database fetch failed, try API
+        console.log('[useZoomWebinars] No webinars in database, fetching from API');
+        return await fetchWebinarsFromAPI();
       } catch (err: any) {
         console.error('[useZoomWebinars] Error fetching webinars:', err);
         
@@ -69,7 +71,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     gcTime: 10 * 60 * 1000 // 10 minutes
   });
 
-  // Refresh webinars function - only call API when explicitly requested
+  // Refresh webinars function - just wraps the operation function
   const refreshWebinars = async (force: boolean = false): Promise<void> => {
     setIsRefetching(true);
     try {
@@ -80,7 +82,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     }
   };
   
-  // Update participant data function - only call API when explicitly requested
+  // Update participant data function - just wraps the operation function
   const updateParticipantData = async (): Promise<void> => {
     try {
       await updateParticipantDataOperation(user?.id, queryClient);

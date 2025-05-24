@@ -1,8 +1,8 @@
 
+import { format, parseISO, subMonths, startOfMonth, isAfter, isBefore, addMinutes } from 'date-fns';
 import { ZoomWebinar } from '@/hooks/zoom';
-import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns';
-import { getMonthlyParticipantDataFromDB } from '../utils/statsUtils';
 
+// Types for chart data
 export interface MonthlyAttendanceData {
   month: string;
   monthDate: Date;
@@ -10,115 +10,115 @@ export interface MonthlyAttendanceData {
   attendees: number;
 }
 
-// Enhanced function that prioritizes database data over webinar data
-export const calculateWebinarStats = async (
-  webinars: ZoomWebinar[], 
-  userId: string | undefined,
-  isLoading: boolean = false
-): Promise<MonthlyAttendanceData[]> => {
-  if (isLoading || !webinars || webinars.length === 0 || !userId) {
-    return [];
+/**
+ * Calculate webinar statistics aggregated by month for the last 12 months
+ */
+export const calculateWebinarStats = (webinars: ZoomWebinar[] | undefined, isLoading: boolean, debug: boolean = false): MonthlyAttendanceData[] => {
+  if (!webinars || isLoading) return [];
+  
+  // Get 12 months ago from now
+  const twelveMonthsAgo = subMonths(new Date(), 12);
+  const startDate = startOfMonth(twelveMonthsAgo);
+  
+  // Filter webinars that have already ended (either status is 'ended' or the start_time + duration is in the past)
+  const now = new Date();
+  const completedWebinars = webinars.filter(webinar => {
+    const startTime = webinar.start_time ? new Date(webinar.start_time) : null;
+    
+    if (!startTime) return false;
+    
+    // Include webinars with 'ended' status
+    if (webinar.status === 'ended') return true;
+    
+    // Include webinars that happened in the past (start_time + duration has passed)
+    const endTime = addMinutes(startTime, webinar.duration || 0);
+    return endTime < now;
+  });
+  
+  // Log filtered webinars if debug mode is on
+  if (debug) {
+    console.log('Complete webinars for chart:', completedWebinars);
   }
-
-  try {
-    // Try to get data from database first
-    const dbData = await getMonthlyParticipantDataFromDB(userId);
-    const hasDbData = Object.keys(dbData).length > 0;
+  
+  // Create a map of months with their aggregated data
+  const monthlyData = new Map();
+  
+  // Initialize the map with the last 12 months
+  for (let i = 0; i < 12; i++) {
+    const month = subMonths(new Date(), i);
+    const monthKey = format(month, 'MMMyy');
+    const monthDate = startOfMonth(month); // Store the actual date object for proper sorting
     
-    // Generate the last 12 months
-    const months: MonthlyAttendanceData[] = [];
-    const currentDate = new Date();
+    monthlyData.set(monthKey, { 
+      month: monthKey,
+      monthDate: monthDate, // Store the actual date object
+      registrants: 0, 
+      attendees: 0
+    });
+  }
+  
+  // Add data from webinars
+  completedWebinars.forEach(webinar => {
+    // Skip if no start_time
+    if (!webinar.start_time) return;
     
-    for (let i = 11; i >= 0; i--) {
-      const monthDate = subMonths(currentDate, i);
-      const monthStart = startOfMonth(monthDate);
-      const monthEnd = endOfMonth(monthDate);
-      const monthKey = format(monthDate, 'MMMyy');
-      
-      let registrants = 0;
-      let attendees = 0;
-      
-      if (hasDbData && dbData[monthKey]) {
-        // Use database data if available
-        registrants = dbData[monthKey].registrants;
-        attendees = dbData[monthKey].attendees;
-      } else {
-        // Fallback to webinar data calculation
-        const monthWebinars = webinars.filter(webinar => {
-          if (!webinar.start_time) return false;
-          const webinarDate = new Date(webinar.start_time);
-          return webinarDate >= monthStart && webinarDate <= monthEnd;
-        });
-        
-        registrants = monthWebinars.reduce((sum, webinar) => {
-          const count = webinar.raw_data?.registrants_count ?? webinar.registrants_count ?? 0;
-          return sum + count;
-        }, 0);
-        
-        attendees = monthWebinars.reduce((sum, webinar) => {
-          const count = webinar.raw_data?.participants_count ?? webinar.participants_count ?? 0;
-          return sum + count;
-        }, 0);
-      }
-      
-      months.push({
-        month: monthKey,
-        monthDate,
-        registrants,
-        attendees
-      });
+    const webinarDate = new Date(webinar.start_time);
+    
+    // Skip if the webinar is older than 12 months
+    if (isBefore(webinarDate, startDate)) return;
+    
+    const monthKey = format(webinarDate, 'MMMyy');
+    
+    // If this month isn't in our map (should not happen given initialization), skip
+    if (!monthlyData.has(monthKey)) return;
+    
+    const currentData = monthlyData.get(monthKey);
+    
+    // Get registrant and participant counts from raw_data if available
+    let registrantsCount = 0;
+    let attendeesCount = 0;
+    
+    if (webinar.raw_data && typeof webinar.raw_data === 'object') {
+      registrantsCount = webinar.raw_data.registrants_count || 0;
+      attendeesCount = webinar.raw_data.participants_count || 0;
+    } else {
+      // Try the direct properties as fallback
+      registrantsCount = webinar.registrants_count || 0;
+      attendeesCount = webinar.participants_count || 0;
     }
     
-    return months;
-  } catch (error) {
-    console.error('Error calculating webinar stats:', error);
-    
-    // Fallback to original calculation method
-    return calculateWebinarStatsFromWebinarData(webinars);
-  }
+    // Update the month data
+    monthlyData.set(monthKey, {
+      ...currentData,
+      registrants: currentData.registrants + registrantsCount,
+      attendees: currentData.attendees + attendeesCount
+    });
+  });
+  
+  // Convert map to array and sort by date using the stored date object
+  return Array.from(monthlyData.values())
+    .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime());
 };
 
-// Fallback synchronous function for webinar data only
-const calculateWebinarStatsFromWebinarData = (webinars: ZoomWebinar[]): MonthlyAttendanceData[] => {
-  const months: MonthlyAttendanceData[] = [];
-  const currentDate = new Date();
-  
-  for (let i = 11; i >= 0; i--) {
-    const monthDate = subMonths(currentDate, i);
-    const monthStart = startOfMonth(monthDate);
-    const monthEnd = endOfMonth(monthDate);
-    
-    // Filter webinars for this month
-    const monthWebinars = webinars.filter(webinar => {
-      if (!webinar.start_time) return false;
-      const webinarDate = new Date(webinar.start_time);
-      return webinarDate >= monthStart && webinarDate <= monthEnd;
-    });
-    
-    // Calculate registrants and attendees from webinar data
-    const registrants = monthWebinars.reduce((sum, webinar) => {
-      const count = webinar.raw_data?.registrants_count ?? webinar.registrants_count ?? 0;
-      return sum + count;
-    }, 0);
-    
-    const attendees = monthWebinars.reduce((sum, webinar) => {
-      const count = webinar.raw_data?.participants_count ?? webinar.participants_count ?? 0;
-      return sum + count;
-    }, 0);
-    
-    months.push({
-      month: format(monthDate, 'MMMyy'),
-      monthDate,
-      registrants,
-      attendees
-    });
-  }
-  
-  return months;
+/**
+ * Calculate total registrants from the webinar stats
+ */
+export const calculateTotalRegistrants = (webinarStats: MonthlyAttendanceData[]): number => {
+  return webinarStats.reduce((total, item) => total + item.registrants, 0);
 };
 
-// Check if there's any meaningful data to display
-export const hasChartData = (data: MonthlyAttendanceData[]): boolean => {
-  if (!Array.isArray(data)) return false;
-  return data.some(month => month.registrants > 0 || month.attendees > 0);
+/**
+ * Calculate total attendees from the webinar stats
+ */
+export const calculateTotalAttendees = (webinarStats: MonthlyAttendanceData[]): number => {
+  return webinarStats.reduce((total, item) => total + item.attendees, 0);
 };
+
+/**
+ * Calculate attendance rate as a percentage
+ */
+export const calculateAttendanceRate = (totalRegistrants: number, totalAttendees: number): number => {
+  if (totalRegistrants === 0) return 0;
+  return Math.round((totalAttendees / totalRegistrants) * 100);
+};
+

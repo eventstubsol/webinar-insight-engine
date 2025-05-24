@@ -1,7 +1,8 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchInstanceParticipantsAPI } from './services/apiService';
+import { fetchInstanceParticipantsAPI } from './services/webinarApiService';
 
 export interface InstanceParticipants {
   registrants: any[];

@@ -70,25 +70,3 @@ export async function getZoomJwtToken(accountId: string, clientId: string, clien
     throw error;
   }
 }
-
-// Wrapper function that extracts credentials and calls getZoomJwtToken
-export async function getValidAccessToken(supabaseAdmin: any, userId: string, credentials: any): Promise<string> {
-  try {
-    console.log(`[getValidAccessToken] Getting access token for user ${userId}`);
-    
-    if (!credentials) {
-      throw new Error('No Zoom credentials provided');
-    }
-
-    const { account_id, client_id, client_secret } = credentials;
-    
-    if (!account_id || !client_id || !client_secret) {
-      throw new Error('Missing required Zoom credentials (account_id, client_id, or client_secret)');
-    }
-
-    return await getZoomJwtToken(account_id, client_id, client_secret);
-  } catch (error) {
-    console.error('[getValidAccessToken] Error:', error);
-    throw error;
-  }
-}

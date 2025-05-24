@@ -1,3 +1,4 @@
+
 // Export all types
 export * from './types';
 export * from './types/webinarTypes';
@@ -10,19 +11,10 @@ export * from './useZoomWebinarParticipants';
 export * from './useZoomWebinarInstances';
 export * from './useZoomInstanceParticipants';
 
-// Export new hooks for enhanced data
-export * from './useZoomWebinarOccurrences';
-export * from './useZoomWebinarTrackingFields';
-export * from './useZoomWebinarRecurrence';
-
 // Export utilities for backward compatibility
 export * from './utils/webinarUtils';
 export * from './utils/errorUtils';
 
 // Export services and operations for direct access
 export * from './services/webinarApiService';
-export * from './services/databaseService';
-export * from './services/apiService';
-export * from './services/transformationService';
-export * from './services/enhancedDataService';
 export * from './webinarOperations';

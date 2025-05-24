@@ -28,9 +28,9 @@ export function useZoomCredentials() {
     },
     enabled: !!user,
     refetchOnWindowFocus: false,
-    refetchOnMount: 'always',
-    staleTime: 30 * 1000,
-    gcTime: 10 * 60 * 1000,
+    refetchOnMount: 'always', // Always fetch fresh data when component mounts
+    staleTime: 30 * 1000, // Reduce stale time to 30 seconds
+    gcTime: 10 * 60 * 1000, // 10 minutes
   });
   
   const checkCredentialsStatus = async () => {
@@ -48,20 +48,10 @@ export function useZoomCredentials() {
     }
   };
   
-  // Derive properties from the credentials status
-  const verified = data?.isVerified || false;
-  const isVerifying = isLoading || isInitialLoading;
-  const scopesError = error?.message?.toLowerCase().includes('scopes') || false;
-  
   return {
     credentialsStatus: data,
     checkCredentialsStatus,
-    isLoading: isLoading || isInitialLoading,
-    error,
-    // Add the missing properties that useWebinarData expects
-    isVerifying,
-    verified,
-    scopesError,
-    verificationDetails: data // Use the full credentials status as verification details
+    isLoading: isLoading || isInitialLoading, // Combine both loading states
+    error
   };
 }
