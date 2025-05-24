@@ -16,7 +16,7 @@ export const RegistrationAttendanceChart: React.FC<RegistrationAttendanceChartPr
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Registration vs Attendance</CardTitle>
+        <CardTitle className="text-base font-semibold">Registration vs Attendance</CardTitle>
       </CardHeader>
       <CardContent>
         <RegistrationAttendanceContent 
