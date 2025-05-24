@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,7 +13,7 @@ import {
 import { 
   refreshWebinarsOperation, 
   updateParticipantDataOperation 
-} from './webinarOperations';
+} from './operations';
 import { parseErrorDetails } from './utils/errorUtils';
 import { enhanceErrorMessage } from './utils/errorUtils';
 import { toast } from '@/hooks/use-toast';
