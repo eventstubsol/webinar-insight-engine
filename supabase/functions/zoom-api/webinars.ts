@@ -1,3 +1,4 @@
+
 import { getValidAccessToken } from "./auth.ts";
 
 export async function handleGetWebinar(
@@ -114,7 +115,7 @@ export async function handleUpdateWebinarParticipants(
     // Fetch all webinars from the database for the user
     const { data: webinars, error: dbError } = await supabaseAdmin
       .from('zoom_webinars')
-      .select('webinar_id')
+      .select('webinar_id, status')
       .eq('user_id', user.id);
 
     if (dbError) {
@@ -132,51 +133,109 @@ export async function handleUpdateWebinarParticipants(
 
     let updatedCount = 0;
 
-    // Iterate through each webinar and update participants count
-    for (const webinar of webinars) {
-      try {
-        // Fetch participants from Zoom API
-        const participantsResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/participants`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
+    // Process webinars in batches to avoid overwhelming the API
+    const batchSize = 5;
+    for (let i = 0; i < webinars.length; i += batchSize) {
+      const batch = webinars.slice(i, i + batchSize);
+      
+      await Promise.all(batch.map(async (webinar) => {
+        try {
+          // Only process ended webinars for participant data
+          if (webinar.status !== 'ended') {
+            console.log(`[handleUpdateWebinarParticipants] Skipping webinar ${webinar.webinar_id} - status: ${webinar.status}`);
+            return;
+          }
 
-        if (!participantsResponse.ok) {
-          const errorText = await participantsResponse.text();
-          console.error(`[handleUpdateWebinarParticipants] Zoom API error for webinar ${webinar.webinar_id}:`, errorText);
-          continue; // Skip to the next webinar
+          // Fetch registrants count
+          let registrantsCount = 0;
+          try {
+            const registrantsResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/registrants?status=approved&page_size=300`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (registrantsResponse.ok) {
+              const registrantsData = await registrantsResponse.json();
+              registrantsCount = registrantsData.total_records || 0;
+            } else {
+              console.log(`[handleUpdateWebinarParticipants] Could not fetch registrants for webinar ${webinar.webinar_id}`);
+            }
+          } catch (error) {
+            console.log(`[handleUpdateWebinarParticipants] Error fetching registrants for ${webinar.webinar_id}:`, error.message);
+          }
+
+          // Fetch participants count
+          let participantsCount = 0;
+          try {
+            const participantsResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/participants?page_size=300`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (participantsResponse.ok) {
+              const participantsData = await participantsResponse.json();
+              participantsCount = participantsData.total_records || 0;
+            } else {
+              console.log(`[handleUpdateWebinarParticipants] Could not fetch participants for webinar ${webinar.webinar_id}`);
+            }
+          } catch (error) {
+            console.log(`[handleUpdateWebinarParticipants] Error fetching participants for ${webinar.webinar_id}:`, error.message);
+          }
+
+          // Update the webinar record with participant data
+          if (registrantsCount > 0 || participantsCount > 0) {
+            // Get the current raw_data
+            const { data: currentWebinar } = await supabaseAdmin
+              .from('zoom_webinars')
+              .select('raw_data')
+              .eq('webinar_id', webinar.webinar_id)
+              .eq('user_id', user.id)
+              .single();
+
+            if (currentWebinar) {
+              const updatedRawData = {
+                ...currentWebinar.raw_data,
+                registrants_count: registrantsCount,
+                participants_count: participantsCount,
+                participant_data_updated_at: new Date().toISOString()
+              };
+
+              const { error: updateError } = await supabaseAdmin
+                .from('zoom_webinars')
+                .update({ 
+                  raw_data: updatedRawData,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('webinar_id', webinar.webinar_id)
+                .eq('user_id', user.id);
+
+              if (updateError) {
+                console.error(`[handleUpdateWebinarParticipants] DB error updating webinar ${webinar.webinar_id}:`, updateError);
+              } else {
+                updatedCount++;
+                console.log(`[handleUpdateWebinarParticipants] Updated webinar ${webinar.webinar_id} - registrants: ${registrantsCount}, participants: ${participantsCount}`);
+              }
+            }
+          }
+
+        } catch (error) {
+          console.error(`[handleUpdateWebinarParticipants] Error processing webinar ${webinar.webinar_id}:`, error);
         }
+      }));
 
-        const participantsData = await participantsResponse.json();
-        const participantsCount = participantsData.total_records || 0;
-
-        // Update the webinar in the database with the participants count
-        const { error: updateError } = await supabaseAdmin
-          .from('zoom_webinars')
-          .update({ participants_count: participantsCount })
-          .eq('webinar_id', webinar.webinar_id)
-          .eq('user_id', user.id);
-
-        if (updateError) {
-          console.error(`[handleUpdateWebinarParticipants] DB error updating webinar ${webinar.webinar_id}:`, updateError);
-        } else {
-          updatedCount++;
-          console.log(`[handleUpdateWebinarParticipants] Updated participants count for webinar ${webinar.webinar_id} to ${participantsCount}`);
-        }
-
-        // Add a small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-      } catch (error) {
-        console.error(`[handleUpdateWebinarParticipants] Error processing webinar ${webinar.webinar_id}:`, error);
+      // Add a small delay between batches to respect rate limits
+      if (i + batchSize < webinars.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
-    console.log(`[handleUpdateWebinarParticipants] Successfully updated participants count for ${updatedCount} webinars`);
+    console.log(`[handleUpdateWebinarParticipants] Successfully updated participant data for ${updatedCount} webinars`);
 
-    return new Response(JSON.stringify({ message: 'Participant counts updated', updated: updatedCount }), {
+    return new Response(JSON.stringify({ message: 'Participant data updated', updated: updatedCount }), {
       headers: { "Content-Type": "application/json" },
       status: 200,
     });
@@ -298,6 +357,48 @@ export async function handleGetInstanceParticipants(
   }
 }
 
+// Helper function to safely fetch participant data with error handling
+async function fetchParticipantData(webinarId: string, accessToken: string): Promise<{ registrants: number; participants: number }> {
+  let registrantsCount = 0;
+  let participantsCount = 0;
+
+  try {
+    // Fetch registrants
+    const registrantsResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/registrants?status=approved&page_size=300`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (registrantsResponse.ok) {
+      const registrantsData = await registrantsResponse.json();
+      registrantsCount = registrantsData.total_records || 0;
+    }
+  } catch (error) {
+    console.log(`Could not fetch registrants for webinar ${webinarId}:`, error.message);
+  }
+
+  try {
+    // Fetch participants
+    const participantsResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/participants?page_size=300`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (participantsResponse.ok) {
+      const participantsData = await participantsResponse.json();
+      participantsCount = participantsData.total_records || 0;
+    }
+  } catch (error) {
+    console.log(`Could not fetch participants for webinar ${webinarId}:`, error.message);
+  }
+
+  return { registrants: registrantsCount, participants: participantsCount };
+}
+
 // Helper function to process webinars in batches with concurrent API calls
 async function processWebinarBatch(
   webinars: any[],
@@ -336,6 +437,12 @@ async function processWebinarBatch(
           detailedWebinar = await detailResponse.json();
         }
 
+        // Fetch participant data for ended webinars
+        let participantData = { registrants: 0, participants: 0 };
+        if (detailedWebinar.status === 'ended') {
+          participantData = await fetchParticipantData(detailedWebinar.id, accessToken);
+        }
+
         // Create comprehensive raw data
         const comprehensiveRawData = {
           ...detailedWebinar,
@@ -345,6 +452,8 @@ async function processWebinarBatch(
           recurrence: detailedWebinar.recurrence,
           tracking_fields: detailedWebinar.tracking_fields,
           occurrences: detailedWebinar.occurrences,
+          registrants_count: participantData.registrants,
+          participants_count: participantData.participants,
           fetched_at: new Date().toISOString(),
           api_version: 'v2'
         };
@@ -451,17 +560,6 @@ async function batchUpsertWebinars(
         }
       } else {
         totalUpserted += batch.length;
-        
-        // Process additional data for each webinar in the batch
-        for (const webinar of batch) {
-          try {
-            await processRecurrenceData(supabaseAdmin, userId, workspaceId, webinar.detailedWebinar);
-            await processTrackingFields(supabaseAdmin, userId, workspaceId, webinar.detailedWebinar);
-            await processOccurrences(supabaseAdmin, userId, workspaceId, webinar.detailedWebinar);
-          } catch (error) {
-            console.error(`Error processing additional data for webinar ${webinar.data.webinar_id}:`, error);
-          }
-        }
       }
     } catch (error) {
       console.error('Batch processing error:', error);
@@ -642,132 +740,9 @@ export async function handleListWebinars(
 
   } catch (error) {
     console.error('[handleListWebinars] Error:', error);
-    
-    // Record failed sync
-    try {
-      await supabaseAdmin
-        .from('zoom_sync_history')
-        .insert({
-          user_id: user.id,
-          sync_type: 'webinars',
-          status: 'error',
-          items_synced: 0,
-          message: error.message
-        });
-    } catch (logError) {
-      console.error('[handleListWebinars] Error logging failed sync:', logError);
-    }
-
-    return new Response(JSON.stringify({
-      error: error.message || 'Failed to fetch webinars'
-    }), {
+    return new Response(JSON.stringify({ error: error.message || 'Failed to list webinars' }), {
       headers: { "Content-Type": "application/json" },
       status: 400,
     });
-  }
-}
-
-/**
- * Process recurrence data for recurring webinars
- */
-async function processRecurrenceData(supabaseAdmin: any, userId: string, workspaceId: string, webinar: any) {
-  if (!webinar.recurrence) return;
-  
-  try {
-    const recurrenceData = {
-      user_id: userId,
-      workspace_id: workspaceId,
-      webinar_id: webinar.id.toString(),
-      recurrence_type: webinar.recurrence.type,
-      repeat_interval: webinar.recurrence.repeat_interval,
-      weekly_days: webinar.recurrence.weekly_days,
-      monthly_day: webinar.recurrence.monthly_day,
-      monthly_week: webinar.recurrence.monthly_week,
-      monthly_week_day: webinar.recurrence.monthly_week_day,
-      end_times: webinar.recurrence.end_times,
-      end_date_time: webinar.recurrence.end_date_time,
-      raw_data: JSON.stringify(webinar.recurrence)
-    };
-
-    await supabaseAdmin
-      .from('zoom_webinar_recurrence')
-      .upsert(recurrenceData, {
-        onConflict: 'webinar_id',
-        ignoreDuplicates: false
-      });
-      
-    console.log(`[processRecurrenceData] Processed recurrence data for webinar ${webinar.id}`);
-  } catch (error) {
-    console.error('[processRecurrenceData] Error:', error);
-  }
-}
-
-/**
- * Process tracking fields for webinars
- */
-async function processTrackingFields(supabaseAdmin: any, userId: string, workspaceId: string, webinar: any) {
-  if (!webinar.tracking_fields || !Array.isArray(webinar.tracking_fields)) return;
-  
-  try {
-    // Clear existing tracking fields for this webinar
-    await supabaseAdmin
-      .from('zoom_webinar_tracking_fields')
-      .delete()
-      .eq('user_id', userId)
-      .eq('webinar_id', webinar.id.toString());
-
-    // Insert new tracking fields
-    for (const field of webinar.tracking_fields) {
-      const trackingFieldData = {
-        user_id: userId,
-        workspace_id: workspaceId,
-        webinar_id: webinar.id.toString(),
-        field_name: field.field,
-        field_value: field.value,
-        is_visible: field.visible !== false, // Default to true if not specified
-        is_required: field.required || false
-      };
-
-      await supabaseAdmin
-        .from('zoom_webinar_tracking_fields')
-        .insert(trackingFieldData);
-    }
-    
-    console.log(`[processTrackingFields] Processed ${webinar.tracking_fields.length} tracking fields for webinar ${webinar.id}`);
-  } catch (error) {
-    console.error('[processTrackingFields] Error:', error);
-  }
-}
-
-/**
- * Process occurrences for recurring webinars
- */
-async function processOccurrences(supabaseAdmin: any, userId: string, workspaceId: string, webinar: any) {
-  if (!webinar.occurrences || !Array.isArray(webinar.occurrences)) return;
-  
-  try {
-    for (const occurrence of webinar.occurrences) {
-      const occurrenceData = {
-        user_id: userId,
-        workspace_id: workspaceId,
-        webinar_id: webinar.id.toString(),
-        occurrence_id: occurrence.occurrence_id,
-        start_time: occurrence.start_time,
-        duration: occurrence.duration,
-        status: occurrence.status,
-        raw_data: JSON.stringify(occurrence)
-      };
-
-      await supabaseAdmin
-        .from('zoom_webinar_occurrences')
-        .upsert(occurrenceData, {
-          onConflict: 'user_id,webinar_id,occurrence_id',
-          ignoreDuplicates: false
-        });
-    }
-    
-    console.log(`[processOccurrences] Processed ${webinar.occurrences.length} occurrences for webinar ${webinar.id}`);
-  } catch (error) {
-    console.error('[processOccurrences] Error:', error);
   }
 }

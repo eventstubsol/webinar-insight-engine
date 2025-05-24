@@ -12,7 +12,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
 import { useZoomCredentials } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, ArrowRight, Loader2 } from 'lucide-react';
+import { Info, ArrowRight, Loader2, Users } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
 import { calculateWebinarStats } from '@/components/dashboard/charts/RegistrationAttendanceUtils';
 
@@ -20,7 +20,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [showWizard, setShowWizard] = useState(false);
   const { credentialsStatus, checkCredentialsStatus, isLoading: credentialsLoading } = useZoomCredentials();
-  const { refreshWebinars, isRefetching, webinars } = useZoomWebinars();
+  const { refreshWebinars, updateParticipantData, isRefetching, webinars } = useZoomWebinars();
+  const [isUpdatingParticipants, setIsUpdatingParticipants] = useState(false);
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
 
@@ -39,6 +40,17 @@ const Dashboard = () => {
     await checkCredentialsStatus();
   };
 
+  const handleUpdateParticipantData = async () => {
+    setIsUpdatingParticipants(true);
+    try {
+      await updateParticipantData();
+    } catch (error) {
+      console.error('Error updating participant data:', error);
+    } finally {
+      setIsUpdatingParticipants(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
@@ -50,7 +62,24 @@ const Dashboard = () => {
           
           {hasZoomCredentials && (
             <div className="flex items-center gap-2">
-              {/* Buttons removed here */}
+              <Button
+                onClick={handleUpdateParticipantData}
+                disabled={isUpdatingParticipants}
+                variant="outline"
+                size="sm"
+              >
+                {isUpdatingParticipants ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Users className="mr-2 h-4 w-4" />
+                    Update Participant Data
+                  </>
+                )}
+              </Button>
             </div>
           )}
         </div>

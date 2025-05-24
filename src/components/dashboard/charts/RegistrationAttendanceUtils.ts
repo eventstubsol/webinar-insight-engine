@@ -74,17 +74,31 @@ export const calculateWebinarStats = (webinars: ZoomWebinar[] | undefined, isLoa
     
     const currentData = monthlyData.get(monthKey);
     
-    // Get registrant and participant counts from raw_data if available
+    // Get registrant and participant counts with multiple fallback sources
     let registrantsCount = 0;
     let attendeesCount = 0;
     
-    if (webinar.raw_data && typeof webinar.raw_data === 'object') {
+    // Primary source: direct properties on the webinar object
+    if (webinar.registrants_count !== undefined && webinar.registrants_count > 0) {
+      registrantsCount = webinar.registrants_count;
+    }
+    
+    if (webinar.participants_count !== undefined && webinar.participants_count > 0) {
+      attendeesCount = webinar.participants_count;
+    }
+    
+    // Secondary source: raw_data object
+    if (registrantsCount === 0 && webinar.raw_data && typeof webinar.raw_data === 'object') {
       registrantsCount = webinar.raw_data.registrants_count || 0;
+    }
+    
+    if (attendeesCount === 0 && webinar.raw_data && typeof webinar.raw_data === 'object') {
       attendeesCount = webinar.raw_data.participants_count || 0;
-    } else {
-      // Try the direct properties as fallback
-      registrantsCount = webinar.registrants_count || 0;
-      attendeesCount = webinar.participants_count || 0;
+    }
+    
+    // Log for debugging
+    if (debug && (registrantsCount > 0 || attendeesCount > 0)) {
+      console.log(`Webinar ${webinar.topic}: registrants=${registrantsCount}, attendees=${attendeesCount}`);
     }
     
     // Update the month data
@@ -96,8 +110,14 @@ export const calculateWebinarStats = (webinars: ZoomWebinar[] | undefined, isLoa
   });
   
   // Convert map to array and sort by date using the stored date object
-  return Array.from(monthlyData.values())
+  const result = Array.from(monthlyData.values())
     .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime());
+    
+  if (debug) {
+    console.log('Monthly attendance data:', result);
+  }
+  
+  return result;
 };
 
 /**
@@ -121,4 +141,3 @@ export const calculateAttendanceRate = (totalRegistrants: number, totalAttendees
   if (totalRegistrants === 0) return 0;
   return Math.round((totalAttendees / totalRegistrants) * 100);
 };
-

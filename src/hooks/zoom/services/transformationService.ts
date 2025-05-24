@@ -21,6 +21,17 @@ export function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
       }
     }
     
+    // Extract participant counts with multiple fallback sources
+    const registrantsCount = parsedRawData?.registrants_count || 
+                           item.registrants_count || 
+                           parsedRawData?.detailed_data?.registrants_count || 
+                           0;
+                           
+    const participantsCount = parsedRawData?.participants_count || 
+                            item.participants_count || 
+                            parsedRawData?.detailed_data?.participants_count || 
+                            0;
+    
     // Extract settings from raw_data or individual columns
     const settings = parsedRawData.settings || {
       host_video: item.host_video ?? parsedRawData.host_video,
@@ -61,9 +72,14 @@ export function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
       host_email: item.host_email,
       status: item.status,
       type: item.type,
-      registrants_count: parsedRawData?.registrants_count || 0,
-      participants_count: parsedRawData?.participants_count || 0,
-      raw_data: parsedRawData,
+      registrants_count: registrantsCount,
+      participants_count: participantsCount,
+      raw_data: {
+        ...parsedRawData,
+        // Ensure these are always available at the top level for easy access
+        registrants_count: registrantsCount,
+        participants_count: participantsCount
+      },
       
       // Enhanced fields from new columns
       host_id: item.host_id ?? parsedRawData.host_id,
