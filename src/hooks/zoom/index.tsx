@@ -1,4 +1,3 @@
-
 // Export all types
 export * from './types';
 export * from './types/webinarTypes';
@@ -22,4 +21,8 @@ export * from './utils/errorUtils';
 
 // Export services and operations for direct access
 export * from './services/webinarApiService';
+export * from './services/databaseService';
+export * from './services/apiService';
+export * from './services/transformationService';
+export * from './services/enhancedDataService';
 export * from './webinarOperations';

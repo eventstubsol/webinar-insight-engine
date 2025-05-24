@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { fetchWebinarTrackingFields } from './services/webinarApiService';
+import { fetchWebinarTrackingFields } from './services/enhancedDataService';
 import { ZoomWebinarTrackingField } from './types';
 
 interface UseZoomWebinarTrackingFieldsProps {

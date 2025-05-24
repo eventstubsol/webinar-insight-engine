@@ -7,7 +7,7 @@ import {
   fetchWebinarsFromDatabase, 
   fetchWebinarsFromAPI,
   fetchSyncHistory 
-} from './services/webinarApiService';
+} from './services/databaseService';
 import { 
   refreshWebinarsOperation, 
   updateParticipantDataOperation 

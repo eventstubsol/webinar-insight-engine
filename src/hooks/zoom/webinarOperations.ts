@@ -1,9 +1,8 @@
-
 import { QueryClient } from '@tanstack/react-query';
 import { 
   refreshWebinarsFromAPI, 
   updateParticipantDataAPI 
-} from './services/webinarApiService';
+} from './services/apiService';
 import { 
   showSyncSuccessNotification, 
   showErrorNotification,

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { fetchWebinarOccurrences } from './services/webinarApiService';
+import { fetchWebinarOccurrences } from './services/enhancedDataService';
 import { ZoomWebinarOccurrence } from './types';
 
 interface UseZoomWebinarOccurrencesProps {
