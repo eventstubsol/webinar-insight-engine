@@ -1,8 +1,12 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Video, Users, Activity, Clock } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
 import { StatCard } from './StatCard';
+import { EmptyMetricsState } from './EmptyMetricsState';
+import { updateParticipantDataOperation } from '@/hooks/zoom/operations';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   getTotalWebinars,
   getTotalRegistrants,
@@ -13,11 +17,37 @@ import {
   getCurrentMonthWebinars,
   getPreviousMonthWebinars,
   calculatePercentageChange,
-  formatTrendData
+  formatTrendData,
+  hasParticipantData,
+  hasRecentParticipantUpdate
 } from './utils/statsUtils';
 
 export const DashboardStats = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { webinars, isLoading } = useZoomWebinars();
+  const [isUpdatingParticipants, setIsUpdatingParticipants] = useState(false);
+  
+  // Check if we have participant data
+  const hasData = !isLoading && hasParticipantData(webinars);
+  const hasUpdate = !isLoading && hasRecentParticipantUpdate(webinars);
+  
+  // Handle participant data update
+  const handleUpdateParticipantData = async () => {
+    setIsUpdatingParticipants(true);
+    try {
+      await updateParticipantDataOperation(user?.id, queryClient);
+    } catch (error) {
+      console.error('Error updating participant data:', error);
+    } finally {
+      setIsUpdatingParticipants(false);
+    }
+  };
+  
+  // If we don't have participant data and have webinars, show the empty state
+  if (!isLoading && webinars.length > 0 && !hasData && !hasUpdate) {
+    return <EmptyMetricsState onUpdateParticipantData={handleUpdateParticipantData} isUpdating={isUpdatingParticipants} />;
+  }
   
   // Calculate current and previous month data for trends
   const currentMonthWebinars = !isLoading ? getCurrentMonthWebinars(webinars) : [];

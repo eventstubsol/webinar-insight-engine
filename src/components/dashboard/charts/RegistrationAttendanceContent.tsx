@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BarChartIcon, Loader2 } from 'lucide-react';
+import { BarChartIcon, Loader2, Info } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -11,8 +11,9 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
-import { MonthlyAttendanceData } from './RegistrationAttendanceUtils';
+import { MonthlyAttendanceData, hasChartData } from './RegistrationAttendanceUtils';
 import RegistrationAttendanceTooltip from './RegistrationAttendanceTooltip';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface RegistrationAttendanceContentProps {
   webinarStats: MonthlyAttendanceData[];
@@ -39,6 +40,25 @@ export const RegistrationAttendanceContent: React.FC<RegistrationAttendanceConte
         <p className="text-xs text-muted-foreground">
           Once your past webinars are synced, attendance data will appear here
         </p>
+      </div>
+    );
+  }
+  
+  // Check if we have meaningful data to display
+  if (!hasChartData(webinarStats)) {
+    return (
+      <div className="h-[300px] flex items-center justify-center">
+        <Alert className="max-w-md">
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-center">
+            <div className="space-y-2">
+              <p className="font-medium">Registration & attendance data not available</p>
+              <p className="text-sm text-muted-foreground">
+                Click "Update Participant Data" in the dashboard header to fetch registration and attendance counts from Zoom.
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

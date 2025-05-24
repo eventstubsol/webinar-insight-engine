@@ -44,6 +44,24 @@ export const getAttendanceRate = (webinars: ZoomWebinar[]): string => {
   return `${rate}%`;
 };
 
+// Check if any webinar has participant data
+export const hasParticipantData = (webinars: ZoomWebinar[]): boolean => {
+  return webinars.some(webinar => {
+    const hasRegistrants = (webinar.raw_data?.registrants_count ?? 0) > 0 || 
+                          (webinar.registrants_count ?? 0) > 0;
+    const hasParticipants = (webinar.raw_data?.participants_count ?? 0) > 0 || 
+                           (webinar.participants_count ?? 0) > 0;
+    return hasRegistrants || hasParticipants;
+  });
+};
+
+// Check if participant data was updated (has the update timestamp)
+export const hasRecentParticipantUpdate = (webinars: ZoomWebinar[]): boolean => {
+  return webinars.some(webinar => {
+    return webinar.raw_data?.participant_data_updated_at !== undefined;
+  });
+};
+
 export const getTotalEngagement = (): string => {
   // This would ideally be calculated from actual engagement metrics
   return "0h 00m";
