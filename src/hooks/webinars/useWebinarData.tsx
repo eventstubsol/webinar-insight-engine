@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,6 +19,7 @@ export const useWebinarData = () => {
   // Get Zoom credentials status
   const { 
     credentialsStatus, 
+    checkCredentialsStatus,
     isVerifying, 
     verified, 
     scopesError,
@@ -59,6 +61,7 @@ export const useWebinarData = () => {
     refreshWebinars,
     lastSyncTime,
     credentialsStatus,
+    checkCredentialsStatus,
     isVerifying,
     verified,
     scopesError,
