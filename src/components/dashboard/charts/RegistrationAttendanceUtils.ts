@@ -74,7 +74,7 @@ export const calculateWebinarStats = (webinars: ZoomWebinar[] | undefined, isLoa
     
     const currentData = monthlyData.get(monthKey);
     
-    // Get registrant and participant counts with multiple fallback sources
+    // Get registrant and participant counts with enhanced fallback sources
     let registrantsCount = 0;
     let attendeesCount = 0;
     
@@ -89,11 +89,14 @@ export const calculateWebinarStats = (webinars: ZoomWebinar[] | undefined, isLoa
     
     // Secondary source: raw_data object
     if (registrantsCount === 0 && webinar.raw_data && typeof webinar.raw_data === 'object') {
-      registrantsCount = webinar.raw_data.registrants_count || 0;
+      // Try various ways to access the raw_data
+      const rawData = typeof webinar.raw_data === 'string' ? JSON.parse(webinar.raw_data) : webinar.raw_data;
+      registrantsCount = rawData.registrants_count || rawData.detailed_data?.registrants_count || 0;
     }
     
     if (attendeesCount === 0 && webinar.raw_data && typeof webinar.raw_data === 'object') {
-      attendeesCount = webinar.raw_data.participants_count || 0;
+      const rawData = typeof webinar.raw_data === 'string' ? JSON.parse(webinar.raw_data) : webinar.raw_data;
+      attendeesCount = rawData.participants_count || rawData.detailed_data?.participants_count || 0;
     }
     
     // Log for debugging

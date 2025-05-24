@@ -1,4 +1,3 @@
-
 import { getValidAccessToken } from "./auth.ts";
 
 export async function handleGetWebinar(
@@ -115,7 +114,7 @@ export async function handleUpdateWebinarParticipants(
     // Fetch all webinars from the database for the user
     const { data: webinars, error: dbError } = await supabaseAdmin
       .from('zoom_webinars')
-      .select('webinar_id, status')
+      .select('webinar_id, status, start_time, duration')
       .eq('user_id', user.id);
 
     if (dbError) {
@@ -132,20 +131,29 @@ export async function handleUpdateWebinarParticipants(
     }
 
     let updatedCount = 0;
+    const now = new Date();
+
+    // Filter webinars that have likely ended (based on start_time + duration)
+    const completedWebinars = webinars.filter(webinar => {
+      if (!webinar.start_time) return false;
+      
+      const startTime = new Date(webinar.start_time);
+      const estimatedEndTime = new Date(startTime.getTime() + (webinar.duration || 60) * 60 * 1000);
+      
+      // Include webinars that ended more than 30 minutes ago (to ensure they're truly finished)
+      const bufferTime = 30 * 60 * 1000; // 30 minutes in milliseconds
+      return estimatedEndTime.getTime() + bufferTime < now.getTime();
+    });
+
+    console.log(`[handleUpdateWebinarParticipants] Processing ${completedWebinars.length} completed webinars out of ${webinars.length} total`);
 
     // Process webinars in batches to avoid overwhelming the API
     const batchSize = 5;
-    for (let i = 0; i < webinars.length; i += batchSize) {
-      const batch = webinars.slice(i, i + batchSize);
+    for (let i = 0; i < completedWebinars.length; i += batchSize) {
+      const batch = completedWebinars.slice(i, i + batchSize);
       
       await Promise.all(batch.map(async (webinar) => {
         try {
-          // Only process ended webinars for participant data
-          if (webinar.status !== 'ended') {
-            console.log(`[handleUpdateWebinarParticipants] Skipping webinar ${webinar.webinar_id} - status: ${webinar.status}`);
-            return;
-          }
-
           // Fetch registrants count
           let registrantsCount = 0;
           try {
@@ -228,7 +236,7 @@ export async function handleUpdateWebinarParticipants(
       }));
 
       // Add a small delay between batches to respect rate limits
-      if (i + batchSize < webinars.length) {
+      if (i + batchSize < completedWebinars.length) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }

@@ -19,21 +19,27 @@ import {
 export const DashboardStats = () => {
   const { webinars, isLoading } = useZoomWebinars();
   
-  // Calculate current and previous month data
+  // Calculate current and previous month data for trends
   const currentMonthWebinars = !isLoading ? getCurrentMonthWebinars(webinars) : [];
   const previousMonthWebinars = !isLoading ? getPreviousMonthWebinars(webinars) : [];
   
-  // Calculate metrics for current month
+  // Calculate total metrics (for main display)
+  const totalWebinars = !isLoading ? getTotalWebinars(webinars) : 0;
+  const totalRegistrants = !isLoading ? getTotalRegistrants(webinars) : 0;
+  const totalAttendees = !isLoading ? getTotalAttendees(webinars) : 0;
+  const totalAttendanceRate = !isLoading ? getAttendanceRate(webinars) : '0%';
+  
+  // Calculate metrics for current month (for trends)
   const currentTotalWebinars = !isLoading ? currentMonthWebinars.length : 0;
   const currentTotalRegistrants = !isLoading ? getTotalRegistrants(currentMonthWebinars) : 0;
   const currentTotalAttendees = !isLoading ? getTotalAttendees(currentMonthWebinars) : 0;
   
-  // Calculate metrics for previous month
+  // Calculate metrics for previous month (for trends)
   const previousTotalWebinars = !isLoading ? previousMonthWebinars.length : 0;
   const previousTotalRegistrants = !isLoading ? getTotalRegistrants(previousMonthWebinars) : 0;
   const previousTotalAttendees = !isLoading ? getTotalAttendees(previousMonthWebinars) : 0;
   
-  // Calculate attendance rates
+  // Calculate attendance rates for trends
   const currentAttendanceRate = currentTotalRegistrants > 0 
     ? Math.round((currentTotalAttendees / currentTotalRegistrants) * 100)
     : 0;
@@ -56,7 +62,7 @@ export const DashboardStats = () => {
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
       <StatCard
         title="Total Webinars"
-        value={isLoading ? undefined : getTotalWebinars(webinars).toString()}
+        value={isLoading ? undefined : totalWebinars.toString()}
         description="Total webinars"
         icon={<Video className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
@@ -65,7 +71,7 @@ export const DashboardStats = () => {
       />
       <StatCard
         title="Total Registrants"
-        value={isLoading ? undefined : getTotalRegistrants(webinars).toString()}
+        value={isLoading ? undefined : totalRegistrants.toString()}
         description="Registered participants"
         icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
@@ -74,7 +80,7 @@ export const DashboardStats = () => {
       />
       <StatCard
         title="Total Attendees"
-        value={isLoading ? undefined : getTotalAttendees(webinars).toString()}
+        value={isLoading ? undefined : totalAttendees.toString()}
         description="Attended participants"
         icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
@@ -83,7 +89,7 @@ export const DashboardStats = () => {
       />
       <StatCard
         title="Attendance Rate"
-        value={isLoading ? undefined : getAttendanceRate(webinars)}
+        value={isLoading ? undefined : totalAttendanceRate}
         description="Attendance percentage"
         icon={<Activity className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
