@@ -1,13 +1,14 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useZoomCredentials } from './useZoomCredentials';
 import { 
   fetchWebinarsFromDatabase, 
-  fetchWebinarsFromAPI,
   fetchSyncHistory 
 } from './services/databaseService';
+import { 
+  fetchWebinarsFromAPI 
+} from './services/apiService';
 import { 
   refreshWebinarsOperation, 
   updateParticipantDataOperation 
