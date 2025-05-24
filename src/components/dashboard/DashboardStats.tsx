@@ -4,6 +4,7 @@ import { Video, Users, Activity, Clock } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
 import { StatCard } from './StatCard';
 import { EmptyMetricsState } from './EmptyMetricsState';
+import { AttendeeDataAlert } from './AttendeeDataAlert';
 import { updateParticipantDataOperation } from '@/hooks/zoom/operations';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,7 +20,8 @@ import {
   calculatePercentageChange,
   formatTrendData,
   hasParticipantData,
-  hasRecentParticipantUpdate
+  hasRecentParticipantUpdate,
+  hasAttendeeData
 } from './utils/statsUtils';
 
 export const DashboardStats = () => {
@@ -31,6 +33,7 @@ export const DashboardStats = () => {
   // Check if we have participant data
   const hasData = !isLoading && hasParticipantData(webinars);
   const hasUpdate = !isLoading && hasRecentParticipantUpdate(webinars);
+  const hasAttendees = !isLoading && hasAttendeeData(webinars);
   
   // Handle participant data update
   const handleUpdateParticipantData = async () => {
@@ -89,61 +92,72 @@ export const DashboardStats = () => {
   const durationTrend = { value: 0, label: "0%", direction: 'flat' as const };
   
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-      <StatCard
-        title="Total Webinars"
-        value={isLoading ? undefined : totalWebinars.toString()}
-        description="Total webinars"
-        icon={<Video className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
-        cardColor="bg-blue-50 border-blue-200"
-        trend={webinarsTrend}
-      />
-      <StatCard
-        title="Total Registrants"
-        value={isLoading ? undefined : totalRegistrants.toString()}
-        description="Registered participants"
-        icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
-        cardColor="bg-sky-50 border-sky-200"
-        trend={registrantsTrend}
-      />
-      <StatCard
-        title="Total Attendees"
-        value={isLoading ? undefined : totalAttendees.toString()}
-        description="Attended participants"
-        icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
-        cardColor="bg-sky-50 border-sky-200"
-        trend={attendeesTrend}
-      />
-      <StatCard
-        title="Attendance Rate"
-        value={isLoading ? undefined : totalAttendanceRate}
-        description="Attendance percentage"
-        icon={<Activity className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
-        cardColor="bg-green-50 border-green-200"
-        trend={attendanceRateTrend}
-      />
-      <StatCard
-        title="Total Engagement"
-        value={isLoading ? undefined : getTotalEngagement()}
-        description="Total engagement time"
-        icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
-        cardColor="bg-purple-50 border-purple-200"
-        trend={engagementTrend}
-      />
-      <StatCard
-        title="Avg. Duration"
-        value={isLoading ? undefined : getAverageDuration(webinars)}
-        description="Average webinar length"
-        icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
-        isLoading={isLoading}
-        cardColor="bg-green-50 border-green-200"
-        trend={durationTrend}
-      />
+    <div className="space-y-4">
+      {/* Show attendee data alert if needed */}
+      {!isLoading && webinars.length > 0 && (hasData || hasUpdate) && (
+        <AttendeeDataAlert 
+          webinars={webinars}
+          onUpdateData={handleUpdateParticipantData}
+          isUpdating={isUpdatingParticipants}
+        />
+      )}
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <StatCard
+          title="Total Webinars"
+          value={isLoading ? undefined : totalWebinars.toString()}
+          description="Total webinars"
+          icon={<Video className="h-3 w-3 sm:h-4 sm:w-4" />}
+          isLoading={isLoading}
+          cardColor="bg-blue-50 border-blue-200"
+          trend={webinarsTrend}
+        />
+        <StatCard
+          title="Total Registrants"
+          value={isLoading ? undefined : totalRegistrants.toString()}
+          description="Registered participants"
+          icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
+          isLoading={isLoading}
+          cardColor="bg-sky-50 border-sky-200"
+          trend={registrantsTrend}
+        />
+        <StatCard
+          title="Total Attendees"
+          value={isLoading ? undefined : (hasAttendees ? totalAttendees.toString() : "Update needed")}
+          description="Attended participants"
+          icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
+          isLoading={isLoading}
+          cardColor="bg-sky-50 border-sky-200"
+          trend={attendeesTrend}
+        />
+        <StatCard
+          title="Attendance Rate"
+          value={isLoading ? undefined : (hasAttendees ? totalAttendanceRate : "Update needed")}
+          description="Attendance percentage"
+          icon={<Activity className="h-3 w-3 sm:h-4 sm:w-4" />}
+          isLoading={isLoading}
+          cardColor="bg-green-50 border-green-200"
+          trend={attendanceRateTrend}
+        />
+        <StatCard
+          title="Total Engagement"
+          value={isLoading ? undefined : getTotalEngagement()}
+          description="Total engagement time"
+          icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
+          isLoading={isLoading}
+          cardColor="bg-purple-50 border-purple-200"
+          trend={engagementTrend}
+        />
+        <StatCard
+          title="Avg. Duration"
+          value={isLoading ? undefined : getAverageDuration(webinars)}
+          description="Average webinar length"
+          icon={<Clock className="h-3 w-3 sm:h-4 sm:w-4" />}
+          isLoading={isLoading}
+          cardColor="bg-green-50 border-green-200"
+          trend={durationTrend}
+        />
+      </div>
     </div>
   );
 };

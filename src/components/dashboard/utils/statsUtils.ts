@@ -44,7 +44,7 @@ export const getAttendanceRate = (webinars: ZoomWebinar[]): string => {
   return `${rate}%`;
 };
 
-// Check if any webinar has participant data
+// Check if any webinar has participant data (registrants OR attendees)
 export const hasParticipantData = (webinars: ZoomWebinar[]): boolean => {
   return webinars.some(webinar => {
     const hasRegistrants = (webinar.raw_data?.registrants_count ?? 0) > 0 || 
@@ -60,6 +60,36 @@ export const hasRecentParticipantUpdate = (webinars: ZoomWebinar[]): boolean => 
   return webinars.some(webinar => {
     return webinar.raw_data?.participant_data_updated_at !== undefined;
   });
+};
+
+// New function to check if we have attendee data specifically
+export const hasAttendeeData = (webinars: ZoomWebinar[]): boolean => {
+  return webinars.some(webinar => {
+    const attendeeCount = webinar.raw_data?.participants_count ?? webinar.participants_count ?? 0;
+    return attendeeCount > 0;
+  });
+};
+
+// New function to get webinars with fetch errors
+export const getWebinarsWithFetchErrors = (webinars: ZoomWebinar[]): ZoomWebinar[] => {
+  return webinars.filter(webinar => {
+    return webinar.raw_data?.participants_fetch_error || webinar.raw_data?.registrants_fetch_error;
+  });
+};
+
+// New function to check if webinars have completed
+export const getCompletedWebinarsCount = (webinars: ZoomWebinar[]): number => {
+  const now = new Date();
+  return webinars.filter(webinar => {
+    if (!webinar.start_time) return false;
+    
+    const startTime = new Date(webinar.start_time);
+    const estimatedEndTime = new Date(startTime.getTime() + (webinar.duration || 60) * 60 * 1000);
+    
+    // Check if webinar ended more than 30 minutes ago
+    const bufferTime = 30 * 60 * 1000; // 30 minutes
+    return estimatedEndTime.getTime() + bufferTime < now.getTime();
+  }).length;
 };
 
 export const getTotalEngagement = (): string => {
