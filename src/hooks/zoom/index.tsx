@@ -11,6 +11,11 @@ export * from './useZoomWebinarParticipants';
 export * from './useZoomWebinarInstances';
 export * from './useZoomInstanceParticipants';
 
+// Export new hooks for enhanced data
+export * from './useZoomWebinarOccurrences';
+export * from './useZoomWebinarTrackingFields';
+export * from './useZoomWebinarRecurrence';
+
 // Export utilities for backward compatibility
 export * from './utils/webinarUtils';
 export * from './utils/errorUtils';
