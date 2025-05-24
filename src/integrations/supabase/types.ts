@@ -54,8 +54,74 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_members: {
+        Row: {
+          id: string
+          joined_at: string | null
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string | null
+          role?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string | null
+          role?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          settings: Json | null
+          slug: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          settings?: Json | null
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          settings?: Json | null
+          slug?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       zoom_credentials: {
         Row: {
+          access_token: string | null
           account_id: string
           client_id: string
           client_secret: string
@@ -65,8 +131,10 @@ export type Database = {
           last_verified_at: string | null
           updated_at: string
           user_id: string
+          workspace_id: string | null
         }
         Insert: {
+          access_token?: string | null
           account_id: string
           client_id: string
           client_secret: string
@@ -76,8 +144,10 @@ export type Database = {
           last_verified_at?: string | null
           updated_at?: string
           user_id: string
+          workspace_id?: string | null
         }
         Update: {
+          access_token?: string | null
           account_id?: string
           client_id?: string
           client_secret?: string
@@ -87,8 +157,17 @@ export type Database = {
           last_verified_at?: string | null
           updated_at?: string
           user_id?: string
+          workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "zoom_credentials_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       zoom_sync_history: {
         Row: {
@@ -99,6 +178,7 @@ export type Database = {
           status: string
           sync_type: string
           user_id: string
+          workspace_id: string | null
         }
         Insert: {
           created_at?: string
@@ -108,6 +188,7 @@ export type Database = {
           status: string
           sync_type: string
           user_id: string
+          workspace_id?: string | null
         }
         Update: {
           created_at?: string
@@ -117,8 +198,159 @@ export type Database = {
           status?: string
           sync_type?: string
           user_id?: string
+          workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "zoom_sync_history_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_webinar_chat: {
+        Row: {
+          created_at: string
+          id: string
+          instance_id: string | null
+          message: string
+          message_time: string | null
+          raw_data: Json
+          recipient_id: string | null
+          recipient_name: string | null
+          recipient_type: string | null
+          sender_email: string | null
+          sender_id: string | null
+          sender_name: string | null
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          message: string
+          message_time?: string | null
+          raw_data: Json
+          recipient_id?: string | null
+          recipient_name?: string | null
+          recipient_type?: string | null
+          sender_email?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          message?: string
+          message_time?: string | null
+          raw_data?: Json
+          recipient_id?: string | null
+          recipient_name?: string | null
+          recipient_type?: string | null
+          sender_email?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_chat_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_webinar_engagement: {
+        Row: {
+          attention_score: number | null
+          attentiveness: number | null
+          chat_messages_sent: number | null
+          created_at: string
+          email: string | null
+          engagement_duration: number | null
+          id: string
+          instance_id: string | null
+          join_time: string | null
+          leave_time: string | null
+          name: string | null
+          participant_id: string | null
+          polls_answered: number | null
+          questions_asked: number | null
+          raw_data: Json
+          time_engaged: number | null
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          attention_score?: number | null
+          attentiveness?: number | null
+          chat_messages_sent?: number | null
+          created_at?: string
+          email?: string | null
+          engagement_duration?: number | null
+          id?: string
+          instance_id?: string | null
+          join_time?: string | null
+          leave_time?: string | null
+          name?: string | null
+          participant_id?: string | null
+          polls_answered?: number | null
+          questions_asked?: number | null
+          raw_data: Json
+          time_engaged?: number | null
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          attention_score?: number | null
+          attentiveness?: number | null
+          chat_messages_sent?: number | null
+          created_at?: string
+          email?: string | null
+          engagement_duration?: number | null
+          id?: string
+          instance_id?: string | null
+          join_time?: string | null
+          leave_time?: string | null
+          name?: string | null
+          participant_id?: string | null
+          polls_answered?: number | null
+          questions_asked?: number | null
+          raw_data?: Json
+          time_engaged?: number | null
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_engagement_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       zoom_webinar_instance_participants: {
         Row: {
@@ -136,6 +368,7 @@ export type Database = {
           updated_at: string
           user_id: string
           webinar_id: string
+          workspace_id: string | null
         }
         Insert: {
           created_at?: string
@@ -152,6 +385,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           webinar_id: string
+          workspace_id?: string | null
         }
         Update: {
           created_at?: string
@@ -168,6 +402,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           webinar_id?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -175,6 +410,13 @@ export type Database = {
             columns: ["instance_id"]
             isOneToOne: false
             referencedRelation: "zoom_webinar_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_webinar_instance_participants_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -196,6 +438,7 @@ export type Database = {
           user_id: string
           webinar_id: string
           webinar_uuid: string
+          workspace_id: string | null
         }
         Insert: {
           created_at?: string
@@ -213,6 +456,7 @@ export type Database = {
           user_id: string
           webinar_id: string
           webinar_uuid: string
+          workspace_id?: string | null
         }
         Update: {
           created_at?: string
@@ -230,8 +474,17 @@ export type Database = {
           user_id?: string
           webinar_id?: string
           webinar_uuid?: string
+          workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_instances_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       zoom_webinar_participants: {
         Row: {
@@ -248,6 +501,7 @@ export type Database = {
           updated_at: string
           user_id: string
           webinar_id: string
+          workspace_id: string | null
         }
         Insert: {
           created_at?: string
@@ -263,6 +517,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           webinar_id: string
+          workspace_id?: string | null
         }
         Update: {
           created_at?: string
@@ -278,8 +533,281 @@ export type Database = {
           updated_at?: string
           user_id?: string
           webinar_id?: string
+          workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_participants_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_webinar_poll_responses: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+          poll_id: string
+          raw_data: Json
+          response_time: string | null
+          responses: Json
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          poll_id: string
+          raw_data: Json
+          response_time?: string | null
+          responses: Json
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          poll_id?: string
+          raw_data?: Json
+          response_time?: string | null
+          responses?: Json
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_poll_responses_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_webinar_polls"
+            referencedColumns: ["poll_id"]
+          },
+          {
+            foreignKeyName: "zoom_webinar_poll_responses_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_webinar_polls: {
+        Row: {
+          created_at: string
+          end_time: string | null
+          id: string
+          instance_id: string | null
+          poll_id: string
+          questions: Json | null
+          raw_data: Json
+          start_time: string | null
+          status: string | null
+          title: string
+          total_participants: number | null
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          instance_id?: string | null
+          poll_id: string
+          questions?: Json | null
+          raw_data: Json
+          start_time?: string | null
+          status?: string | null
+          title: string
+          total_participants?: number | null
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          instance_id?: string | null
+          poll_id?: string
+          questions?: Json | null
+          raw_data?: Json
+          start_time?: string | null
+          status?: string | null
+          title?: string
+          total_participants?: number | null
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_polls_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_webinar_questions: {
+        Row: {
+          answer: string | null
+          answer_time: string | null
+          answered: boolean | null
+          answered_by: string | null
+          created_at: string
+          email: string | null
+          id: string
+          instance_id: string | null
+          name: string | null
+          question: string
+          question_id: string
+          question_time: string | null
+          raw_data: Json
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          answer?: string | null
+          answer_time?: string | null
+          answered?: boolean | null
+          answered_by?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          instance_id?: string | null
+          name?: string | null
+          question: string
+          question_id: string
+          question_time?: string | null
+          raw_data: Json
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          answer?: string | null
+          answer_time?: string | null
+          answered?: boolean | null
+          answered_by?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          instance_id?: string | null
+          name?: string | null
+          question?: string
+          question_id?: string
+          question_time?: string | null
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_questions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_webinar_recordings: {
+        Row: {
+          created_at: string
+          download_url: string | null
+          duration: number | null
+          file_size: number | null
+          file_type: string | null
+          id: string
+          instance_id: string | null
+          password: string | null
+          play_url: string | null
+          raw_data: Json
+          recording_end: string | null
+          recording_id: string
+          recording_start: string | null
+          recording_type: string
+          status: string | null
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          download_url?: string | null
+          duration?: number | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          instance_id?: string | null
+          password?: string | null
+          play_url?: string | null
+          raw_data: Json
+          recording_end?: string | null
+          recording_id: string
+          recording_start?: string | null
+          recording_type: string
+          status?: string | null
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          download_url?: string | null
+          duration?: number | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          instance_id?: string | null
+          password?: string | null
+          play_url?: string | null
+          raw_data?: Json
+          recording_end?: string | null
+          recording_id?: string
+          recording_start?: string | null
+          recording_type?: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_recordings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       zoom_webinars: {
         Row: {
@@ -298,6 +826,7 @@ export type Database = {
           user_id: string
           webinar_id: string
           webinar_uuid: string
+          workspace_id: string | null
         }
         Insert: {
           agenda?: string | null
@@ -315,6 +844,7 @@ export type Database = {
           user_id: string
           webinar_id: string
           webinar_uuid: string
+          workspace_id?: string | null
         }
         Update: {
           agenda?: string | null
@@ -332,8 +862,17 @@ export type Database = {
           user_id?: string
           webinar_id?: string
           webinar_uuid?: string
+          workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinars_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -345,6 +884,10 @@ export type Database = {
           check_user_id: string
           check_role: Database["public"]["Enums"]["user_role"]
         }
+        Returns: boolean
+      }
+      is_workspace_member: {
+        Args: { workspace_id: string; check_role?: string }
         Returns: boolean
       }
     }

@@ -14,6 +14,7 @@ import { useZoomCredentials } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, ArrowRight, Loader2 } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
+import { calculateWebinarStats } from '@/components/dashboard/charts/RegistrationAttendanceUtils';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -23,27 +24,10 @@ const Dashboard = () => {
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
 
-  // Prepare sample data for the registration & attendance chart
+  // Calculate webinar stats for the registration & attendance chart using monthly data
   const registrationAttendanceData = React.useMemo(() => {
-    // If we have webinars, calculate total registrants and attendees
-    if (webinars && webinars.length > 0) {
-      const totalRegistrants = webinars.reduce((sum, webinar) => 
-        sum + (webinar.raw_data?.registrants_count || 0), 0);
-      const totalAttendees = webinars.reduce((sum, webinar) => 
-        sum + (webinar.raw_data?.participants_count || 0), 0);
-      
-      return [
-        { name: 'Registrants', value: totalRegistrants },
-        { name: 'Attendees', value: totalAttendees }
-      ];
-    }
-    
-    // Default sample data if no webinars are available
-    return [
-      { name: 'Registrants', value: 0 },
-      { name: 'Attendees', value: 0 }
-    ];
-  }, [webinars]);
+    return calculateWebinarStats(webinars, isRefetching);
+  }, [webinars, isRefetching]);
   
   const handleConnectZoom = () => {
     setShowWizard(true);
@@ -120,7 +104,10 @@ const Dashboard = () => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WebinarDistributionChart />
-            <RegistrationAttendanceChart data={registrationAttendanceData} />
+            <RegistrationAttendanceChart 
+              data={registrationAttendanceData} 
+              isLoading={isRefetching}
+            />
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
