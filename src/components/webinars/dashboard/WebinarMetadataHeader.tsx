@@ -3,7 +3,7 @@ import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import {
   User,
   Calendar,
@@ -39,20 +39,55 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   const presenter = webinar.raw_data?.alternative_host || webinar.host_email;
   const panelists = webinar.raw_data?.panelists || [];
   
-  // Format webinar date
-  const webinarDate = webinar.start_time ? 
-    format(parseISO(webinar.start_time), 'EEEE, MMMM d, yyyy • h:mm a') : 
-    'Date not set';
+  // Format webinar date with proper null checking
+  const formatWebinarDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'Date not set';
+    try {
+      const date = parseISO(dateString);
+      if (!isValid(date)) return 'Invalid date';
+      return format(date, 'EEEE, MMMM d, yyyy • h:mm a');
+    } catch (error) {
+      console.error('Error formatting webinar date:', error);
+      return 'Invalid date';
+    }
+  };
+
+  const webinarDate = formatWebinarDate(webinar.start_time);
 
   // Recording details (placeholder, as this information may not be available in current data model)
   const recordingLink = webinar.raw_data?.recording_url || 'Not available';
   const recordingPassword = webinar.raw_data?.recording_password || 'Not available';
   
-  // Actual start time and duration
-  const actualStart = webinar.raw_data?.actual_start_time ? 
-    format(parseISO(webinar.raw_data.actual_start_time), 'h:mm a') : 
-    format(parseISO(webinar.start_time), 'h:mm a');
-  const actualDuration = webinar.raw_data?.actual_duration || webinar.duration;
+  // Actual start time and duration with proper null checking
+  const formatActualStart = () => {
+    if (webinar.raw_data?.actual_start_time) {
+      try {
+        const date = parseISO(webinar.raw_data.actual_start_time);
+        if (isValid(date)) {
+          return format(date, 'h:mm a');
+        }
+      } catch (error) {
+        console.error('Error formatting actual start time:', error);
+      }
+    }
+    
+    // Fallback to scheduled start time
+    if (webinar.start_time) {
+      try {
+        const date = parseISO(webinar.start_time);
+        if (isValid(date)) {
+          return format(date, 'h:mm a');
+        }
+      } catch (error) {
+        console.error('Error formatting start time:', error);
+      }
+    }
+    
+    return 'Time not available';
+  };
+
+  const actualStart = formatActualStart();
+  const actualDuration = webinar.raw_data?.actual_duration || webinar.duration || 'Not available';
   
   // Max concurrent views (placeholder, as this information may not be available in current data model)
   const maxConcurrentViews = webinar.raw_data?.max_concurrent_views || 'Not available';
