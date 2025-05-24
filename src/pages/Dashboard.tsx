@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { WebinarDistributionChart } from '@/components/dashboard/WebinarDistributionChart';
@@ -14,22 +14,43 @@ import { useZoomCredentials } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
-import { calculateWebinarStats } from '@/components/dashboard/charts/RegistrationAttendanceUtils';
-import { needsSync } from '@/components/dashboard/utils/statsUtils';
+import { calculateWebinarStats, MonthlyAttendanceData } from '@/components/dashboard/charts/RegistrationAttendanceUtils';
+import { needsSync, hasParticipantData, getLastParticipantDataUpdate } from '@/components/dashboard/utils/statsUtils';
+import { useAuth } from '@/hooks/useAuth';
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showWizard, setShowWizard] = useState(false);
   const { credentialsStatus, checkCredentialsStatus, isLoading: credentialsLoading } = useZoomCredentials();
   const { refreshWebinars, isRefetching, webinars, lastSyncTime } = useZoomWebinars();
+  const [registrationAttendanceData, setRegistrationAttendanceData] = useState<MonthlyAttendanceData[]>([]);
+  const [isLoadingChartData, setIsLoadingChartData] = useState(false);
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
   const shouldSync = needsSync(webinars, lastSyncTime);
+  const hasParticipants = hasParticipantData(webinars);
+  const lastParticipantUpdate = getLastParticipantDataUpdate(webinars);
 
-  // Calculate webinar stats for the registration & attendance chart using monthly data
-  const registrationAttendanceData = React.useMemo(() => {
-    return calculateWebinarStats(webinars, isRefetching);
-  }, [webinars, isRefetching]);
+  // Calculate webinar stats for the registration & attendance chart using enhanced database queries
+  useEffect(() => {
+    const loadChartData = async () => {
+      if (!user?.id || isRefetching) return;
+      
+      setIsLoadingChartData(true);
+      try {
+        const data = await calculateWebinarStats(webinars, user.id, isRefetching);
+        setRegistrationAttendanceData(data);
+      } catch (error) {
+        console.error('Error loading chart data:', error);
+        setRegistrationAttendanceData([]);
+      } finally {
+        setIsLoadingChartData(false);
+      }
+    };
+
+    loadChartData();
+  }, [webinars, user?.id, isRefetching]);
   
   const handleConnectZoom = () => {
     setShowWizard(true);
@@ -55,6 +76,11 @@ const Dashboard = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground">Welcome back! Here's an overview of your webinars.</p>
+            {hasParticipants && lastParticipantUpdate && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Participant data last updated: {lastParticipantUpdate.toLocaleString()}
+              </p>
+            )}
           </div>
           
           {hasZoomCredentials && shouldSync && (
@@ -115,6 +141,37 @@ const Dashboard = () => {
           </Alert>
         )}
 
+        {/* Show participant data info if we have webinars but no participant data */}
+        {hasZoomCredentials && webinars.length > 0 && !hasParticipants && !isRefetching && (
+          <Alert className="bg-amber-50 border-amber-200">
+            <Info className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Participant data not available</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              <p>Attendee data is only available for webinars that have ended. Sync your data to get the latest participant information.</p>
+              <div className="flex flex-wrap gap-3 mt-3">
+                <Button 
+                  onClick={handleSyncData}
+                  disabled={isRefetching}
+                  variant="outline" 
+                  className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                >
+                  {isRefetching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Syncing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Sync Data
+                    </>
+                  )}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Zoom Integration Wizard Dialog */}
         <Dialog open={showWizard} onOpenChange={setShowWizard}>
           <DialogContent className="max-w-4xl p-0">
@@ -132,7 +189,7 @@ const Dashboard = () => {
             <WebinarDistributionChart />
             <RegistrationAttendanceChart 
               data={registrationAttendanceData} 
-              isLoading={isRefetching}
+              isLoading={isLoadingChartData || isRefetching}
             />
           </div>
           

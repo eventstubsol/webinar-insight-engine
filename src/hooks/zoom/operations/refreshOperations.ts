@@ -55,29 +55,48 @@ export async function refreshWebinarsOperation(
         variant: 'warning'
       });
     } else {
-      // Also update participant data for completed webinars (silently)
+      // Start participant data update in the background (don't wait for it to complete)
       try {
-        const { updateParticipantDataOperation } = await import('./participantOperations');
-        const participantData = await updateParticipantDataOperation(userId, queryClient, true);
-        participantsUpdated = participantData?.updated || 0;
+        console.log(`[refreshWebinarsOperation] Starting background participant data update`);
+        
+        // Don't await this - let it run in background
+        updateParticipantDataAPI().then((participantData) => {
+          participantsUpdated = participantData?.updated || 0;
+          console.log(`[refreshWebinarsOperation] Background participant update completed: ${participantsUpdated} webinars`);
+          
+          // Show a follow-up notification when participant data is ready
+          if (participantsUpdated > 0) {
+            toast({
+              title: 'Participant data updated',
+              description: `Updated attendee data for ${participantsUpdated} webinars`,
+              variant: 'success'
+            });
+          }
+          
+          // Refresh the data after participant update
+          queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
+        }).catch((err) => {
+          console.error('[refreshWebinarsOperation] Background participant update failed:', err);
+        });
+        
       } catch (err) {
-        console.error('[refreshWebinarsOperation] Error updating participant data:', err);
+        console.error('[refreshWebinarsOperation] Error starting participant data update:', err);
         // Don't throw here, as we want the main sync to succeed even if participant data fails
       }
 
-      // Show a consolidated notification with both webinar and participant data
+      // Show immediate success notification for webinar sync
       if (refreshData.syncResults) {
         const webinarsUpdated = refreshData.syncResults.itemsUpdated || 0;
         
         toast({
-          title: 'Sync completed successfully',
-          description: `Updated ${webinarsUpdated} webinars${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`,
+          title: 'Webinars synced successfully',
+          description: `Updated ${webinarsUpdated} webinars. Participant data is being updated in the background.`,
           variant: 'success'
         });
       } else {
         toast({
           title: 'Webinars synced',
-          description: `Webinar data has been updated from Zoom${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`
+          description: 'Webinar data has been updated from Zoom. Participant data is being updated in the background.'
         });
       }
     }
@@ -109,8 +128,11 @@ export async function refreshWebinarsOperation(
           variant: 'warning'
         });
       } else {
-        const { showErrorNotification } = await import('../utils/notificationUtils');
-        showErrorNotification(err, 'Sync failed');
+        toast({
+          title: 'Sync failed',
+          description: errorMessage,
+          variant: 'destructive'
+        });
       }
     }
     

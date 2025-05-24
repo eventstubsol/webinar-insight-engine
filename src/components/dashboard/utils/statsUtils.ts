@@ -44,6 +44,52 @@ export const getTotalAttendeesFromDB = async (userId: string): Promise<number> =
   }
 };
 
+// Enhanced function to get participant counts by month from database
+export const getMonthlyParticipantDataFromDB = async (userId: string): Promise<{
+  [month: string]: { registrants: number; attendees: number; }
+}> => {
+  try {
+    // Get all participant data with webinar join
+    const { data: participants, error } = await supabase
+      .from('zoom_webinar_participants')
+      .select(`
+        participant_type,
+        webinar_id,
+        zoom_webinars!inner(start_time)
+      `)
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('Error fetching monthly participant data:', error);
+      return {};
+    }
+    
+    const monthlyData: { [month: string]: { registrants: number; attendees: number; } } = {};
+    
+    participants?.forEach((participant: any) => {
+      const webinar = participant.zoom_webinars;
+      if (webinar?.start_time) {
+        const monthKey = format(new Date(webinar.start_time), 'MMMyy');
+        
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { registrants: 0, attendees: 0 };
+        }
+        
+        if (participant.participant_type === 'registrant') {
+          monthlyData[monthKey].registrants++;
+        } else if (participant.participant_type === 'attendee') {
+          monthlyData[monthKey].attendees++;
+        }
+      }
+    });
+    
+    return monthlyData;
+  } catch (error) {
+    console.error('Error in getMonthlyParticipantDataFromDB:', error);
+    return {};
+  }
+};
+
 // Fallback functions for when database query fails or for local calculations
 export const getTotalWebinars = (webinars: ZoomWebinar[]): number => webinars.length;
 
@@ -108,6 +154,33 @@ export const needsSync = (webinars: ZoomWebinar[], lastSyncTime: Date | null): b
   
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   return lastSyncTime < oneDayAgo;
+};
+
+// Enhanced function to check if participant data is available
+export const hasParticipantData = (webinars: ZoomWebinar[]): boolean => {
+  return webinars.some(webinar => {
+    const rawData = webinar.raw_data as any;
+    return rawData?.participant_data_updated_at || 
+           (rawData?.registrants_count && rawData.registrants_count > 0) ||
+           (rawData?.participants_count && rawData.participants_count > 0);
+  });
+};
+
+// Check when participant data was last updated
+export const getLastParticipantDataUpdate = (webinars: ZoomWebinar[]): Date | null => {
+  let latestUpdate: Date | null = null;
+  
+  webinars.forEach(webinar => {
+    const rawData = webinar.raw_data as any;
+    if (rawData?.participant_data_updated_at) {
+      const updateTime = new Date(rawData.participant_data_updated_at);
+      if (!latestUpdate || updateTime > latestUpdate) {
+        latestUpdate = updateTime;
+      }
+    }
+  });
+  
+  return latestUpdate;
 };
 
 // Month-over-month comparison utilities

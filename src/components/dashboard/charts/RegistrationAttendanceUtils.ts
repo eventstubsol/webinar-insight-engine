@@ -1,6 +1,7 @@
 
 import { ZoomWebinar } from '@/hooks/zoom';
 import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns';
+import { getMonthlyParticipantDataFromDB } from '../utils/statsUtils';
 
 export interface MonthlyAttendanceData {
   month: string;
@@ -9,13 +10,76 @@ export interface MonthlyAttendanceData {
   attendees: number;
 }
 
-// Synchronous function that calculates webinar stats from the provided data
-export const calculateWebinarStats = (webinars: ZoomWebinar[], isLoading: boolean = false): MonthlyAttendanceData[] => {
-  if (isLoading || !webinars || webinars.length === 0) {
+// Enhanced function that prioritizes database data over webinar data
+export const calculateWebinarStats = async (
+  webinars: ZoomWebinar[], 
+  userId: string | undefined,
+  isLoading: boolean = false
+): Promise<MonthlyAttendanceData[]> => {
+  if (isLoading || !webinars || webinars.length === 0 || !userId) {
     return [];
   }
 
-  // Generate the last 12 months
+  try {
+    // Try to get data from database first
+    const dbData = await getMonthlyParticipantDataFromDB(userId);
+    const hasDbData = Object.keys(dbData).length > 0;
+    
+    // Generate the last 12 months
+    const months: MonthlyAttendanceData[] = [];
+    const currentDate = new Date();
+    
+    for (let i = 11; i >= 0; i--) {
+      const monthDate = subMonths(currentDate, i);
+      const monthStart = startOfMonth(monthDate);
+      const monthEnd = endOfMonth(monthDate);
+      const monthKey = format(monthDate, 'MMMyy');
+      
+      let registrants = 0;
+      let attendees = 0;
+      
+      if (hasDbData && dbData[monthKey]) {
+        // Use database data if available
+        registrants = dbData[monthKey].registrants;
+        attendees = dbData[monthKey].attendees;
+      } else {
+        // Fallback to webinar data calculation
+        const monthWebinars = webinars.filter(webinar => {
+          if (!webinar.start_time) return false;
+          const webinarDate = new Date(webinar.start_time);
+          return webinarDate >= monthStart && webinarDate <= monthEnd;
+        });
+        
+        registrants = monthWebinars.reduce((sum, webinar) => {
+          const count = webinar.raw_data?.registrants_count ?? webinar.registrants_count ?? 0;
+          return sum + count;
+        }, 0);
+        
+        attendees = monthWebinars.reduce((sum, webinar) => {
+          const count = webinar.raw_data?.participants_count ?? webinar.participants_count ?? 0;
+          return sum + count;
+        }, 0);
+      }
+      
+      months.push({
+        month: monthKey,
+        monthDate,
+        registrants,
+        attendees
+      });
+    }
+    
+    return months;
+  } catch (error) {
+    console.error('Error calculating webinar stats:', error);
+    
+    // Fallback to original calculation method
+    return calculateWebinarStatsFromWebinarData(webinars);
+  }
+};
+
+// Fallback synchronous function for webinar data only
+const calculateWebinarStatsFromWebinarData = (webinars: ZoomWebinar[]): MonthlyAttendanceData[] => {
   const months: MonthlyAttendanceData[] = [];
   const currentDate = new Date();
   
@@ -32,15 +96,12 @@ export const calculateWebinarStats = (webinars: ZoomWebinar[], isLoading: boolea
     });
     
     // Calculate registrants and attendees from webinar data
-    let registrants = 0;
-    let attendees = 0;
-    
-    registrants = monthWebinars.reduce((sum, webinar) => {
+    const registrants = monthWebinars.reduce((sum, webinar) => {
       const count = webinar.raw_data?.registrants_count ?? webinar.registrants_count ?? 0;
       return sum + count;
     }, 0);
     
-    attendees = monthWebinars.reduce((sum, webinar) => {
+    const attendees = monthWebinars.reduce((sum, webinar) => {
       const count = webinar.raw_data?.participants_count ?? webinar.participants_count ?? 0;
       return sum + count;
     }, 0);
