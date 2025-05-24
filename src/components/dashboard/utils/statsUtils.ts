@@ -1,4 +1,3 @@
-
 import { ZoomWebinar } from '@/hooks/zoom';
 import { startOfMonth, subMonths, isAfter, isBefore } from 'date-fns';
 
@@ -6,7 +5,7 @@ export const getTotalWebinars = (webinars: ZoomWebinar[]): number => webinars.le
 
 export const getTotalRegistrants = (webinars: ZoomWebinar[]): number => {
   return webinars.reduce((total, webinar) => {
-    // Try to get registrants from different possible locations in the data
+    // Get registrants from raw_data or direct property
     let registrantCount = 0;
     
     if (webinar.raw_data && typeof webinar.raw_data === 'object') {
@@ -21,7 +20,7 @@ export const getTotalRegistrants = (webinars: ZoomWebinar[]): number => {
 
 export const getTotalAttendees = (webinars: ZoomWebinar[]): number => {
   return webinars.reduce((total, webinar) => {
-    // Try to get attendees from different possible locations in the data
+    // Get attendees from raw_data or direct property
     let attendeeCount = 0;
     
     if (webinar.raw_data && typeof webinar.raw_data === 'object') {
@@ -62,7 +61,7 @@ export const hasRecentParticipantUpdate = (webinars: ZoomWebinar[]): boolean => 
   });
 };
 
-// New function to check if we have attendee data specifically
+// Check if we have attendee data specifically
 export const hasAttendeeData = (webinars: ZoomWebinar[]): boolean => {
   return webinars.some(webinar => {
     const attendeeCount = webinar.raw_data?.participants_count ?? webinar.participants_count ?? 0;
@@ -70,14 +69,27 @@ export const hasAttendeeData = (webinars: ZoomWebinar[]): boolean => {
   });
 };
 
-// New function to get webinars with fetch errors
+// Check if we need to sync - only show if we have no data or very old data
+export const needsSync = (webinars: ZoomWebinar[], lastSyncTime: Date | null): boolean => {
+  // If no webinars at all, we need to sync
+  if (webinars.length === 0) return true;
+  
+  // If no sync history, we might need to sync
+  if (!lastSyncTime) return true;
+  
+  // If last sync was more than 24 hours ago, suggest sync
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  return lastSyncTime < oneDayAgo;
+};
+
+// Get webinars with fetch errors
 export const getWebinarsWithFetchErrors = (webinars: ZoomWebinar[]): ZoomWebinar[] => {
   return webinars.filter(webinar => {
     return webinar.raw_data?.participants_fetch_error || webinar.raw_data?.registrants_fetch_error;
   });
 };
 
-// New function to check if webinars have completed
+// Check if webinars have completed
 export const getCompletedWebinarsCount = (webinars: ZoomWebinar[]): number => {
   const now = new Date();
   return webinars.filter(webinar => {

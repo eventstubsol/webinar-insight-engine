@@ -8,9 +8,6 @@ import {
   fetchSyncHistory 
 } from './services/databaseService';
 import { 
-  fetchWebinarsFromAPI 
-} from './services/apiService';
-import { 
   refreshWebinarsOperation, 
   updateParticipantDataOperation 
 } from './operations';
@@ -27,7 +24,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
   const { credentialsStatus } = useZoomCredentials();
   const [syncHistory, setSyncHistory] = useState<any[]>([]);
 
-  // Main query to fetch webinars
+  // Main query to fetch webinars - ONLY from database, no API calls
   const { data, error, refetch } = useQuery({
     queryKey: ['zoom-webinars', user?.id],
     queryFn: async () => {
@@ -35,20 +32,19 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
       
       try {
         setIsLoading(true);
-        console.log('[useZoomWebinars] Fetching webinars from database or API');
+        console.log('[useZoomWebinars] Fetching webinars from database only');
         
-        // Try to get webinars from database first
+        // Always fetch from database first and only
         const dbWebinars = await fetchWebinarsFromDatabase(user.id);
         
-        // If we have webinars in the database, return them immediately
         if (dbWebinars && dbWebinars.length > 0) {
           console.log(`[useZoomWebinars] Returning ${dbWebinars.length} webinars from database`);
           return dbWebinars;
         }
         
-        // If not in database or database fetch failed, try API
-        console.log('[useZoomWebinars] No webinars in database, fetching from API');
-        return await fetchWebinarsFromAPI();
+        // If no webinars in database, return empty array (don't call API automatically)
+        console.log('[useZoomWebinars] No webinars in database, returning empty array');
+        return [];
       } catch (err: any) {
         console.error('[useZoomWebinars] Error fetching webinars:', err);
         
@@ -73,7 +69,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     gcTime: 10 * 60 * 1000 // 10 minutes
   });
 
-  // Refresh webinars function - just wraps the operation function
+  // Refresh webinars function - only call API when explicitly requested
   const refreshWebinars = async (force: boolean = false): Promise<void> => {
     setIsRefetching(true);
     try {
@@ -84,7 +80,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     }
   };
   
-  // Update participant data function - just wraps the operation function
+  // Update participant data function - only call API when explicitly requested
   const updateParticipantData = async (): Promise<void> => {
     try {
       await updateParticipantDataOperation(user?.id, queryClient);

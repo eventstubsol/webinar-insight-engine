@@ -21,19 +21,21 @@ import {
   formatTrendData,
   hasParticipantData,
   hasRecentParticipantUpdate,
-  hasAttendeeData
+  hasAttendeeData,
+  needsSync
 } from './utils/statsUtils';
 
 export const DashboardStats = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { webinars, isLoading } = useZoomWebinars();
+  const { webinars, isLoading, lastSyncTime } = useZoomWebinars();
   const [isUpdatingParticipants, setIsUpdatingParticipants] = useState(false);
   
   // Check if we have participant data
   const hasData = !isLoading && hasParticipantData(webinars);
   const hasUpdate = !isLoading && hasRecentParticipantUpdate(webinars);
   const hasAttendees = !isLoading && hasAttendeeData(webinars);
+  const shouldSync = !isLoading && needsSync(webinars, lastSyncTime);
   
   // Handle participant data update
   const handleUpdateParticipantData = async () => {
@@ -47,8 +49,8 @@ export const DashboardStats = () => {
     }
   };
   
-  // If we don't have participant data and have webinars, show the empty state
-  if (!isLoading && webinars.length > 0 && !hasData && !hasUpdate) {
+  // If we don't have any webinars and need to sync, show the empty state
+  if (!isLoading && webinars.length === 0 && shouldSync) {
     return <EmptyMetricsState onUpdateParticipantData={handleUpdateParticipantData} isUpdating={isUpdatingParticipants} />;
   }
   
@@ -93,8 +95,8 @@ export const DashboardStats = () => {
   
   return (
     <div className="space-y-4">
-      {/* Show attendee data alert if needed */}
-      {!isLoading && webinars.length > 0 && (hasData || hasUpdate) && (
+      {/* Only show alert if we have webinars but issues with attendee data */}
+      {!isLoading && webinars.length > 0 && !hasAttendees && (
         <AttendeeDataAlert 
           webinars={webinars}
           onUpdateData={handleUpdateParticipantData}
@@ -123,7 +125,7 @@ export const DashboardStats = () => {
         />
         <StatCard
           title="Total Attendees"
-          value={isLoading ? undefined : (hasAttendees ? totalAttendees.toString() : "Update needed")}
+          value={isLoading ? undefined : (totalAttendees > 0 ? totalAttendees.toString() : "Update needed")}
           description="Attended participants"
           icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
           isLoading={isLoading}
@@ -132,7 +134,7 @@ export const DashboardStats = () => {
         />
         <StatCard
           title="Attendance Rate"
-          value={isLoading ? undefined : (hasAttendees ? totalAttendanceRate : "Update needed")}
+          value={isLoading ? undefined : (totalAttendees > 0 ? totalAttendanceRate : "Update needed")}
           description="Attendance percentage"
           icon={<Activity className="h-3 w-3 sm:h-4 sm:w-4" />}
           isLoading={isLoading}

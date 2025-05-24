@@ -74,6 +74,25 @@ export async function handleUpdateWebinarParticipants(
               const registrantsData = await registrantsResponse.json();
               registrantsCount = registrantsData.total_records || 0;
               console.log(`[handleUpdateWebinarParticipants] Webinar ${webinar.webinar_id} registrants: ${registrantsCount}`);
+              
+              // Store individual registrant records
+              if (registrantsData.registrants && registrantsData.registrants.length > 0) {
+                for (const registrant of registrantsData.registrants) {
+                  await supabaseAdmin
+                    .from('zoom_webinar_participants')
+                    .upsert({
+                      user_id: user.id,
+                      webinar_id: webinar.webinar_id,
+                      participant_id: registrant.id,
+                      participant_type: 'registrant',
+                      name: `${registrant.first_name || ''} ${registrant.last_name || ''}`.trim(),
+                      email: registrant.email,
+                      raw_data: registrant
+                    }, {
+                      onConflict: 'user_id,webinar_id,participant_id,participant_type'
+                    });
+                }
+              }
             } else {
               registrantsError = `HTTP ${registrantsResponse.status}: ${await registrantsResponse.text()}`;
               console.log(`[handleUpdateWebinarParticipants] Registrants fetch failed for ${webinar.webinar_id}: ${registrantsError}`);
@@ -83,13 +102,13 @@ export async function handleUpdateWebinarParticipants(
             console.log(`[handleUpdateWebinarParticipants] Error fetching registrants for ${webinar.webinar_id}: ${registrantsError}`);
           }
 
-          // Fetch participants count with improved error handling and multiple endpoint attempts
+          // Fetch participants count with improved error handling and correct endpoint
           let participantsCount = 0;
           let participantsError = null;
           
-          // Try the standard participants endpoint first
+          // Try the past webinar participants endpoint for completed webinars
           try {
-            const participantsResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/participants?page_size=300`, {
+            const participantsResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${webinar.webinar_id}/participants?page_size=300`, {
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
@@ -100,28 +119,51 @@ export async function handleUpdateWebinarParticipants(
               const participantsData = await participantsResponse.json();
               participantsCount = participantsData.total_records || 0;
               console.log(`[handleUpdateWebinarParticipants] Webinar ${webinar.webinar_id} participants: ${participantsCount}`);
+              
+              // Store individual participant records
+              if (participantsData.participants && participantsData.participants.length > 0) {
+                for (const participant of participantsData.participants) {
+                  await supabaseAdmin
+                    .from('zoom_webinar_participants')
+                    .upsert({
+                      user_id: user.id,
+                      webinar_id: webinar.webinar_id,
+                      participant_id: participant.id,
+                      participant_type: 'attendee',
+                      name: participant.name,
+                      email: participant.user_email,
+                      join_time: participant.join_time ? new Date(participant.join_time) : null,
+                      leave_time: participant.leave_time ? new Date(participant.leave_time) : null,
+                      duration: participant.duration || 0,
+                      raw_data: participant
+                    }, {
+                      onConflict: 'user_id,webinar_id,participant_id,participant_type'
+                    });
+                }
+              }
             } else {
               const errorText = await participantsResponse.text();
               participantsError = `HTTP ${participantsResponse.status}: ${errorText}`;
-              console.log(`[handleUpdateWebinarParticipants] Participants fetch failed for ${webinar.webinar_id}: ${participantsError}`);
+              console.log(`[handleUpdateWebinarParticipants] Past participants fetch failed for ${webinar.webinar_id}: ${participantsError}`);
               
-              // If it's a 404, try the absentees endpoint to see if webinar data exists there
-              if (participantsResponse.status === 404) {
-                console.log(`[handleUpdateWebinarParticipants] Trying absentees endpoint for ${webinar.webinar_id}`);
-                try {
-                  const absenteesResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/absentees?page_size=300`, {
-                    headers: {
-                      'Authorization': `Bearer ${accessToken}`,
-                      'Content-Type': 'application/json',
-                    },
-                  });
-                  
-                  if (absenteesResponse.ok) {
-                    console.log(`[handleUpdateWebinarParticipants] Absentees endpoint accessible for ${webinar.webinar_id} - webinar exists but may have no participants`);
-                  }
-                } catch (absenteesError) {
-                  console.log(`[handleUpdateWebinarParticipants] Absentees endpoint also failed for ${webinar.webinar_id}`);
+              // Try the regular participants endpoint as fallback
+              try {
+                const fallbackResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinar.webinar_id}/participants?page_size=300`, {
+                  headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                });
+                
+                if (fallbackResponse.ok) {
+                  const fallbackData = await fallbackResponse.json();
+                  participantsCount = fallbackData.total_records || 0;
+                  console.log(`[handleUpdateWebinarParticipants] Fallback participants endpoint worked for ${webinar.webinar_id}: ${participantsCount}`);
+                } else {
+                  console.log(`[handleUpdateWebinarParticipants] Fallback participants endpoint also failed for ${webinar.webinar_id}`);
                 }
+              } catch (fallbackError) {
+                console.log(`[handleUpdateWebinarParticipants] Fallback participants endpoint error for ${webinar.webinar_id}: ${fallbackError.message}`);
               }
             }
           } catch (error) {
@@ -129,7 +171,7 @@ export async function handleUpdateWebinarParticipants(
             console.log(`[handleUpdateWebinarParticipants] Error fetching participants for ${webinar.webinar_id}: ${participantsError}`);
           }
 
-          // Update the webinar record with participant data, even if some values are 0
+          // Update the webinar record with participant data
           if (registrantsCount > 0 || participantsCount > 0 || registrantsError || participantsError) {
             // Get the current raw_data
             const { data: currentWebinar } = await supabaseAdmin

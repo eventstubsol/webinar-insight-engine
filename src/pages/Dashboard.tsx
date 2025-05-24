@@ -12,18 +12,19 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
 import { useZoomCredentials } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, ArrowRight, Loader2, Users } from 'lucide-react';
+import { Info, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useZoomWebinars } from '@/hooks/zoom';
 import { calculateWebinarStats } from '@/components/dashboard/charts/RegistrationAttendanceUtils';
+import { needsSync } from '@/components/dashboard/utils/statsUtils';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [showWizard, setShowWizard] = useState(false);
   const { credentialsStatus, checkCredentialsStatus, isLoading: credentialsLoading } = useZoomCredentials();
-  const { refreshWebinars, updateParticipantData, isRefetching, webinars } = useZoomWebinars();
-  const [isUpdatingParticipants, setIsUpdatingParticipants] = useState(false);
+  const { refreshWebinars, isRefetching, webinars, lastSyncTime } = useZoomWebinars();
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
+  const shouldSync = needsSync(webinars, lastSyncTime);
 
   // Calculate webinar stats for the registration & attendance chart using monthly data
   const registrationAttendanceData = React.useMemo(() => {
@@ -40,14 +41,11 @@ const Dashboard = () => {
     await checkCredentialsStatus();
   };
 
-  const handleUpdateParticipantData = async () => {
-    setIsUpdatingParticipants(true);
+  const handleSyncData = async () => {
     try {
-      await updateParticipantData();
+      await refreshWebinars(true); // Force sync
     } catch (error) {
-      console.error('Error updating participant data:', error);
-    } finally {
-      setIsUpdatingParticipants(false);
+      console.error('Error syncing data:', error);
     }
   };
 
@@ -60,23 +58,23 @@ const Dashboard = () => {
             <p className="text-muted-foreground">Welcome back! Here's an overview of your webinars.</p>
           </div>
           
-          {hasZoomCredentials && (
+          {hasZoomCredentials && shouldSync && (
             <div className="flex items-center gap-2">
               <Button
-                onClick={handleUpdateParticipantData}
-                disabled={isUpdatingParticipants}
+                onClick={handleSyncData}
+                disabled={isRefetching}
                 variant="outline"
                 size="sm"
               >
-                {isUpdatingParticipants ? (
+                {isRefetching ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating...
+                    Syncing...
                   </>
                 ) : (
                   <>
-                    <Users className="mr-2 h-4 w-4" />
-                    Update Participant Data
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Sync Data
                   </>
                 )}
               </Button>
