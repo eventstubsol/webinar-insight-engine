@@ -46,15 +46,6 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   const panelists = Array.isArray(webinar.panelists) ? webinar.panelists : [];
   console.log('[WebinarMetadataHeader] Processed panelists:', panelists);
   
-  // Format panelists for consistent display
-  const panelistsDisplay = panelists.length > 0 
-    ? panelists.map((panelist: any) => {
-        const name = panelist.name || panelist.email || 'Unknown';
-        const email = panelist.email && panelist.name ? ` (${panelist.email})` : '';
-        return `${name}${email}`;
-      }).join(', ')
-    : 'No panelists assigned';
-  
   // Format webinar date
   const webinarDate = webinar.start_time ? 
     format(parseISO(webinar.start_time), 'EEEE, MMMM d, yyyy • h:mm a') : 
@@ -105,7 +96,21 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
               
               <Users className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
-                <span className="font-medium">Panelists:</span> {panelistsDisplay}
+                <span className="font-medium">Panelists:</span>
+                {panelists.length > 0 ? (
+                  <div className="mt-1">
+                    {panelists.map((panelist: any, index: number) => (
+                      <div key={index} className="ml-4">
+                        • {panelist.name || panelist.email || `Panelist ${index + 1}`}
+                        {panelist.email && panelist.name && (
+                          <span className="ml-1">({panelist.email})</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span> No panelists assigned</span>
+                )}
               </div>
               
               <Video className="h-4 w-4 text-muted-foreground mt-1" />
