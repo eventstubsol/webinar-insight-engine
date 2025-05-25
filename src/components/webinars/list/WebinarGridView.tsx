@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox";
 import { WebinarStatusBadge } from './WebinarStatusBadge';
 import { WebinarEmptyState } from './WebinarEmptyState';
+import { WebinarSyncButton } from '@/components/webinars/WebinarSyncButton';
 import { getWebinarStatus } from './webinarHelpers';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
@@ -87,7 +88,24 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="pt-2 flex justify-end">
+            <CardFooter className="pt-2 flex justify-between">
+              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                <WebinarSyncButton 
+                  webinarId={webinar.id} 
+                  size="icon" 
+                  variant="ghost"
+                />
+                {status.value === 'ended' && (
+                  <>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <ChartBar className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -96,16 +114,6 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
               >
                 <Eye className="h-4 w-4" />
               </Button>
-              {status.value === 'ended' && (
-                <>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
-                    <ChartBar className="h-4 w-4" />
-                  </Button>
-                </>
-              )}
             </CardFooter>
           </Card>
         );

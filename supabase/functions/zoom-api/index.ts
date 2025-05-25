@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { corsHeaders, handleCors, addCorsHeaders, createErrorResponse } from "./cors.ts";
@@ -15,7 +14,8 @@ import {
   handleGetParticipants, 
   handleUpdateWebinarParticipants,
   handleGetWebinarInstances,
-  handleGetInstanceParticipants
+  handleGetInstanceParticipants,
+  handleSyncSingleWebinar
 } from "./webinars.ts";
 
 // Maximum timeout for operations (30 seconds)
@@ -176,6 +176,13 @@ serve(async (req: Request) => {
             case "get-instance-participants":
               response = await executeWithTimeout(
                 () => handleGetInstanceParticipants(req, supabaseAdmin, user, credentials, body.webinar_id, body.instance_id),
+                OPERATION_TIMEOUT
+              );
+              break;
+              
+            case "sync-single-webinar":
+              response = await executeWithTimeout(
+                () => handleSyncSingleWebinar(req, supabaseAdmin, user, credentials, body.webinar_id),
                 OPERATION_TIMEOUT
               );
               break;

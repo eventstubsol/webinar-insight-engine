@@ -5,6 +5,7 @@ import { handleGetParticipants } from './handlers/getParticipants.ts';
 import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
 import { handleGetInstanceParticipants } from './handlers/getInstanceParticipants.ts';
 import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
+import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
 
 // Export all webinar handlers
 export {
@@ -13,5 +14,6 @@ export {
   handleGetParticipants,
   handleUpdateWebinarParticipants,
   handleGetWebinarInstances,
-  handleGetInstanceParticipants
+  handleGetInstanceParticipants,
+  handleSyncSingleWebinar
 };

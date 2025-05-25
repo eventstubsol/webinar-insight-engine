@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox";
 import { WebinarStatusBadge } from './WebinarStatusBadge';
+import { WebinarSyncButton } from '@/components/webinars/WebinarSyncButton';
 import { getWebinarStatus } from './webinarHelpers';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
@@ -97,6 +98,11 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
                   </TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end items-center gap-2">
+                      <WebinarSyncButton 
+                        webinarId={webinar.id} 
+                        size="icon" 
+                        variant="ghost"
+                      />
                       {status.value === 'ended' && (
                         <>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
