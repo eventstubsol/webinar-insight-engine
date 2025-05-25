@@ -101,7 +101,7 @@ async function handleRequest(req: Request): Promise<Response> {
       
       case 'sync-single-webinar':
         const syncCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleSyncSingleWebinar(req, supabase, user, syncCredentials);
+        return await handleSyncSingleWebinar(req, supabase, user, syncCredentials, params.webinar_id);
       
       case 'get-webinar-recordings':
         const recordingsCredentials = await getZoomCredentials(supabase, user.id);
