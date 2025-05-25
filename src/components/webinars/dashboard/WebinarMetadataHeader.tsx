@@ -25,6 +25,11 @@ interface WebinarMetadataHeaderProps {
 }
 
 export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ webinar, participants }) => {
+  // Debug logging
+  console.log('[WebinarMetadataHeader] Webinar data:', webinar);
+  console.log('[WebinarMetadataHeader] Raw data:', webinar.raw_data);
+  console.log('[WebinarMetadataHeader] Panelists from raw_data:', webinar.raw_data?.panelists);
+  
   // Calculate registration stats
   const totalRegistered = participants.registrants.length;
   const totalCancelled = participants.registrants.filter(r => r.status === 'cancelled').length;
@@ -35,27 +40,30 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   const uniqueViewers = new Set(participants.attendees.map(a => a.user_email)).size;
   const totalUsers = participants.attendees.length;
   
-  // Extract presenter and panelists from webinar data
-  const presenter = webinar.raw_data?.alternative_host || webinar.host_email;
-  const panelists = webinar.raw_data?.panelists || [];
+  // Extract presenter and panelists from webinar data - FIXED
+  const presenter = webinar.alternative_host || webinar.host_email;
+  
+  // Get panelists from raw_data directly - this is the fix
+  const panelists = webinar.panelists || [];
+  console.log('[WebinarMetadataHeader] Processed panelists:', panelists);
   
   // Format webinar date
   const webinarDate = webinar.start_time ? 
     format(parseISO(webinar.start_time), 'EEEE, MMMM d, yyyy • h:mm a') : 
     'Date not set';
 
-  // Recording details (placeholder, as this information may not be available in current data model)
-  const recordingLink = webinar.raw_data?.recording_url || 'Not available';
-  const recordingPassword = webinar.raw_data?.recording_password || 'Not available';
+  // Recording details
+  const recordingLink = webinar.recording_url || 'Not available';
+  const recordingPassword = webinar.recording_password || 'Not available';
   
   // Actual start time and duration
-  const actualStart = webinar.raw_data?.actual_start_time ? 
-    format(parseISO(webinar.raw_data.actual_start_time), 'h:mm a') : 
+  const actualStart = webinar.actual_start_time ? 
+    format(parseISO(webinar.actual_start_time), 'h:mm a') : 
     format(parseISO(webinar.start_time), 'h:mm a');
-  const actualDuration = webinar.raw_data?.actual_duration || webinar.duration;
+  const actualDuration = webinar.actual_duration || webinar.duration;
   
-  // Max concurrent views (placeholder, as this information may not be available in current data model)
-  const maxConcurrentViews = webinar.raw_data?.max_concurrent_views || 'Not available';
+  // Max concurrent views
+  const maxConcurrentViews = webinar.max_concurrent_views || 'Not available';
 
   return (
     <Card className="mb-6">

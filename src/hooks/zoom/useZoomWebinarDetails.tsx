@@ -11,6 +11,8 @@ export function useZoomWebinarDetails(webinarId: string | null) {
     queryFn: async () => {
       if (!user || !webinarId) return null;
       
+      console.log(`[useZoomWebinarDetails] Fetching webinar details for: ${webinarId}`);
+      
       // Try to get from database first
       const { data: dbWebinar, error: dbError } = await supabase
         .from('zoom_webinars')
@@ -20,8 +22,12 @@ export function useZoomWebinarDetails(webinarId: string | null) {
         .single();
       
       if (!dbError && dbWebinar) {
+        console.log(`[useZoomWebinarDetails] Found webinar in database:`, dbWebinar);
+        console.log(`[useZoomWebinarDetails] Raw data panelists:`, dbWebinar.raw_data?.panelists);
         return dbWebinar.raw_data;
       }
+      
+      console.log(`[useZoomWebinarDetails] Webinar not found in database, fetching from API`);
       
       // If not in database, fetch from API
       const { data, error } = await supabase.functions.invoke('zoom-api', {
