@@ -2,6 +2,40 @@
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 
+// Enhanced helper function to get host information
+async function getHostInfo(token: string, webinarData: any) {
+  console.log(`[zoom-api][sync-single-webinar] Resolving host info for webinar: ${webinarData.id}`);
+  
+  let hostEmail = webinarData.host_email;
+  let hostId = webinarData.host_id;
+  
+  // If host_email is missing but we have host_id, fetch it
+  if (!hostEmail && hostId) {
+    console.log(`[zoom-api][sync-single-webinar] Host email missing, fetching from user API for host_id: ${hostId}`);
+    
+    try {
+      const hostResponse = await fetch(`https://api.zoom.us/v2/users/${hostId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (hostResponse.ok) {
+        const hostData = await hostResponse.json();
+        hostEmail = hostData.email;
+        console.log(`[zoom-api][sync-single-webinar] Successfully fetched host email: ${hostEmail}`);
+      } else {
+        console.warn(`[zoom-api][sync-single-webinar] Failed to fetch host info: ${hostResponse.status}`);
+      }
+    } catch (error) {
+      console.error(`[zoom-api][sync-single-webinar] Error fetching host info:`, error);
+    }
+  }
+  
+  return { hostEmail, hostId };
+}
+
 // Handle syncing a single webinar's complete data
 export async function handleSyncSingleWebinar(req: Request, supabase: any, user: any, credentials: any, webinarId: string) {
   if (!webinarId) {
@@ -18,11 +52,12 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
     registrants_synced: 0,
     attendees_synced: 0,
     instances_synced: 0,
+    host_info_resolved: false,
     error_details: []
   };
   
   try {
-    // 1. Sync webinar metadata
+    // 1. Sync webinar metadata with enhanced host resolution
     console.log(`[zoom-api][sync-single-webinar] Fetching webinar metadata for: ${webinarId}`);
     const webinarRes = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
       headers: {
@@ -34,7 +69,17 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
     if (webinarRes.ok) {
       const webinarData = await webinarRes.json();
       
-      // Update webinar in database
+      // Enhanced host information resolution
+      const { hostEmail, hostId } = await getHostInfo(token, webinarData);
+      
+      if (hostEmail) {
+        syncResults.host_info_resolved = true;
+        console.log(`[zoom-api][sync-single-webinar] Host info resolved: ${hostEmail}`);
+      } else {
+        console.warn(`[zoom-api][sync-single-webinar] Could not resolve host email for webinar: ${webinarId}`);
+      }
+      
+      // Update webinar in database with enhanced host information
       const { error: webinarError } = await supabase
         .from('zoom_webinars')
         .upsert({
@@ -46,7 +91,8 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
           duration: webinarData.duration,
           timezone: webinarData.timezone,
           agenda: webinarData.agenda || '',
-          host_email: webinarData.host_email,
+          host_email: hostEmail || null,
+          host_id: hostId || null,
           status: webinarData.status,
           type: webinarData.type,
           raw_data: webinarData,
@@ -61,7 +107,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       } else {
         syncResults.webinar_updated = true;
         totalItemsSynced += 1;
-        console.log(`[zoom-api][sync-single-webinar] Updated webinar metadata for: ${webinarId}`);
+        console.log(`[zoom-api][sync-single-webinar] Updated webinar metadata for: ${webinarId} with host: ${hostEmail || 'unknown'}`);
       }
     } else {
       const errorText = await webinarRes.text();
@@ -219,8 +265,8 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       console.log(`[zoom-api][sync-single-webinar] No instances found or error:`, errorText);
     }
     
-    // Record sync in history
-    const syncMessage = `Single webinar sync for ${webinarId}: ${syncResults.registrants_synced} registrants, ${syncResults.attendees_synced} attendees, ${syncResults.instances_synced} instances`;
+    // Record sync in history with enhanced results
+    const syncMessage = `Single webinar sync for ${webinarId}: ${syncResults.registrants_synced} registrants, ${syncResults.attendees_synced} attendees, ${syncResults.instances_synced} instances, host info: ${syncResults.host_info_resolved ? 'resolved' : 'missing'}`;
     
     await supabase
       .from('zoom_sync_history')
@@ -233,7 +279,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
         sync_details: syncResults
       });
     
-    console.log(`[zoom-api][sync-single-webinar] Completed sync for webinar: ${webinarId}, total items: ${totalItemsSynced}`);
+    console.log(`[zoom-api][sync-single-webinar] Completed sync for webinar: ${webinarId}, total items: ${totalItemsSynced}, host resolved: ${syncResults.host_info_resolved}`);
     
     return new Response(JSON.stringify({
       success: true,

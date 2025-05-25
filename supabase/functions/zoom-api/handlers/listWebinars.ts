@@ -6,6 +6,51 @@ import { enhanceWebinarsWithParticipantData } from './sync/participantDataProces
 import { calculateSyncStats, recordSyncHistory } from './sync/syncStatsCalculator.ts';
 import { checkDatabaseCache } from './sync/databaseCache.ts';
 
+// Enhanced helper function to get host information for batch processing
+async function enhanceWebinarsWithHostInfo(webinars: any[], token: string) {
+  console.log(`[zoom-api][list-webinars] Enhancing ${webinars.length} webinars with host information`);
+  
+  const enhancedWebinars = [];
+  
+  for (const webinar of webinars) {
+    let hostEmail = webinar.host_email;
+    let hostId = webinar.host_id;
+    
+    // If host_email is missing but we have host_id, fetch it
+    if (!hostEmail && hostId) {
+      console.log(`[zoom-api][list-webinars] Fetching host info for webinar ${webinar.id}, host_id: ${hostId}`);
+      
+      try {
+        const hostResponse = await fetch(`https://api.zoom.us/v2/users/${hostId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (hostResponse.ok) {
+          const hostData = await hostResponse.json();
+          hostEmail = hostData.email;
+          console.log(`[zoom-api][list-webinars] Successfully fetched host email for webinar ${webinar.id}: ${hostEmail}`);
+        } else {
+          console.warn(`[zoom-api][list-webinars] Failed to fetch host info for webinar ${webinar.id}: ${hostResponse.status}`);
+        }
+      } catch (error) {
+        console.error(`[zoom-api][list-webinars] Error fetching host info for webinar ${webinar.id}:`, error);
+      }
+    }
+    
+    // Add the enhanced host information to the webinar object
+    enhancedWebinars.push({
+      ...webinar,
+      host_email: hostEmail,
+      host_id: hostId
+    });
+  }
+  
+  return enhancedWebinars;
+}
+
 // Handle listing webinars with non-destructive upsert-based sync
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
   console.log(`[zoom-api][list-webinars] Starting non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
@@ -103,10 +148,14 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       dataRange: { oldest: null, newest: null }
     };
     
-    // If there are webinars, process them with participant data for completed webinars
+    // If there are webinars, process them with enhanced host information and participant data
     if (allWebinars && allWebinars.length > 0) {
-      // Enhance webinars with participant data
-      const enhancedWebinars = await enhanceWebinarsWithParticipantData(allWebinars, token);
+      // Enhance webinars with host information first
+      const webinarsWithHostInfo = await enhanceWebinarsWithHostInfo(allWebinars, token);
+      console.log(`[zoom-api][list-webinars] Enhanced ${webinarsWithHostInfo.length} webinars with host information`);
+      
+      // Enhance webinars with participant data for completed webinars
+      const enhancedWebinars = await enhanceWebinarsWithParticipantData(webinarsWithHostInfo, token);
       
       // Perform non-destructive upsert
       syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
@@ -121,7 +170,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         'webinars',
         'success',
         syncResults.newWebinars + syncResults.updatedWebinars,
-        `Non-destructive sync: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+        `Non-destructive sync with host resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
       );
     } else {
       // Record empty sync in history but still preserve existing data
@@ -161,6 +210,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       timezone: w.timezone,
       agenda: w.agenda || '',
       host_email: w.host_email,
+      host_id: w.host_id,
       status: w.status,
       type: w.type,
       ...w.raw_data

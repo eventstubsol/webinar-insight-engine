@@ -43,10 +43,15 @@ export async function syncSingleWebinarOperation(
       ]);
     }
     
-    // Show success toast
+    // Enhanced success message with host information
+    const syncResults = data.sync_results || {};
+    const hostResolved = syncResults.host_info_resolved ? 'host info resolved' : 'host info missing';
+    const itemsCount = data.items_synced || 0;
+    
+    // Show success toast with detailed information
     toast({
       title: 'Webinar synced successfully',
-      description: `Updated ${data.items_synced || 0} items for webinar ${webinarId}`,
+      description: `Updated ${itemsCount} items for webinar ${webinarId}. ${hostResolved}.`,
     });
     
     return data;
