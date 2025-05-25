@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
@@ -8,7 +7,7 @@ import { RecentWebinars } from '@/components/dashboard/RecentWebinars';
 import { UpcomingWebinars } from '@/components/dashboard/UpcomingWebinars';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ZoomIntegrationWizard } from '@/components/webinars/ZoomIntegrationWizard';
 import { useZoomCredentials } from '@/hooks/zoom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -92,6 +91,7 @@ const Dashboard = () => {
         {/* Zoom Integration Wizard Dialog */}
         <Dialog open={showWizard} onOpenChange={setShowWizard}>
           <DialogContent className="max-w-4xl p-0">
+            <DialogTitle className="sr-only">Zoom Integration Setup</DialogTitle>
             <ZoomIntegrationWizard 
               onComplete={handleWizardComplete}
               onCancel={() => setShowWizard(false)}
