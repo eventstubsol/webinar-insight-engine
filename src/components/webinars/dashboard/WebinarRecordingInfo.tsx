@@ -1,8 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ZoomWebinar } from '@/hooks/zoom';
-import { ZoomRecording } from '@/hooks/zoom/useZoomWebinarRecordings';
-import { Video, Key, Copy, ExternalLink, Clock, FileVideo } from 'lucide-react';
+import { ZoomRecording, useZoomWebinarRecordings } from '@/hooks/zoom/useZoomWebinarRecordings';
+import { Video, Key, Copy, ExternalLink, Clock, FileVideo, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -18,6 +18,8 @@ export const WebinarRecordingInfo: React.FC<WebinarRecordingInfoProps> = ({
   recordings, 
   isLoadingRecordings 
 }) => {
+  const { refreshRecordings } = useZoomWebinarRecordings(webinar.id);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -35,8 +37,27 @@ export const WebinarRecordingInfo: React.FC<WebinarRecordingInfoProps> = ({
     }
   };
 
+  const handleRefreshRecordings = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshRecordings();
+      toast({
+        title: 'Recordings refreshed',
+        description: 'Recording data has been updated from Zoom',
+      });
+    } catch (error) {
+      toast({
+        title: 'Refresh failed',
+        description: 'Could not refresh recording data',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const getRecordingStatus = () => {
-    if (isLoadingRecordings) return 'Loading...';
+    if (isLoadingRecordings || isRefreshing) return 'loading';
     
     if (recordings.length > 0) {
       const activeRecording = recordings.find(r => r.status === 'completed') || recordings[0];
@@ -51,6 +72,12 @@ export const WebinarRecordingInfo: React.FC<WebinarRecordingInfoProps> = ({
         password: rawData.recording_password,
         status: 'completed'
       };
+    }
+    
+    // Check if webinar is completed
+    const isCompleted = webinar.status === 'ended' || webinar.status === 'aborted';
+    if (!isCompleted) {
+      return 'not_completed';
     }
     
     // Determine status based on webinar timing
@@ -70,12 +97,45 @@ export const WebinarRecordingInfo: React.FC<WebinarRecordingInfoProps> = ({
   const renderRecordingLink = () => {
     if (typeof recordingStatus === 'string') {
       switch (recordingStatus) {
-        case 'Loading...':
-          return <span className="text-muted-foreground">Loading recordings...</span>;
+        case 'loading':
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Loading recordings...</span>
+              <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          );
         case 'processing':
-          return <span className="text-yellow-600">Recording processing...</span>;
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-600">Recording processing...</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefreshRecordings}
+                disabled={isRefreshing}
+                className="h-6 w-6 p-0"
+              >
+                <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          );
+        case 'not_completed':
+          return <span className="text-muted-foreground">Webinar not completed yet</span>;
         case 'not_available':
-          return <span className="text-muted-foreground">No recording available</span>;
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">No recording available</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefreshRecordings}
+                disabled={isRefreshing}
+                className="h-6 w-6 p-0"
+              >
+                <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          );
         default:
           return <span className="text-muted-foreground">Recording not found</span>;
       }
@@ -115,6 +175,15 @@ export const WebinarRecordingInfo: React.FC<WebinarRecordingInfoProps> = ({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleRefreshRecordings}
+          disabled={isRefreshing}
+          className="h-6 w-6 p-0"
+        >
+          <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </Button>
       </div>
     );
   };

@@ -13,7 +13,6 @@ import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
 import { handleGetInstanceParticipants } from './handlers/getInstanceParticipants.ts';
 import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
-
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
 
 serve(async (req) => {
@@ -73,33 +72,40 @@ async function handleRequest(req: Request): Promise<Response> {
         return await handleSaveCredentials(req, supabase, user, { action, ...params });
       
       case 'verify-credentials':
-        const credentials = await getZoomCredentials(supabase, user.id);
-        return await handleVerifyCredentials(req, supabase, user, credentials);
+        const verifyCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleVerifyCredentials(req, supabase, user, verifyCredentials);
       
       case 'list-webinars':
         const listCredentials = await getZoomCredentials(supabase, user.id);
         return await handleListWebinars(req, supabase, user, listCredentials, params.force_sync || false);
       
       case 'get-webinar':
-        return await handleGetWebinar(req, supabase, user, credentials);
+        const getWebinarCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetWebinar(req, supabase, user, getWebinarCredentials);
       
       case 'get-participants':
-        return await handleGetParticipants(req, supabase, user, credentials);
+        const getParticipantsCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetParticipants(req, supabase, user, getParticipantsCredentials);
       
       case 'get-webinar-instances':
-        return await handleGetWebinarInstances(req, supabase, user, credentials);
+        const getInstancesCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetWebinarInstances(req, supabase, user, getInstancesCredentials);
       
       case 'get-instance-participants':
-        return await handleGetInstanceParticipants(req, supabase, user, credentials);
+        const getInstanceParticipantsCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetInstanceParticipants(req, supabase, user, getInstanceParticipantsCredentials);
       
       case 'update-webinar-participants':
-        return await handleUpdateWebinarParticipants(req, supabase, user, credentials);
+        const updateParticipantsCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleUpdateWebinarParticipants(req, supabase, user, updateParticipantsCredentials);
       
       case 'sync-single-webinar':
-        return await handleSyncSingleWebinar(req, supabase, user, credentials);
+        const syncCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleSyncSingleWebinar(req, supabase, user, syncCredentials);
       
       case 'get-webinar-recordings':
-        return await handleGetWebinarRecordings(req, supabase, user, credentials);
+        const recordingsCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials);
       
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {

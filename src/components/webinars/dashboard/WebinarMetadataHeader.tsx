@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { useZoomWebinarRecordings } from '@/hooks/zoom/useZoomWebinarRecordings';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,7 +29,18 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   console.log('[WebinarMetadataHeader] Panelists:', webinar.panelists);
   
   // Fetch recordings data
-  const { recordings, isLoading: isLoadingRecordings } = useZoomWebinarRecordings(webinar.id);
+  const { recordings, isLoading: isLoadingRecordings, refreshRecordings } = useZoomWebinarRecordings(webinar.id);
+  
+  // Auto-fetch recordings for completed webinars when component mounts
+  useEffect(() => {
+    const isCompleted = webinar.status === 'ended' || webinar.status === 'aborted';
+    if (isCompleted && recordings.length === 0 && !isLoadingRecordings) {
+      console.log('[WebinarMetadataHeader] Auto-fetching recordings for completed webinar:', webinar.id);
+      refreshRecordings().catch(error => {
+        console.error('[WebinarMetadataHeader] Failed to auto-fetch recordings:', error);
+      });
+    }
+  }, [webinar.status, webinar.id, recordings.length, isLoadingRecordings, refreshRecordings]);
   
   // Calculate registration stats
   const totalRegistered = participants.registrants.length;
