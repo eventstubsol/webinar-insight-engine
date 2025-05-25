@@ -27,8 +27,7 @@ interface WebinarMetadataHeaderProps {
 export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ webinar, participants }) => {
   // Debug logging
   console.log('[WebinarMetadataHeader] Webinar data:', webinar);
-  console.log('[WebinarMetadataHeader] Raw data:', webinar.raw_data);
-  console.log('[WebinarMetadataHeader] Panelists from raw_data:', webinar.raw_data?.panelists);
+  console.log('[WebinarMetadataHeader] Panelists:', webinar.panelists);
   
   // Calculate registration stats
   const totalRegistered = participants.registrants.length;
@@ -40,11 +39,11 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   const uniqueViewers = new Set(participants.attendees.map(a => a.user_email)).size;
   const totalUsers = participants.attendees.length;
   
-  // Extract presenter and panelists from webinar data - FIXED
+  // Extract presenter and panelists from webinar data
   const presenter = webinar.alternative_host || webinar.host_email;
   
-  // Get panelists from raw_data directly - this is the fix
-  const panelists = webinar.panelists || [];
+  // Get panelists from webinar data - now properly typed
+  const panelists = Array.isArray(webinar.panelists) ? webinar.panelists : [];
   console.log('[WebinarMetadataHeader] Processed panelists:', panelists);
   
   // Format webinar date

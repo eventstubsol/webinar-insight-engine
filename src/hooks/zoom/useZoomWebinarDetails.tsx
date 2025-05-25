@@ -23,8 +23,25 @@ export function useZoomWebinarDetails(webinarId: string | null) {
       
       if (!dbError && dbWebinar) {
         console.log(`[useZoomWebinarDetails] Found webinar in database:`, dbWebinar);
-        console.log(`[useZoomWebinarDetails] Raw data panelists:`, dbWebinar.raw_data?.panelists);
-        return dbWebinar.raw_data;
+        
+        // Safely access raw_data with proper typing
+        const rawData = dbWebinar.raw_data as any;
+        console.log(`[useZoomWebinarDetails] Raw data panelists:`, rawData?.panelists);
+        
+        // Return the complete webinar data with panelists at top level for easier access
+        const webinarData = {
+          ...rawData,
+          // Make sure panelists is available at the top level
+          panelists: rawData?.panelists || [],
+          // Include database fields that might not be in raw_data
+          id: dbWebinar.webinar_id,
+          webinar_id: dbWebinar.webinar_id,
+          webinar_uuid: dbWebinar.webinar_uuid,
+          last_synced_at: dbWebinar.last_synced_at
+        };
+        
+        console.log(`[useZoomWebinarDetails] Processed webinar data:`, webinarData);
+        return webinarData;
       }
       
       console.log(`[useZoomWebinarDetails] Webinar not found in database, fetching from API`);
