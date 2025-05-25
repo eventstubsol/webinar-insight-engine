@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -65,6 +64,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [scopesError, setScopesError] = useState(false);
   const [verificationDetails, setVerificationDetails] = useState<any>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const handleChangeCredentials = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCredentials({
@@ -102,6 +102,8 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     setIsSubmitting(true);
 
     try {
+      console.log('Verifying Zoom credentials...');
+      
       const { data, error } = await supabase.functions.invoke('zoom-api', {
         body: { 
           action: 'save-credentials',
@@ -112,10 +114,11 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
       });
 
       if (error) {
-        throw new Error(error.message);
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to call Zoom API edge function');
       }
 
-      if (data.success) {
+      if (data?.success) {
         setVerificationDetails(data);
         setCurrentStep(WizardStep.Success);
         toast({
@@ -124,27 +127,48 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
         });
       } else {
         // Check if it's a scopes error
-        if (data.code === 'missing_scopes' || 
-            data.error?.toLowerCase().includes('scopes') || 
-            data.details?.code === 4711) {
+        if (data?.code === 'missing_scopes' || 
+            data?.error?.toLowerCase().includes('scopes') || 
+            data?.details?.code === 4711) {
           setScopesError(true);
           setCurrentStep(WizardStep.ConfigureScopes);
+          throw new Error('Missing required OAuth scopes for Zoom integration');
         }
         
-        throw new Error(data.error || 'Verification failed');
+        throw new Error(data?.error || 'Verification failed');
       }
     } catch (err: any) {
       console.error('Verification error:', err);
       
-      // Check for scopes error in the message
-      if (err.message?.toLowerCase().includes('scopes') || 
-          err.message?.toLowerCase().includes('scope') || 
-          err.message?.toLowerCase().includes('4711')) {
+      // Check for specific error types
+      if (err.message?.includes('Failed to send a request') || 
+          err.message?.includes('Failed to fetch') ||
+          err.message?.includes('NetworkError')) {
+        
+        // Network error - if within retry limit, we can try again
+        if (retryCount < 2) {
+          setRetryCount(prevCount => prevCount + 1);
+          setError(`Network error. Retrying... (Attempt ${retryCount + 1}/3)`);
+          
+          // Wait 2 seconds and retry
+          setTimeout(() => {
+            handleVerifyCredentials();
+          }, 2000);
+          return;
+        } else {
+          setError('Network connection error. Please check your internet connection and try again later.');
+        }
+      } else if (err.message?.toLowerCase().includes('scopes') || 
+                err.message?.toLowerCase().includes('scope') || 
+                err.message?.toLowerCase().includes('4711')) {
+        // Scopes error
         setScopesError(true);
         setCurrentStep(WizardStep.ConfigureScopes);
+        setError('Your Zoom app is missing the required OAuth scopes. Please add all the required scopes.');
+      } else {
+        // General error
+        setError(err.message || 'Failed to verify Zoom credentials');
       }
-      
-      setError(err.message || 'Failed to verify Zoom credentials');
       
       toast({
         title: 'Verification Failed',

@@ -1,6 +1,5 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from './cors.ts';
 import { listWebinars } from './handlers/listWebinars.ts';
 import { getParticipants } from './handlers/getParticipants.ts';
@@ -10,6 +9,7 @@ import { getInstanceParticipants } from './handlers/getInstanceParticipants.ts';
 import { updateParticipantData } from './handlers/updateWebinarParticipants.ts';
 import { ParticipantDataProcessor } from './handlers/sync/participantDataProcessor.ts';
 import { getZoomAccessToken } from './auth.ts';
+import { saveCredentials } from './handlers/saveCredentials.ts';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -19,7 +19,11 @@ serve(async (req) => {
   }
 
   try {
-    const { action, id, force, webinarIds } = await req.json();
+    // Parse request body
+    const requestData = await req.json();
+    const { action, id, force, webinarIds } = requestData;
+    
+    console.log(`[zoom-api] Received request with action: ${action}`);
     
     // Get user from Authorization header
     const authHeader = req.headers.get('Authorization');
@@ -30,7 +34,12 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const supabase = createClient(supabaseUrl!, supabaseKey!);
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase environment variables');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verify the JWT and get user
     const jwt = authHeader.replace('Bearer ', '');
@@ -42,19 +51,32 @@ serve(async (req) => {
 
     console.log(`[zoom-api] Handling action: ${action} for user: ${user.id}`);
 
-    // Get Zoom access token
-    const accessToken = await getZoomAccessToken(supabase, user.id);
-
     let result;
 
     switch (action) {
+      case 'save-credentials':
+        // Handle saving and verifying credentials
+        result = await saveCredentials(
+          supabase, 
+          user.id, 
+          {
+            account_id: requestData.account_id,
+            client_id: requestData.client_id,
+            client_secret: requestData.client_secret
+          }
+        );
+        break;
+        
       case 'list-webinars':
+        // Get Zoom access token first for this and all other API operations
+        const accessToken = await getZoomAccessToken(supabase, user.id);
         result = await listWebinars(supabase, accessToken, user.id, force);
         break;
         
       case 'get-participants':
         if (!id) throw new Error('Webinar ID is required for get-participants action');
-        const participantResult = await getParticipants(supabase, accessToken, id, user.id);
+        const accessToken2 = await getZoomAccessToken(supabase, user.id);
+        const participantResult = await getParticipants(supabase, accessToken2, id, user.id);
         result = {
           success: true,
           attendees: participantResult.attendees,
@@ -64,26 +86,31 @@ serve(async (req) => {
         
       case 'get-webinar':
         if (!id) throw new Error('Webinar ID is required for get-webinar action');
-        result = await getWebinar(accessToken, id);
+        const accessToken3 = await getZoomAccessToken(supabase, user.id);
+        result = await getWebinar(accessToken3, id);
         break;
         
       case 'get-instances':
         if (!id) throw new Error('Webinar ID is required for get-instances action');
-        result = await getWebinarInstances(supabase, accessToken, id, user.id);
+        const accessToken4 = await getZoomAccessToken(supabase, user.id);
+        result = await getWebinarInstances(supabase, accessToken4, id, user.id);
         break;
         
       case 'get-instance-participants':
         if (!id) throw new Error('Instance ID is required for get-instance-participants action');
-        result = await getInstanceParticipants(supabase, accessToken, id, user.id);
+        const accessToken5 = await getZoomAccessToken(supabase, user.id);
+        result = await getInstanceParticipants(supabase, accessToken5, id, user.id);
         break;
         
       case 'update-participants':
-        result = await updateParticipantData(supabase, accessToken, user.id);
+        const accessToken6 = await getZoomAccessToken(supabase, user.id);
+        result = await updateParticipantData(supabase, accessToken6, user.id);
         break;
         
       case 'sync-webinar-participants':
         if (!id) throw new Error('Webinar ID is required for sync-webinar-participants action');
-        const processor = new ParticipantDataProcessor(supabase, user.id, accessToken);
+        const accessToken7 = await getZoomAccessToken(supabase, user.id);
+        const processor = new ParticipantDataProcessor(supabase, user.id, accessToken7);
         const syncResult = await processor.processWebinarParticipants(id);
         result = {
           success: true,
@@ -97,7 +124,8 @@ serve(async (req) => {
           throw new Error('webinarIds array is required for bulk-sync-participants action');
         }
         
-        const bulkProcessor = new ParticipantDataProcessor(supabase, user.id, accessToken);
+        const accessToken8 = await getZoomAccessToken(supabase, user.id);
+        const bulkProcessor = new ParticipantDataProcessor(supabase, user.id, accessToken8);
         const bulkResults = [];
         const maxConcurrent = 2; // Conservative limit to avoid API rate limits
         
