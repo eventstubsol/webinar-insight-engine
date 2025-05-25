@@ -1,15 +1,15 @@
 
 import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
+import { useZoomWebinarRecordings } from '@/hooks/zoom/useZoomWebinarRecordings';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { format, parseISO } from 'date-fns';
+import { WebinarRecordingInfo } from './WebinarRecordingInfo';
 import {
   User,
   Calendar,
   Hash,
-  Video,
-  Key,
   Users,
   Clock,
   Activity,
@@ -28,6 +28,9 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   // Debug logging
   console.log('[WebinarMetadataHeader] Webinar data:', webinar);
   console.log('[WebinarMetadataHeader] Panelists:', webinar.panelists);
+  
+  // Fetch recordings data
+  const { recordings, isLoading: isLoadingRecordings } = useZoomWebinarRecordings(webinar.id);
   
   // Calculate registration stats
   const totalRegistered = participants.registrants.length;
@@ -50,10 +53,6 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   const webinarDate = webinar.start_time ? 
     format(parseISO(webinar.start_time), 'EEEE, MMMM d, yyyy • h:mm a') : 
     'Date not set';
-
-  // Recording details
-  const recordingLink = webinar.recording_url || 'Not available';
-  const recordingPassword = webinar.recording_password || 'Not available';
   
   // Actual start time and duration
   const actualStart = webinar.actual_start_time ? 
@@ -113,15 +112,11 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
                 )}
               </div>
               
-              <Video className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Recording Link:</span> {recordingLink}
-              </div>
-              
-              <Key className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
-                <span className="font-medium">Recording Password:</span> {recordingPassword}
-              </div>
+              <WebinarRecordingInfo 
+                webinar={webinar}
+                recordings={recordings}
+                isLoadingRecordings={isLoadingRecordings}
+              />
             </div>
           </div>
           

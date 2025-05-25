@@ -10,6 +10,7 @@ export * from './useZoomWebinarDetails';
 export * from './useZoomWebinarParticipants';
 export * from './useZoomWebinarInstances';
 export * from './useZoomInstanceParticipants';
+export * from './useZoomWebinarRecordings';
 
 // Export utilities for backward compatibility
 export * from './utils/webinarUtils';
