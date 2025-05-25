@@ -17,4 +17,7 @@ export * from './utils/errorUtils';
 
 // Export services and operations for direct access
 export * from './services/webinarApiService';
+export * from './services/databaseQueries';
+export * from './services/apiOperations';
+export * from './services/syncHistoryService';
 export * from './webinarOperations';
