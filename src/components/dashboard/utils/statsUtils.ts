@@ -1,3 +1,4 @@
+
 import { ZoomWebinar } from '@/hooks/zoom';
 import { startOfMonth, subMonths, isAfter, isBefore, format } from 'date-fns';
 
@@ -8,9 +9,12 @@ export const getTotalRegistrants = (webinars: ZoomWebinar[]): number => {
     // Try to get registrants from different possible locations in the data
     let registrantCount = 0;
     
+    // First try the enhanced raw_data structure
     if (webinar.raw_data && typeof webinar.raw_data === 'object') {
       registrantCount = webinar.raw_data?.registrants_count || 0;
-    } else if (webinar.registrants_count !== undefined) {
+    }
+    // Fallback to top-level property
+    else if (webinar.registrants_count !== undefined) {
       registrantCount = webinar.registrants_count;
     }
     
@@ -23,9 +27,12 @@ export const getTotalAttendees = (webinars: ZoomWebinar[]): number => {
     // Try to get attendees from different possible locations in the data
     let attendeeCount = 0;
     
+    // First try the enhanced raw_data structure
     if (webinar.raw_data && typeof webinar.raw_data === 'object') {
       attendeeCount = webinar.raw_data?.participants_count || 0;
-    } else if (webinar.participants_count !== undefined) {
+    }
+    // Fallback to top-level property
+    else if (webinar.participants_count !== undefined) {
       attendeeCount = webinar.participants_count;
     }
     

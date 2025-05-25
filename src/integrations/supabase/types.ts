@@ -175,8 +175,12 @@ export type Database = {
           id: string
           items_synced: number
           message: string | null
+          pages_processed: number | null
           status: string
+          sync_details: Json | null
           sync_type: string
+          total_expected: number | null
+          total_retrieved: number | null
           user_id: string
           workspace_id: string | null
         }
@@ -185,8 +189,12 @@ export type Database = {
           id?: string
           items_synced?: number
           message?: string | null
+          pages_processed?: number | null
           status: string
+          sync_details?: Json | null
           sync_type: string
+          total_expected?: number | null
+          total_retrieved?: number | null
           user_id: string
           workspace_id?: string | null
         }
@@ -195,8 +203,12 @@ export type Database = {
           id?: string
           items_synced?: number
           message?: string | null
+          pages_processed?: number | null
           status?: string
+          sync_details?: Json | null
           sync_type?: string
+          total_expected?: number | null
+          total_retrieved?: number | null
           user_id?: string
           workspace_id?: string | null
         }
@@ -1077,6 +1089,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_column_exists_in_table: {
+        Args: { p_table_name: string; p_column_name: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           check_user_id: string

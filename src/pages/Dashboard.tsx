@@ -20,7 +20,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [showWizard, setShowWizard] = useState(false);
   const { credentialsStatus, checkCredentialsStatus, isLoading: credentialsLoading } = useZoomCredentials();
-  const { refreshWebinars, isRefetching, webinars } = useZoomWebinars();
+  const { refreshWebinars, isRefetching, webinars, error } = useZoomWebinars();
   
   const hasZoomCredentials = credentialsStatus?.hasCredentials;
 
@@ -61,6 +61,16 @@ const Dashboard = () => {
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
             <span className="ml-2 text-muted-foreground">Checking Zoom integration...</span>
           </div>
+        )}
+
+        {/* Show error if there's an error */}
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTitle>Error Loading Dashboard Data</AlertTitle>
+            <AlertDescription>
+              {typeof error === 'object' && error.message ? error.message : String(error)}
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Show Zoom setup banner for new users without credentials */}
