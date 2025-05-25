@@ -3,6 +3,7 @@ import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
 import {
   User,
@@ -16,7 +17,9 @@ import {
   UserCheck,
   UserX,
   UserPlus,
-  Eye
+  Eye,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 
 interface WebinarMetadataHeaderProps {
@@ -57,6 +60,18 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   // Max concurrent views (placeholder, as this information may not be available in current data model)
   const maxConcurrentViews = webinar.raw_data?.max_concurrent_views || 'Not available';
 
+  // Determine webinar completion status
+  const now = new Date();
+  const startTime = new Date(webinar.start_time);
+  const estimatedEndTime = new Date(startTime.getTime() + (webinar.duration || 60) * 60 * 1000);
+  const isCompleted = webinar.status === 'ended' || 
+                     webinar.status === 'aborted' ||
+                     (startTime < now && estimatedEndTime < now);
+
+  // Check if attendee data is available
+  const hasAttendeeData = participants.attendees.length > 0;
+  const attendeeDataStatus = webinar.raw_data?._participant_data_status;
+
   return (
     <Card className="mb-6">
       <CardContent className="pt-6">
@@ -80,6 +95,20 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
               <Calendar className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
                 <span className="font-medium">Webinar Date:</span> {webinarDate}
+              </div>
+
+              <Activity className="h-4 w-4 text-muted-foreground mt-1" />
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Status:</span> 
+                <Badge variant={webinar.status === 'ended' ? 'default' : webinar.status === 'started' ? 'destructive' : 'secondary'}>
+                  {webinar.status}
+                </Badge>
+                {isCompleted && (
+                  <Badge variant="outline" className="ml-2">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Completed
+                  </Badge>
+                )}
               </div>
               
               <User className="h-4 w-4 text-muted-foreground mt-1" />
@@ -159,19 +188,56 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
             
             <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
               <Eye className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="font-medium">Unique Viewers:</span> {uniqueViewers}
+                {!isCompleted && (
+                  <Badge variant="outline" className="text-xs">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    Pending
+                  </Badge>
+                )}
               </div>
               
               <Users className="h-4 w-4 text-muted-foreground mt-1" />
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="font-medium">Total Users:</span> {totalUsers}
+                {!hasAttendeeData && isCompleted && (
+                  <Badge variant="outline" className="text-xs">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    No Data
+                  </Badge>
+                )}
+                {!isCompleted && (
+                  <Badge variant="outline" className="text-xs">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    Webinar Active/Pending
+                  </Badge>
+                )}
               </div>
               
               <Activity className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
                 <span className="font-medium">Max Concurrent Views:</span> {maxConcurrentViews}
               </div>
+
+              {/* Data availability status */}
+              {!isCompleted && (
+                <>
+                  <AlertCircle className="h-4 w-4 text-yellow-500 mt-1" />
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium">Attendee Data:</span> Available after webinar ends
+                  </div>
+                </>
+              )}
+              
+              {isCompleted && !hasAttendeeData && (
+                <>
+                  <AlertCircle className="h-4 w-4 text-orange-500 mt-1" />
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium">Attendee Data:</span> Not yet available (may take time to process)
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
