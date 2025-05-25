@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+
+import { useState, useMemo, useEffect } from 'react';
 import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { isWebinarLive, isWebinarUpcoming, isWebinarPast } from '@/components/webinars/list/webinarHelpers';
 
@@ -26,13 +27,18 @@ export const useWebinarListState = ({
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([]);
   const itemsPerPage = viewMode === 'grid' ? 12 : 10;
 
+  // Create a dependency string for filter changes to track when to reset pagination
+  const filterDependency = useMemo(() => 
+    JSON.stringify({ searchQuery, dateRange, filterTab })
+  , [searchQuery, dateRange, filterTab]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterDependency]);
+
   // Filter webinars based on search query, date range, and tab selection
   const filteredWebinars = useMemo(() => {
-    // Reset to page 1 when filters change
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-    
     let filtered = webinars;
     
     // Apply search filter if query exists
@@ -86,12 +92,30 @@ export const useWebinarListState = ({
     }
     
     return filtered;
-  }, [webinars, searchQuery, dateRange, filterTab, currentPage]);
+  }, [webinars, searchQuery, dateRange, filterTab]);
 
-  // Calculate pagination
+  // Calculate pagination - separate from filtering logic
   const totalPages = Math.max(1, Math.ceil(filteredWebinars.length / itemsPerPage));
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedWebinars = filteredWebinars.slice(startIndex, startIndex + itemsPerPage);
+  
+  // Ensure currentPage is within valid bounds
+  const validCurrentPage = useMemo(() => {
+    if (currentPage > totalPages) return Math.max(1, totalPages);
+    if (currentPage < 1) return 1;
+    return currentPage;
+  }, [currentPage, totalPages]);
+
+  // Update currentPage if it's out of bounds
+  useEffect(() => {
+    if (validCurrentPage !== currentPage) {
+      setCurrentPage(validCurrentPage);
+    }
+  }, [validCurrentPage, currentPage]);
+
+  // Calculate paginated webinars using the valid current page
+  const paginatedWebinars = useMemo(() => {
+    const startIndex = (validCurrentPage - 1) * itemsPerPage;
+    return filteredWebinars.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredWebinars, validCurrentPage, itemsPerPage]);
 
   // Handle checkbox selection of webinars
   const handleWebinarSelection = (webinarId: string) => {
@@ -117,7 +141,7 @@ export const useWebinarListState = ({
 
   return {
     searchQuery,
-    currentPage,
+    currentPage: validCurrentPage,
     setCurrentPage,
     selectedWebinars,
     filteredWebinars,
