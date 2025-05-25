@@ -1,9 +1,9 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import { corsHeaders } from './cors.ts';
-import { getZoomCredentials, getZoomJwtToken } from './auth.ts';
+import { getZoomCredentials } from './credentials.ts';
+import { getZoomJwtToken } from './auth.ts';
 
 import { handleListWebinars } from './handlers/listWebinars.ts';
 import { handleGetWebinar } from './handlers/getWebinar.ts';
