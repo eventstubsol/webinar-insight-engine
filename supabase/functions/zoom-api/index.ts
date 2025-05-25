@@ -17,6 +17,7 @@ import {
   handleGetWebinarInstances,
   handleGetInstanceParticipants
 } from "./webinars.ts";
+import { handleComprehensiveSync } from "./handlers/comprehensiveSync.ts";
 
 // Maximum timeout for operations (30 seconds)
 const OPERATION_TIMEOUT = 30000;
@@ -123,6 +124,34 @@ serve(async (req: Request) => {
           response = await executeWithTimeout(
             () => handleVerifyCredentials(req, supabaseAdmin, user, verifyCredentials),
             OPERATION_TIMEOUT
+          );
+          break;
+        
+        case "comprehensive-sync":
+          // Get Zoom credentials for comprehensive sync
+          const comprehensiveCredentials = await getZoomCredentials(supabaseAdmin, user.id);
+          if (!comprehensiveCredentials) {
+            return createErrorResponse("Zoom credentials not found", 400);
+          }
+          
+          // Verify credentials
+          await verifyZoomCredentials(comprehensiveCredentials);
+          
+          // Parse comprehensive sync options
+          const syncOptions = {
+            includeParticipants: body.options?.includeParticipants ?? true,
+            includeInstances: body.options?.includeInstances ?? true,
+            includeChat: body.options?.includeChat ?? true,
+            includePolls: body.options?.includePolls ?? true,
+            includeQuestions: body.options?.includeQuestions ?? true,
+            includeRecordings: body.options?.includeRecordings ?? true,
+            includeEngagement: body.options?.includeEngagement ?? false,
+            batchSize: body.options?.batchSize ?? 5
+          };
+          
+          response = await executeWithTimeout(
+            () => handleComprehensiveSync(req, supabaseAdmin, user, comprehensiveCredentials, syncOptions),
+            120000 // 2 minutes for comprehensive sync
           );
           break;
           

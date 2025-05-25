@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Bell, Search, RefreshCw, CheckCircle2, WifiOff } from 'lucide-react';
+import { Bell, Search, RefreshCw, CheckCircle2, WifiOff, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -23,6 +23,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
+import { ComprehensiveSyncDialog } from '@/components/webinars/ComprehensiveSyncDialog';
 
 export const TopNav = () => {
   const { user } = useAuth();
@@ -33,7 +34,7 @@ export const TopNav = () => {
   const needsZoomSetup = !isLoadingCredentials && user && !credentialsStatus?.hasCredentials;
   const canSyncWebinars = user && credentialsStatus?.hasCredentials;
   
-  const handleSync = async () => {
+  const handleQuickSync = async () => {
     if (canSyncWebinars) {
       await refreshWebinars(true); // Force sync from Zoom API
     }
@@ -117,28 +118,53 @@ export const TopNav = () => {
                       Last sync: {formatLastSync(lastSyncTime)}
                     </span>
                   )}
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleSync}
-                    disabled={isRefetching}
-                  >
-                    {isRefetching ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 animate-spin mr-1" />
-                        <span>Syncing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-1" />
-                        <span>Sync</span>
-                      </>
-                    )}
-                  </Button>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        disabled={isRefetching}
+                        className="gap-2"
+                      >
+                        {isRefetching ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <span>Syncing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4" />
+                            <span>Sync</span>
+                          </>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel>Sync Options</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleQuickSync} disabled={isRefetching}>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Quick Sync
+                        <span className="text-xs text-muted-foreground ml-auto">Basic data</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <ComprehensiveSyncDialog 
+                          trigger={
+                            <div className="flex items-center w-full cursor-pointer">
+                              <Download className="h-4 w-4 mr-2" />
+                              Comprehensive Sync
+                              <span className="text-xs text-muted-foreground ml-auto">All data</span>
+                            </div>
+                          }
+                        />
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                Sync webinars directly from Zoom
+                Choose between quick sync or comprehensive data sync
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

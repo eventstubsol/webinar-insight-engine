@@ -1093,6 +1093,16 @@ export type Database = {
         Args: { p_table_name: string; p_column_name: string }
         Returns: boolean
       }
+      get_zoom_api_settings: {
+        Args: { org_id: string }
+        Returns: {
+          id: string
+          account_id: string
+          client_id: string
+          client_secret: string
+          redirect_uri: string
+        }[]
+      }
       has_role: {
         Args: {
           check_user_id: string
@@ -1103,6 +1113,15 @@ export type Database = {
       is_workspace_member: {
         Args: { workspace_id: string; check_role?: string }
         Returns: boolean
+      }
+      upsert_zoom_api_settings: {
+        Args: {
+          p_account_id: string
+          p_client_id: string
+          p_client_secret: string
+          p_organization_id: string
+        }
+        Returns: string
       }
     }
     Enums: {
