@@ -1,3 +1,4 @@
+
 import React, { createContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,19 +27,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const profileData = await fetchUserProfile(userId);
       if (profileData) {
         setProfile(profileData);
-      } else {
-        // If no profile exists, create a default one
-        const defaultProfile: UserProfile = {
-          id: userId,
-          display_name: null,
-          avatar_url: null
-        };
-        setProfile(defaultProfile);
       }
       
       // Fetch roles
       const rolesData = await fetchUserRoles(userId);
-      setRoles(rolesData.length > 0 ? rolesData : ['viewer']); // Default to viewer if no roles
+      setRoles(rolesData);
     } catch (error: any) {
       console.error('Error fetching user data:', error.message);
     } finally {
@@ -82,11 +75,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (currentSession?.user) {
           await fetchUserData(currentSession.user.id);
-        } else {
-          setIsLoading(false);
         }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
+      } finally {
         setIsLoading(false);
       }
     };
@@ -153,37 +143,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (error) throw error;
-      
-      // Create a profile for the new user
-      if (data.user) {
-        try {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              display_name: name,
-              avatar_url: null
-            });
-            
-          if (profileError) {
-            console.error('Error creating profile:', profileError);
-          }
-          
-          // Assign default role
-          const { error: roleError } = await supabase
-            .from('user_roles')
-            .insert({
-              user_id: data.user.id,
-              role: 'viewer'
-            });
-            
-          if (roleError) {
-            console.error('Error assigning role:', roleError);
-          }
-        } catch (err) {
-          console.error('Error setting up new user:', err);
-        }
-      }
       
       toast({
         title: "Registration successful",
@@ -256,21 +215,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       cleanupAuthState();
-      
-      // In development, simulate a successful login
-      if (import.meta.env.DEV) {
-        console.log('Simulating Zoom login in development mode');
-        setTimeout(() => {
-          toast({
-            title: "Development Mode",
-            description: "Zoom login simulated in development mode",
-            variant: "default"
-          });
-          setIsLoading(false);
-          navigate('/dashboard');
-        }, 1000);
-        return;
-      }
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'zoom',

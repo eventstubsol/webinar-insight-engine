@@ -2,6 +2,7 @@
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 import { fetchWebinarsFromZoomAPI, performNonDestructiveUpsert } from './sync/nonDestructiveSync.ts';
+import { enhanceWebinarsWithParticipantData } from './sync/participantDataProcessor.ts';
 import { calculateSyncStats, recordSyncHistory } from './sync/syncStatsCalculator.ts';
 import { checkDatabaseCache } from './sync/databaseCache.ts';
 
@@ -102,10 +103,13 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       dataRange: { oldest: null, newest: null }
     };
     
-    // If there are webinars, process them directly without participant enhancement
+    // If there are webinars, process them with participant data for completed webinars
     if (allWebinars && allWebinars.length > 0) {
-      // Perform non-destructive upsert with the original webinar data
-      syncResults = await performNonDestructiveUpsert(supabase, user.id, allWebinars, existingWebinars || []);
+      // Enhance webinars with participant data
+      const enhancedWebinars = await enhanceWebinarsWithParticipantData(allWebinars, token);
+      
+      // Perform non-destructive upsert
+      syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
       
       // Calculate comprehensive statistics
       statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);

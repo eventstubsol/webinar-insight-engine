@@ -69,7 +69,6 @@ const Webinars = () => {
           lastSyncTime={lastSyncTime}
           onSetupZoom={handleSetupZoom}
           credentialsStatus={credentialsStatus}
-          webinars={webinars}
         />
 
         {/* Zoom Integration Wizard Dialog */}

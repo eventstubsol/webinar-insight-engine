@@ -1,3 +1,4 @@
+
 import { supabase } from "./client";
 
 /**
@@ -5,15 +6,6 @@ import { supabase } from "./client";
  */
 export async function initializeStorage() {
   try {
-    // First check if we're in a development environment
-    const isDevelopment = import.meta.env.DEV;
-    
-    // In development, we'll skip the actual initialization to avoid Edge Function errors
-    if (isDevelopment) {
-      console.log('Storage initialization skipped in development environment');
-      return true;
-    }
-    
     const { data, error } = await supabase.functions.invoke('storage-init');
     
     if (error) {
@@ -39,8 +31,7 @@ export async function initializeStorage() {
     return true;
   } catch (error) {
     console.error('Exception during storage initialization:', error);
-    // Return true anyway to prevent blocking the app initialization
-    return true;
+    return false;
   }
 }
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -27,9 +28,7 @@ import {
   RefreshCw, 
   Copy, 
   ExternalLink, 
-  Settings,
-  Wifi,
-  WifiOff
+  Settings 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,24 +65,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [scopesError, setScopesError] = useState(false);
   const [verificationDetails, setVerificationDetails] = useState<any>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [networkStatus, setNetworkStatus] = useState<'online' | 'offline' | 'checking'>('checking');
-
-  // Check network status
-  useEffect(() => {
-    const checkNetwork = () => {
-      setNetworkStatus(navigator.onLine ? 'online' : 'offline');
-    };
-
-    checkNetwork();
-    window.addEventListener('online', checkNetwork);
-    window.addEventListener('offline', checkNetwork);
-
-    return () => {
-      window.removeEventListener('online', checkNetwork);
-      window.removeEventListener('offline', checkNetwork);
-    };
-  }, []);
 
   const handleChangeCredentials = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCredentials({
@@ -101,28 +82,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     });
   };
 
-  // Retry with exponential backoff
-  const retryWithBackoff = (fn: () => Promise<any>, maxRetries = 3, baseDelay = 1000) => {
-    return new Promise(async (resolve, reject) => {
-      for (let i = 0; i < maxRetries; i++) {
-        try {
-          const result = await fn();
-          return resolve(result);
-        } catch (error) {
-          // If we've reached max retries, reject with the error
-          if (i === maxRetries - 1) {
-            return reject(error);
-          }
-          
-          // Otherwise wait with exponential backoff
-          const delay = baseDelay * Math.pow(2, i);
-          setError(`Network error. Retrying in ${delay / 1000} seconds... (Attempt ${i + 2}/${maxRetries})`);
-          await new Promise(r => setTimeout(r, delay));
-        }
-      }
-    });
-  };
-
   const handleVerifyCredentials = async () => {
     if (!user) {
       toast({
@@ -130,16 +89,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
         description: "You must be logged in to verify credentials",
         variant: "destructive"
       });
-      return;
-    }
-
-    if (networkStatus === 'offline') {
-      toast({
-        title: "Network Error",
-        description: "You are currently offline. Please check your internet connection and try again.",
-        variant: "destructive"
-      });
-      setError("Network connection unavailable. Please check your internet connection and try again.");
       return;
     }
 
@@ -151,32 +100,22 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     setError(null);
     setScopesError(false);
     setIsSubmitting(true);
-    setRetryCount(0);
 
     try {
-      console.log('Verifying Zoom credentials...');
-      
-      // Use retryWithBackoff for the API call
-      const { data, error } = await retryWithBackoff(() => 
-        supabase.functions.invoke('zoom-api', {
-          body: { 
-            action: 'save-credentials',
-            account_id: credentials.account_id,
-            client_id: credentials.client_id,
-            client_secret: credentials.client_secret
-          },
-          // Add a timeout to the fetch request
-          options: {
-            timeoutInSeconds: 30 // 30 second timeout
-          }
-        }), 3, 2000); // Max 3 retries with base delay of 2 seconds
+      const { data, error } = await supabase.functions.invoke('zoom-api', {
+        body: { 
+          action: 'save-credentials',
+          account_id: credentials.account_id,
+          client_id: credentials.client_id,
+          client_secret: credentials.client_secret
+        }
+      });
 
       if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to call Zoom API edge function');
+        throw new Error(error.message);
       }
 
-      if (data?.success) {
+      if (data.success) {
         setVerificationDetails(data);
         setCurrentStep(WizardStep.Success);
         toast({
@@ -185,50 +124,33 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
         });
       } else {
         // Check if it's a scopes error
-        if (data?.code === 'missing_scopes' || 
-            data?.error?.toLowerCase().includes('scopes') || 
-            data?.details?.code === 4711) {
+        if (data.code === 'missing_scopes' || 
+            data.error?.toLowerCase().includes('scopes') || 
+            data.details?.code === 4711) {
           setScopesError(true);
           setCurrentStep(WizardStep.ConfigureScopes);
-          throw new Error('Missing required OAuth scopes for Zoom integration');
         }
         
-        throw new Error(data?.error || 'Verification failed');
+        throw new Error(data.error || 'Verification failed');
       }
     } catch (err: any) {
       console.error('Verification error:', err);
       
-      // Check for specific error types
-      if (err.message?.includes('Failed to send a request') || 
-          err.message?.includes('Failed to fetch') ||
-          err.message?.includes('NetworkError') ||
-          err.message?.includes('timeout') ||
-          err.message?.includes('network')) {
-        
-        setError('Network connection error. The server might be unavailable or there might be an issue with your internet connection. Please try again later.');
-        
-        toast({
-          title: 'Network Error',
-          description: 'Could not connect to the server. Please check your connection and try again later.',
-          variant: 'destructive'
-        });
-      } else if (err.message?.toLowerCase().includes('scopes') || 
-                err.message?.toLowerCase().includes('scope') || 
-                err.message?.toLowerCase().includes('4711')) {
-        // Scopes error
+      // Check for scopes error in the message
+      if (err.message?.toLowerCase().includes('scopes') || 
+          err.message?.toLowerCase().includes('scope') || 
+          err.message?.toLowerCase().includes('4711')) {
         setScopesError(true);
         setCurrentStep(WizardStep.ConfigureScopes);
-        setError('Your Zoom app is missing the required OAuth scopes. Please add all the required scopes.');
-      } else {
-        // General error
-        setError(err.message || 'Failed to verify Zoom credentials');
-      
-        toast({
-          title: 'Verification Failed',
-          description: err.message || 'Could not verify Zoom API credentials',
-          variant: 'destructive'
-        });
       }
+      
+      setError(err.message || 'Failed to verify Zoom credentials');
+      
+      toast({
+        title: 'Verification Failed',
+        description: err.message || 'Could not verify Zoom API credentials',
+        variant: 'destructive'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -248,26 +170,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     }
   };
 
-  const renderNetworkStatus = () => {
-    if (networkStatus === 'checking') {
-      return null;
-    }
-    
-    if (networkStatus === 'offline') {
-      return (
-        <Alert variant="destructive" className="mt-4">
-          <WifiOff className="h-4 w-4" />
-          <AlertTitle>Network Unavailable</AlertTitle>
-          <AlertDescription>
-            You are currently offline. Please check your internet connection before proceeding.
-          </AlertDescription>
-        </Alert>
-      );
-    }
-    
-    return null;
-  };
-
   const renderIntroduction = () => (
     <div className="space-y-4">
       <Alert className="bg-blue-50 border-blue-200">
@@ -278,8 +180,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
           <p className="mt-2">You'll need to create a Server-to-Server OAuth app in the Zoom Marketplace to integrate with your Zoom account.</p>
         </AlertDescription>
       </Alert>
-
-      {renderNetworkStatus()}
 
       <div className="rounded-md border p-4">
         <h3 className="font-medium text-lg mb-2">What you'll need:</h3>
@@ -295,10 +195,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
           <li className="flex items-start">
             <Check className="h-5 w-5 mr-2 text-green-500 flex-shrink-0 mt-0.5" />
             <span>For webinar features: A Zoom account with webinar capabilities (usually requires a paid plan)</span>
-          </li>
-          <li className="flex items-start">
-            <Check className="h-5 w-5 mr-2 text-green-500 flex-shrink-0 mt-0.5" />
-            <span>An active internet connection</span>
           </li>
         </ul>
       </div>
@@ -317,11 +213,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
             Cancel
           </Button>
         )}
-        <Button 
-          onClick={handleNext} 
-          className="mt-4 sm:mt-0"
-          disabled={networkStatus === 'offline'}
-        >
+        <Button onClick={handleNext} className="mt-4 sm:mt-0">
           Let's Get Started
           <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
@@ -332,8 +224,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   const renderCreateApp = () => (
     <div className="space-y-4">
       <h3 className="text-lg font-medium">Step 1: Create a Server-to-Server OAuth App</h3>
-      
-      {renderNetworkStatus()}
       
       <ol className="space-y-4 list-decimal pl-5">
         <li>
@@ -376,11 +266,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
           <ChevronLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <Button 
-          onClick={handleNext} 
-          className="mt-4 sm:mt-0"
-          disabled={networkStatus === 'offline'}
-        >
+        <Button onClick={handleNext} className="mt-4 sm:mt-0">
           Continue to Scopes
           <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
@@ -391,8 +277,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   const renderConfigureScopes = () => (
     <div className="space-y-4">
       <h3 className="text-lg font-medium">Step 2: Configure App Scopes</h3>
-      
-      {renderNetworkStatus()}
       
       {scopesError && (
         <Alert variant="destructive">
@@ -482,11 +366,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
           <ChevronLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <Button 
-          onClick={handleNext} 
-          className="mt-4 sm:mt-0"
-          disabled={networkStatus === 'offline'}
-        >
+        <Button onClick={handleNext} className="mt-4 sm:mt-0">
           Continue to Credentials
           <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
@@ -497,8 +377,6 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
   const renderEnterCredentials = () => (
     <div className="space-y-4">
       <h3 className="text-lg font-medium">Step 3: Enter Your Zoom API Credentials</h3>
-      
-      {renderNetworkStatus()}
       
       <Alert className="bg-blue-50 border-blue-200">
         <Info className="h-4 w-4 text-blue-700" />
@@ -573,7 +451,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
         <Button 
           onClick={handleVerifyCredentials} 
           className="mt-4 sm:mt-0"
-          disabled={isSubmitting || networkStatus === 'offline'}
+          disabled={isSubmitting}
         >
           {isSubmitting ? (
             <>

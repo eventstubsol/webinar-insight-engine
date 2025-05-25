@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,19 +15,6 @@ export function useZoomCredentials() {
       if (!user) return null;
       
       try {
-        // Check if we're in a development environment
-        const isDevelopment = import.meta.env.DEV;
-        
-        if (isDevelopment) {
-          console.log('Using mock credentials status in development environment');
-          // Return mock data in development to avoid Edge Function errors
-          return {
-            hasCredentials: false,
-            isVerified: false,
-            lastVerified: null
-          } as ZoomCredentialsStatus;
-        }
-        
         const { data, error } = await supabase.functions.invoke('zoom-api', {
           body: { action: 'check-credentials-status' }
         });
@@ -35,12 +23,7 @@ export function useZoomCredentials() {
         return data as ZoomCredentialsStatus;
       } catch (err: any) {
         console.error('Error checking credentials status:', err);
-        // Return a default status object instead of throwing
-        return {
-          hasCredentials: false,
-          isVerified: false,
-          lastVerified: null
-        } as ZoomCredentialsStatus;
+        throw new Error(err.message || 'Failed to check credentials status');
       }
     },
     enabled: !!user,
@@ -48,7 +31,6 @@ export function useZoomCredentials() {
     refetchOnMount: 'always', // Always fetch fresh data when component mounts
     staleTime: 30 * 1000, // Reduce stale time to 30 seconds
     gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 1, // Only retry once to avoid excessive failed requests
   });
   
   const checkCredentialsStatus = async () => {
@@ -60,22 +42,14 @@ export function useZoomCredentials() {
       return result.data;
     } catch (err) {
       console.error('Failed to check credentials status:', err);
-      return {
-        hasCredentials: false,
-        isVerified: false,
-        lastVerified: null
-      } as ZoomCredentialsStatus;
+      return null;
     } finally {
       setIsLoading(false);
     }
   };
   
   return {
-    credentialsStatus: data || {
-      hasCredentials: false,
-      isVerified: false,
-      lastVerified: null
-    },
+    credentialsStatus: data,
     checkCredentialsStatus,
     isLoading: isLoading || isInitialLoading, // Combine both loading states
     error

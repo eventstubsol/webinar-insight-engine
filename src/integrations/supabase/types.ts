@@ -175,12 +175,8 @@ export type Database = {
           id: string
           items_synced: number
           message: string | null
-          pages_processed: number | null
           status: string
-          sync_details: Json | null
           sync_type: string
-          total_expected: number | null
-          total_retrieved: number | null
           user_id: string
           workspace_id: string | null
         }
@@ -189,12 +185,8 @@ export type Database = {
           id?: string
           items_synced?: number
           message?: string | null
-          pages_processed?: number | null
           status: string
-          sync_details?: Json | null
           sync_type: string
-          total_expected?: number | null
-          total_retrieved?: number | null
           user_id: string
           workspace_id?: string | null
         }
@@ -203,12 +195,8 @@ export type Database = {
           id?: string
           items_synced?: number
           message?: string | null
-          pages_processed?: number | null
           status?: string
-          sync_details?: Json | null
           sync_type?: string
-          total_expected?: number | null
-          total_retrieved?: number | null
           user_id?: string
           workspace_id?: string | null
         }
