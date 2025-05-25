@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { corsHeaders, handleCors, addCorsHeaders, createErrorResponse } from "./cors.ts";
@@ -18,6 +17,7 @@ import {
   handleGetInstanceParticipants
 } from "./webinars.ts";
 import { handleComprehensiveSync } from "./handlers/comprehensiveSync.ts";
+import { handleChunkedSync } from "./handlers/chunkedSync.ts";
 
 // Maximum timeout for operations (30 seconds)
 const OPERATION_TIMEOUT = 30000;
@@ -127,6 +127,31 @@ serve(async (req: Request) => {
           );
           break;
         
+        case "chunked-sync":
+          // Get Zoom credentials for chunked sync
+          const chunkedCredentials = await getZoomCredentials(supabaseAdmin, user.id);
+          if (!chunkedCredentials) {
+            return createErrorResponse("Zoom credentials not found", 400);
+          }
+          
+          // Verify credentials
+          await verifyZoomCredentials(chunkedCredentials);
+          
+          // Parse chunked sync options
+          const chunkOptions = {
+            dataType: body.options?.dataType || 'participants',
+            webinarIds: body.options?.webinarIds || [],
+            batchSize: body.options?.batchSize || 5,
+            chunkIndex: body.options?.chunkIndex || 0,
+            totalChunks: body.options?.totalChunks || 1
+          };
+          
+          response = await executeWithTimeout(
+            () => handleChunkedSync(req, supabaseAdmin, user, chunkedCredentials, chunkOptions),
+            OPERATION_TIMEOUT
+          );
+          break;
+      
         case "comprehensive-sync":
           // Get Zoom credentials for comprehensive sync
           const comprehensiveCredentials = await getZoomCredentials(supabaseAdmin, user.id);
@@ -151,7 +176,7 @@ serve(async (req: Request) => {
           
           response = await executeWithTimeout(
             () => handleComprehensiveSync(req, supabaseAdmin, user, comprehensiveCredentials, syncOptions),
-            120000 // 2 minutes for comprehensive sync
+            60000 // Reduce to 60 seconds for basic sync only
           );
           break;
           

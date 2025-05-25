@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +29,9 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { executeChunkedSync, getEligibleWebinars, ChunkedSyncProgress } from '@/hooks/zoom/operations/chunkedOperations';
+import { useAuth } from '@/hooks/useAuth';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ComprehensiveSyncOptions {
   includeParticipants: boolean;
@@ -61,10 +63,16 @@ export const ComprehensiveSyncDialog: React.FC<ComprehensiveSyncDialogProps> = (
   trigger
 }) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [syncComplete, setSyncComplete] = useState(false);
+  const [currentProgress, setCurrentProgress] = useState<ChunkedSyncProgress | null>(null);
+  const [availableWebinars, setAvailableWebinars] = useState<any[]>([]);
+  const [selectedWebinars, setSelectedWebinars] = useState<string[]>([]);
+  const [step, setStep] = useState<'basic' | 'detailed'>('basic');
+  
   const [options, setOptions] = useState<ComprehensiveSyncOptions>({
     includeParticipants: true,
     includeInstances: true,
@@ -128,19 +136,39 @@ export const ComprehensiveSyncDialog: React.FC<ComprehensiveSyncDialogProps> = (
     }
   ];
 
-  const handleSync = async () => {
+  // Load available webinars when dialog opens
+  useEffect(() => {
+    if (isOpen && user?.id) {
+      loadAvailableWebinars();
+    }
+  }, [isOpen, user?.id]);
+
+  const loadAvailableWebinars = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const webinars = await getEligibleWebinars(user.id);
+      setAvailableWebinars(webinars);
+      // Select all by default
+      setSelectedWebinars(webinars.map(w => w.webinar_id));
+    } catch (error) {
+      console.error('Failed to load webinars:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load available webinars',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleBasicSync = async () => {
+    if (!user?.id) return;
+    
     setIsLoading(true);
     setSyncComplete(false);
-    setProgress({
-      stage: 'initializing',
-      progress: 0,
-      total: 100,
-      message: 'Starting comprehensive sync...',
-      completed: [],
-      current: 'Setup'
-    });
-
+    
     try {
+      // First do basic comprehensive sync
       const { data, error } = await supabase.functions.invoke('zoom-api', {
         body: {
           action: 'comprehensive-sync',
@@ -149,40 +177,79 @@ export const ComprehensiveSyncDialog: React.FC<ComprehensiveSyncDialogProps> = (
       });
 
       if (error) {
-        throw new Error(error.message || 'Failed to start comprehensive sync');
+        throw new Error(error.message || 'Failed to start basic sync');
       }
 
       if (data.error) {
         throw new Error(data.error);
       }
 
-      setProgress({
-        stage: 'completed',
-        progress: 100,
-        total: 100,
-        message: 'Comprehensive sync completed successfully!',
-        completed: ['All data types'],
-        current: 'Finished'
+      // Update available webinars from the response
+      if (data.availableWebinars) {
+        setAvailableWebinars(data.availableWebinars);
+        setSelectedWebinars(data.availableWebinars.map((w: any) => w.id));
+      }
+
+      toast({
+        title: 'Basic Sync Completed',
+        description: `Successfully synced ${data.syncResults?.totalWebinars || 0} webinars`,
+        variant: 'default'
+      });
+
+      // Move to detailed sync step
+      setStep('detailed');
+
+    } catch (err: any) {
+      console.error('Basic sync error:', err);
+      
+      toast({
+        title: 'Basic Sync Failed',
+        description: err.message || 'An unexpected error occurred during basic sync',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDetailedSync = async () => {
+    if (!user?.id || selectedWebinars.length === 0) return;
+    
+    setIsLoading(true);
+    setSyncComplete(false);
+    setCurrentProgress(null);
+
+    // Build list of data types to sync
+    const dataTypesToSync = [];
+    if (options.includeParticipants) dataTypesToSync.push('participants');
+    if (options.includeInstances) dataTypesToSync.push('instances');
+    if (options.includeChat) dataTypesToSync.push('chat');
+    if (options.includePolls) dataTypesToSync.push('polls');
+    if (options.includeQuestions) dataTypesToSync.push('questions');
+    if (options.includeRecordings) dataTypesToSync.push('recordings');
+
+    try {
+      await executeChunkedSync(user.id, queryClient, {
+        dataTypes: dataTypesToSync,
+        webinarIds: selectedWebinars,
+        chunkSize: options.batchSize,
+        onProgress: (progress) => {
+          setCurrentProgress(progress);
+        }
       });
 
       setSyncComplete(true);
-
-      toast({
-        title: 'Comprehensive Sync Completed',
-        description: `Successfully synced all selected data types. Total webinars: ${data.syncResults?.totalWebinars || 0}`,
-        variant: 'default'
-      });
 
       if (onSyncComplete) {
         onSyncComplete();
       }
 
     } catch (err: any) {
-      console.error('Comprehensive sync error:', err);
+      console.error('Detailed sync error:', err);
       
       toast({
-        title: 'Comprehensive Sync Failed',
-        description: err.message || 'An unexpected error occurred during sync',
+        title: 'Detailed Sync Failed',
+        description: err.message || 'An unexpected error occurred during detailed sync',
         variant: 'destructive'
       });
     } finally {
@@ -193,7 +260,8 @@ export const ComprehensiveSyncDialog: React.FC<ComprehensiveSyncDialogProps> = (
   const handleClose = () => {
     if (!isLoading) {
       setIsOpen(false);
-      setProgress(null);
+      setStep('basic');
+      setCurrentProgress(null);
       setSyncComplete(false);
     }
   };
@@ -215,13 +283,17 @@ export const ComprehensiveSyncDialog: React.FC<ComprehensiveSyncDialogProps> = (
           <DialogTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
             Comprehensive Zoom Data Sync
+            {step === 'detailed' && <Badge variant="secondary">Step 2: Detailed Data</Badge>}
           </DialogTitle>
           <DialogDescription>
-            Fetch all available data from Zoom for your webinars. This process may take several minutes depending on the amount of data.
+            {step === 'basic' 
+              ? 'First, we\'ll sync your basic webinar data, then you can choose which detailed data to fetch.'
+              : 'Select webinars and data types for detailed synchronization.'
+            }
           </DialogDescription>
         </DialogHeader>
 
-        {!isLoading && !syncComplete && (
+        {step === 'basic' && !isLoading && !syncComplete && (
           <div className="space-y-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -293,12 +365,11 @@ export const ComprehensiveSyncDialog: React.FC<ComprehensiveSyncDialogProps> = (
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="font-medium text-blue-800">Important Notes</p>
+                  <p className="font-medium text-blue-800">Two-Step Process</p>
                   <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• This process may take 5-15 minutes for large datasets</li>
-                    <li>• Some data is only available for completed webinars</li>
-                    <li>• Existing data will be preserved and updated where applicable</li>
-                    <li>• You can continue using the app while sync runs in background</li>
+                    <li>• Step 1: Quick basic webinar sync (30-60 seconds)</li>
+                    <li>• Step 2: Detailed data sync in manageable chunks</li>
+                    <li>• This prevents timeouts and allows better progress tracking</li>
                   </ul>
                 </div>
               </div>
@@ -308,60 +379,141 @@ export const ComprehensiveSyncDialog: React.FC<ComprehensiveSyncDialogProps> = (
               <Button variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSync}
-                disabled={selectedCount === 0}
-                className="gap-2"
-              >
+              <Button onClick={handleBasicSync} className="gap-2">
                 <RefreshCw className="h-4 w-4" />
-                Start Comprehensive Sync
+                Start Basic Sync
               </Button>
             </div>
           </div>
         )}
 
-        {isLoading && progress && (
+        {step === 'detailed' && !isLoading && !syncComplete && (
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Select Webinars for Detailed Sync</h3>
+              <p className="text-sm text-muted-foreground">
+                Found {availableWebinars.length} completed webinars. Select which ones to sync detailed data for:
+              </p>
+              
+              <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2">
+                <div className="flex items-center space-x-2 pb-2 border-b">
+                  <Checkbox
+                    id="select-all"
+                    checked={selectedWebinars.length === availableWebinars.length}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedWebinars(availableWebinars.map(w => w.webinar_id));
+                      } else {
+                        setSelectedWebinars([]);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="select-all" className="font-medium">
+                    Select All ({availableWebinars.length} webinars)
+                  </Label>
+                </div>
+                
+                {availableWebinars.map((webinar) => (
+                  <div key={webinar.webinar_id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={webinar.webinar_id}
+                      checked={selectedWebinars.includes(webinar.webinar_id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedWebinars([...selectedWebinars, webinar.webinar_id]);
+                        } else {
+                          setSelectedWebinars(selectedWebinars.filter(id => id !== webinar.webinar_id));
+                        }
+                      }}
+                    />
+                    <Label htmlFor={webinar.webinar_id} className="text-sm cursor-pointer flex-1">
+                      {webinar.topic} ({new Date(webinar.start_time).toLocaleDateString()})
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <h3 className="font-medium">Performance Settings</h3>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="batchSize">Batch Size (webinars processed simultaneously)</Label>
+                <select
+                  id="batchSize"
+                  value={options.batchSize}
+                  onChange={(e) => setOptions(prev => ({ ...prev, batchSize: parseInt(e.target.value) }))}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value={1}>1 (Slowest, most reliable)</option>
+                  <option value={3}>3 (Balanced)</option>
+                  <option value={5}>5 (Recommended)</option>
+                  <option value={10}>10 (Fastest, may timeout)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setStep('basic')}>
+                Back
+              </Button>
+              <Button 
+                onClick={handleDetailedSync}
+                disabled={selectedWebinars.length === 0 || selectedCount === 0}
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Start Detailed Sync ({selectedWebinars.length} webinars)
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isLoading && (
           <div className="space-y-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">Sync Progress</h3>
+                <h3 className="font-medium">
+                  {step === 'basic' ? 'Basic Sync Progress' : 'Detailed Sync Progress'}
+                </h3>
                 <Badge variant="secondary" className="gap-1">
                   <Clock className="h-3 w-3" />
                   In Progress
                 </Badge>
               </div>
               
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>{progress.message}</span>
-                  <span>{progress.progress}%</span>
-                </div>
-                <Progress value={progress.progress} className="h-2" />
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">Current Stage: {progress.current}</h4>
-                
-                {progress.completed.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Completed:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {progress.completed.map((item, index) => (
-                        <Badge key={index} variant="outline" className="gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
+              {currentProgress ? (
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span>Syncing {currentProgress.dataType}</span>
+                    <span>Chunk {currentProgress.currentChunk}/{currentProgress.totalChunks}</span>
                   </div>
-                )}
-              </div>
+                  <Progress 
+                    value={(currentProgress.currentChunk / currentProgress.totalChunks) * 100} 
+                    className="h-2" 
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Processed {currentProgress.processedWebinars}/{currentProgress.totalWebinars} webinars
+                    {currentProgress.errors > 0 && (
+                      <span className="text-destructive"> ({currentProgress.errors} errors)</span>
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>{step === 'basic' ? 'Fetching basic webinar data...' : 'Starting detailed sync...'}</span>
+                  </div>
+                  <Progress value={25} className="h-2" />
+                </div>
+              )}
             </div>
 
             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
               <p className="text-sm text-yellow-800">
-                <strong>Please keep this dialog open</strong> while the sync is in progress. 
-                You can minimize your browser but don't close this tab.
+                <strong>Sync in progress</strong> - This may take several minutes. 
+                Please keep this dialog open.
               </p>
             </div>
           </div>

@@ -1,4 +1,3 @@
-
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 import { fetchWebinarsFromZoomAPI, performNonDestructiveUpsert } from './sync/nonDestructiveSync.ts';
@@ -26,7 +25,8 @@ export interface ComprehensiveSyncOptions {
 }
 
 /**
- * Comprehensive sync that fetches all available Zoom data
+ * Comprehensive sync that fetches basic webinar data only
+ * Extended data is now handled by chunked operations
  */
 export async function handleComprehensiveSync(
   req: Request, 
@@ -35,7 +35,7 @@ export async function handleComprehensiveSync(
   credentials: any, 
   options: ComprehensiveSyncOptions
 ) {
-  console.log(`[zoom-api][comprehensive-sync] Starting comprehensive sync for user: ${user.id}`);
+  console.log(`[zoom-api][comprehensive-sync] Starting basic comprehensive sync for user: ${user.id}`);
   console.log(`[zoom-api][comprehensive-sync] Options:`, options);
   
   const syncId = crypto.randomUUID();
@@ -69,16 +69,16 @@ export async function handleComprehensiveSync(
     console.log(`[zoom-api][comprehensive-sync] User: ${meData.email}`);
 
     // Stage 1: Fetch core webinar data
-    progress = updateProgress(progress, 'webinars', 10, 'Fetching core webinar data...');
+    progress = updateProgress(progress, 'webinars', 50, 'Fetching core webinar data...');
     const allWebinars = await fetchWebinarsFromZoomAPI(token, meData.id);
     console.log(`[zoom-api][comprehensive-sync] Fetched ${allWebinars.length} webinars`);
 
-    // Stage 2: Enhanced participant data
-    progress = updateProgress(progress, 'participants', 30, 'Fetching detailed participant data...');
+    // Stage 2: Enhanced participant data for basic counts
+    progress = updateProgress(progress, 'basic-participants', 75, 'Fetching basic participant counts...');
     const enhancedWebinars = await enhanceWebinarsWithParticipantData(allWebinars, token);
 
     // Stage 3: Sync core data
-    progress = updateProgress(progress, 'core-sync', 40, 'Syncing core webinar data...');
+    progress = updateProgress(progress, 'core-sync', 90, 'Syncing core webinar data...');
     const { data: existingWebinars } = await supabase
       .from('zoom_webinars')
       .select('*')
@@ -86,43 +86,7 @@ export async function handleComprehensiveSync(
     
     const syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
 
-    // Stage 4: Fetch webinar instances (if enabled)
-    if (options.includeInstances) {
-      progress = updateProgress(progress, 'instances', 50, 'Fetching webinar instances...');
-      await syncWebinarInstances(supabase, user.id, enhancedWebinars, token, options.batchSize);
-    }
-
-    // Stage 5: Fetch detailed participants (if enabled)
-    if (options.includeParticipants) {
-      progress = updateProgress(progress, 'detailed-participants', 60, 'Fetching detailed participant lists...');
-      await syncDetailedParticipants(supabase, user.id, enhancedWebinars, token, options.batchSize);
-    }
-
-    // Stage 6: Fetch chat data (if enabled)
-    if (options.includeChat) {
-      progress = updateProgress(progress, 'chat', 70, 'Fetching chat messages...');
-      await syncChatData(supabase, user.id, enhancedWebinars, token, options.batchSize);
-    }
-
-    // Stage 7: Fetch Q&A data (if enabled)
-    if (options.includeQuestions) {
-      progress = updateProgress(progress, 'questions', 80, 'Fetching Q&A data...');
-      await syncQuestionData(supabase, user.id, enhancedWebinars, token, options.batchSize);
-    }
-
-    // Stage 8: Fetch poll data (if enabled)
-    if (options.includePolls) {
-      progress = updateProgress(progress, 'polls', 85, 'Fetching poll responses...');
-      await syncPollData(supabase, user.id, enhancedWebinars, token, options.batchSize);
-    }
-
-    // Stage 9: Fetch recordings (if enabled)
-    if (options.includeRecordings) {
-      progress = updateProgress(progress, 'recordings', 90, 'Fetching recording information...');
-      await syncRecordingData(supabase, user.id, enhancedWebinars, token, options.batchSize);
-    }
-
-    // Stage 10: Calculate final statistics
+    // Calculate final statistics
     progress = updateProgress(progress, 'finalizing', 95, 'Calculating final statistics...');
     const statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
 
@@ -130,13 +94,13 @@ export async function handleComprehensiveSync(
     await recordSyncHistory(
       supabase,
       user.id,
-      'comprehensive',
+      'comprehensive-basic',
       'success',
       syncResults.newWebinars + syncResults.updatedWebinars,
-      `Comprehensive sync completed: ${Object.entries(options).filter(([k, v]) => v).map(([k]) => k).join(', ')}`
+      `Basic comprehensive sync completed: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated webinars. Use chunked sync for detailed data.`
     );
 
-    progress = updateProgress(progress, 'completed', 100, 'Comprehensive sync completed successfully!');
+    progress = updateProgress(progress, 'completed', 100, 'Basic comprehensive sync completed successfully!');
 
     // Get final webinar list
     const { data: finalWebinars } = await supabase
@@ -161,15 +125,22 @@ export async function handleComprehensiveSync(
 
     return new Response(JSON.stringify({ 
       webinars: finalWebinarsList,
-      source: 'comprehensive-api',
+      source: 'comprehensive-basic',
       syncId,
       progress,
       syncResults: {
         ...syncResults,
         totalWebinars: statsResult.totalWebinarsInDB,
-        dataTypes: Object.entries(options).filter(([k, v]) => v).map(([k]) => k),
-        comprehensiveSync: true
-      }
+        basicSyncOnly: true,
+        nextStep: 'Use chunked sync for detailed participant, chat, poll, and recording data'
+      },
+      // Return webinar IDs for chunked operations
+      availableWebinars: finalWebinarsList.map(w => ({
+        id: w.id,
+        topic: w.topic,
+        start_time: w.start_time,
+        status: w.status
+      }))
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -180,7 +151,7 @@ export async function handleComprehensiveSync(
     await recordSyncHistory(
       supabase,
       user.id,
-      'comprehensive',
+      'comprehensive-basic',
       'error',
       0,
       error.message || 'Unknown error during comprehensive sync'
