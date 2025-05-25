@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -12,6 +13,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious
+} from '@/components/ui/pagination';
 import { Search, Download } from 'lucide-react';
 
 interface WebinarParticipantsTabProps {
@@ -38,12 +47,50 @@ type Attendee = {
   duration: number;
 };
 
+const PAGE_SIZE_OPTIONS = [
+  { value: '10', label: '10 per page' },
+  { value: '50', label: '50 per page' },
+  { value: '100', label: '100 per page' },
+  { value: '500', label: '500 per page' },
+  { value: 'all', label: 'All' }
+];
+
+// Helper function to generate page numbers for pagination
+const getPageNumbers = (currentPage: number, totalPages: number) => {
+  const pages = [];
+  const maxVisiblePages = 5;
+  
+  if (totalPages <= maxVisiblePages) {
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(i);
+    }
+  } else {
+    if (currentPage <= 3) {
+      for (let i = 1; i <= 5; i++) {
+        pages.push(i);
+      }
+    } else if (currentPage >= totalPages - 2) {
+      for (let i = totalPages - 4; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      for (let i = currentPage - 2; i <= currentPage + 2; i++) {
+        pages.push(i);
+      }
+    }
+  }
+  
+  return pages;
+};
+
 export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   webinar,
   participants
 }) => {
   const [participantType, setParticipantType] = useState('registrants');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState('10');
   
   // Explicitly type cast to handle each type correctly
   const registrants = participants.registrants as Registrant[] || [];
@@ -52,24 +99,63 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   // Use the appropriate array based on the selected tab
   const displayParticipants = participantType === 'registrants' ? registrants : attendees;
     
-  const filteredParticipants = displayParticipants.filter(p => {
-    if (searchQuery === '') return true;
+  const filteredParticipants = useMemo(() => {
+    if (searchQuery === '') return displayParticipants;
     
-    if (participantType === 'registrants') {
-      const registrant = p as Registrant;
-      return (
-        (registrant.email && registrant.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (registrant.first_name && registrant.first_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (registrant.last_name && registrant.last_name.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-    } else {
-      const attendee = p as Attendee;
-      return (
-        (attendee.user_email && attendee.user_email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (attendee.name && attendee.name.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
+    return displayParticipants.filter(p => {
+      if (participantType === 'registrants') {
+        const registrant = p as Registrant;
+        return (
+          (registrant.email && registrant.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (registrant.first_name && registrant.first_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (registrant.last_name && registrant.last_name.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
+      } else {
+        const attendee = p as Attendee;
+        return (
+          (attendee.user_email && attendee.user_email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (attendee.name && attendee.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
+      }
+    });
+  }, [displayParticipants, searchQuery, participantType]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [participantType, searchQuery, itemsPerPage]);
+
+  // Calculate pagination
+  const totalParticipants = filteredParticipants.length;
+  const isShowingAll = itemsPerPage === 'all';
+  const itemsPerPageNum = isShowingAll ? totalParticipants : parseInt(itemsPerPage);
+  const totalPages = isShowingAll ? 1 : Math.max(1, Math.ceil(totalParticipants / itemsPerPageNum));
+  
+  // Ensure currentPage is within valid bounds
+  const validCurrentPage = useMemo(() => {
+    if (currentPage > totalPages) return Math.max(1, totalPages);
+    if (currentPage < 1) return 1;
+    return currentPage;
+  }, [currentPage, totalPages]);
+
+  // Update currentPage if it's out of bounds
+  useEffect(() => {
+    if (validCurrentPage !== currentPage) {
+      setCurrentPage(validCurrentPage);
     }
-  });
+  }, [validCurrentPage, currentPage]);
+
+  // Calculate paginated participants
+  const paginatedParticipants = useMemo(() => {
+    if (isShowingAll) return filteredParticipants;
+    
+    const startIndex = (validCurrentPage - 1) * itemsPerPageNum;
+    return filteredParticipants.slice(startIndex, startIndex + itemsPerPageNum);
+  }, [filteredParticipants, validCurrentPage, itemsPerPageNum, isShowingAll]);
+
+  // Calculate display info
+  const startIndex = isShowingAll ? 1 : (validCurrentPage - 1) * itemsPerPageNum + 1;
+  const endIndex = isShowingAll ? totalParticipants : Math.min(validCurrentPage * itemsPerPageNum, totalParticipants);
   
   return (
     <div>
@@ -111,6 +197,19 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          
+          <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       
@@ -134,14 +233,14 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredParticipants.length === 0 ? (
+            {paginatedParticipants.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
                   No participants found
                 </TableCell>
               </TableRow>
             ) : (
-              filteredParticipants.slice(0, 10).map((participant, index) => (
+              paginatedParticipants.map((participant, index) => (
                 <TableRow key={index}>
                   <TableCell>
                     {participantType === 'registrants' 
@@ -184,11 +283,55 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
         </Table>
       </div>
       
-      {filteredParticipants.length > 10 && (
-        <div className="flex justify-center mt-4">
-          <p className="text-sm text-muted-foreground">
-            Showing 10 of {filteredParticipants.length} participants
-          </p>
+      {/* Pagination Info and Controls */}
+      {totalParticipants > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4">
+          <div className="text-sm text-muted-foreground">
+            Showing {startIndex}-{endIndex} of {totalParticipants} participants
+          </div>
+          
+          {!isShowingAll && totalPages > 1 && (
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    href="#" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (validCurrentPage > 1) setCurrentPage(validCurrentPage - 1);
+                    }}
+                    className={validCurrentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                  />
+                </PaginationItem>
+                
+                {getPageNumbers(validCurrentPage, totalPages).map(page => (
+                  <PaginationItem key={page}>
+                    <PaginationLink 
+                      href="#" 
+                      isActive={validCurrentPage === page}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setCurrentPage(page);
+                      }}
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    href="#" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (validCurrentPage < totalPages) setCurrentPage(validCurrentPage + 1);
+                    }}
+                    className={validCurrentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
         </div>
       )}
     </div>
