@@ -54,8 +54,9 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     // Process webinars if any exist
     if (allWebinars && allWebinars.length > 0) {
-      // Enhance webinars with all additional data (host, panelist, participant info)
-      const enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token);
+      // Enhance webinars with all additional data (host, panelist, participant, and recording info)
+      // Pass supabase client and user ID for recording data storage
+      const enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
       
       // Perform non-destructive upsert
       syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
@@ -63,14 +64,15 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       // Calculate comprehensive statistics
       statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
       
-      // Record sync in history with enhanced statistics
+      // Record sync in history with enhanced statistics including recording data
+      const recordingStats = enhancedWebinars.filter(w => w.has_recordings).length;
       await recordSyncHistory(
         supabase,
         user.id,
         'webinars',
         'success',
         syncResults.newWebinars + syncResults.updatedWebinars,
-        `Non-destructive sync with host and panelist resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+        `Non-destructive sync with full data resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
       );
     } else {
       // Handle empty sync result

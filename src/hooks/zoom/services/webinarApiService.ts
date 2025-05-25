@@ -12,7 +12,8 @@ export {
   refreshWebinarsFromAPI,
   updateParticipantDataAPI,
   fetchWebinarInstancesAPI,
-  fetchInstanceParticipantsAPI
+  fetchInstanceParticipantsAPI,
+  fetchWebinarRecordingsAPI
 } from './apiOperations';
 
 export {

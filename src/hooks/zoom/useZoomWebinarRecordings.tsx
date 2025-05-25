@@ -1,7 +1,8 @@
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchWebinarRecordingsAPI } from './services/webinarApiService';
 
 export interface ZoomRecording {
   id: string;
@@ -23,8 +24,9 @@ export interface ZoomRecording {
 
 export function useZoomWebinarRecordings(webinarId: string | null) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['zoom-webinar-recordings', user?.id, webinarId],
     queryFn: async () => {
       if (!user || !webinarId) return [];
@@ -52,9 +54,29 @@ export function useZoomWebinarRecordings(webinarId: string | null) {
     gcTime: 30 * 60 * 1000 // 30 minutes
   });
 
+  // Function to refresh recordings from Zoom API
+  const refreshRecordings = async () => {
+    if (!webinarId || !user) return;
+    
+    try {
+      console.log(`[useZoomWebinarRecordings] Refreshing recordings from API for webinar: ${webinarId}`);
+      await fetchWebinarRecordingsAPI(webinarId);
+      
+      // Invalidate and refetch the query to get updated data
+      await queryClient.invalidateQueries({ 
+        queryKey: ['zoom-webinar-recordings', user.id, webinarId] 
+      });
+    } catch (error) {
+      console.error('[useZoomWebinarRecordings] Error refreshing recordings:', error);
+      throw error;
+    }
+  };
+
   return {
     recordings: data || [],
     isLoading,
-    error
+    error,
+    refreshRecordings,
+    refetch
   };
 }

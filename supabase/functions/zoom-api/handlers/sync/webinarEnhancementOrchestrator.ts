@@ -2,11 +2,12 @@
 import { enhanceWebinarsWithHostInfo } from './hostInfoProcessor.ts';
 import { enhanceWebinarsWithPanelistData } from './panellistDataProcessor.ts';
 import { enhanceWebinarsWithParticipantData } from './participantDataProcessor.ts';
+import { enhanceWebinarsWithRecordingData, storeRecordingData } from './recordingDataProcessor.ts';
 
 /**
- * Orchestrates the enhancement of webinar data with host, panelist, and participant information
+ * Orchestrates the enhancement of webinar data with host, panelist, participant, and recording information
  */
-export async function enhanceWebinarsWithAllData(webinars: any[], token: string) {
+export async function enhanceWebinarsWithAllData(webinars: any[], token: string, supabase?: any, userId?: string) {
   console.log(`[zoom-api][enhancement-orchestrator] Starting enhancement process for ${webinars.length} webinars`);
   
   if (!webinars || webinars.length === 0) {
@@ -25,7 +26,30 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string)
     
     // Step 3: Enhance with participant data for completed webinars
     console.log(`[zoom-api][enhancement-orchestrator] Step 3: Enhancing with participant data`);
-    const enhancedWebinars = await enhanceWebinarsWithParticipantData(webinarsWithPanelistInfo, token);
+    const webinarsWithParticipantInfo = await enhanceWebinarsWithParticipantData(webinarsWithPanelistInfo, token);
+    
+    // Step 4: Enhance with recording data for completed webinars
+    console.log(`[zoom-api][enhancement-orchestrator] Step 4: Enhancing with recording data`);
+    const enhancedWebinars = await enhanceWebinarsWithRecordingData(webinarsWithParticipantInfo, token);
+    
+    // Step 5: Store recording data in database if supabase client is provided
+    if (supabase && userId) {
+      console.log(`[zoom-api][enhancement-orchestrator] Step 5: Storing recording data in database`);
+      let totalRecordingsStored = 0;
+      
+      for (const webinar of enhancedWebinars) {
+        if (webinar.recording_data) {
+          try {
+            const storedCount = await storeRecordingData(supabase, userId, webinar.id, webinar.recording_data);
+            totalRecordingsStored += storedCount;
+          } catch (error) {
+            console.error(`[zoom-api][enhancement-orchestrator] Error storing recordings for webinar ${webinar.id}:`, error);
+          }
+        }
+      }
+      
+      console.log(`[zoom-api][enhancement-orchestrator] Stored ${totalRecordingsStored} recordings in database`);
+    }
     
     console.log(`[zoom-api][enhancement-orchestrator] Enhancement completed successfully for ${enhancedWebinars.length} webinars`);
     return enhancedWebinars;
