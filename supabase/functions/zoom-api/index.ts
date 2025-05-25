@@ -1,8 +1,9 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import { corsHeaders } from './cors.ts';
-import { getZoomCredentials } from './credentials.ts';
+import { getZoomCredentials, handleSaveCredentials, handleCheckCredentialsStatus, handleVerifyCredentials } from './credentials.ts';
 import { getZoomJwtToken } from './auth.ts';
 
 import { handleListWebinars } from './handlers/listWebinars.ts';
@@ -63,13 +64,21 @@ async function handleRequest(req: Request): Promise<Response> {
       throw new Error('Authentication failed');
     }
 
-    // Get user's Zoom credentials
-    const credentials = await getZoomCredentials(supabase, user.id);
-
     // Route to appropriate handler
     switch (action) {
+      case 'check-credentials-status':
+        return await handleCheckCredentialsStatus(req, supabase, user);
+      
+      case 'save-credentials':
+        return await handleSaveCredentials(req, supabase, user, { action, ...params });
+      
+      case 'verify-credentials':
+        const credentials = await getZoomCredentials(supabase, user.id);
+        return await handleVerifyCredentials(req, supabase, user, credentials);
+      
       case 'list-webinars':
-        return await handleListWebinars(req, supabase, user, credentials, params.force_sync || false);
+        const listCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleListWebinars(req, supabase, user, listCredentials, params.force_sync || false);
       
       case 'get-webinar':
         return await handleGetWebinar(req, supabase, user, credentials);
