@@ -1,6 +1,5 @@
-
 import { ZoomWebinar } from '@/hooks/zoom';
-import { startOfMonth, subMonths, isAfter, isBefore } from 'date-fns';
+import { startOfMonth, subMonths, isAfter, isBefore, format } from 'date-fns';
 
 export const getTotalWebinars = (webinars: ZoomWebinar[]): number => webinars.length;
 

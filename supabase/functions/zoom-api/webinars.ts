@@ -1,7 +1,74 @@
+
 import { corsHeaders } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
 
-// Handle listing webinars
+// Helper function to generate monthly date ranges for the last 6 months
+function generateMonthlyDateRanges(monthsBack = 6): Array<{ from: string; to: string }> {
+  const ranges = [];
+  const today = new Date();
+  
+  for (let i = 0; i < monthsBack; i++) {
+    // Calculate the start of the month for i months ago
+    const monthDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const startOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+    const endOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+    
+    // Format dates as YYYY-MM-DD
+    const fromDate = startOfMonth.toISOString().split('T')[0];
+    const toDate = endOfMonth.toISOString().split('T')[0];
+    
+    ranges.push({ from: fromDate, to: toDate });
+  }
+  
+  return ranges;
+}
+
+// Enhanced function to fetch webinars for a specific month
+async function fetchWebinarsForMonth(token: string, userId: string, from: string, to: string): Promise<any[]> {
+  console.log(`[zoom-api][monthly-fetch] Fetching webinars from ${from} to ${to}`);
+  
+  let allWebinars = [];
+  let nextPageToken = '';
+  let pageNum = 1;
+  
+  do {
+    const url = new URL(`https://api.zoom.us/v2/users/${userId}/webinars`);
+    url.searchParams.append('page_size', '300');
+    url.searchParams.append('from', from);
+    url.searchParams.append('to', to);
+    
+    if (nextPageToken) {
+      url.searchParams.append('next_page_token', nextPageToken);
+    }
+    
+    const response = await fetch(url.toString(), {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error(`[zoom-api][monthly-fetch] Error fetching month ${from}-${to}:`, errorData);
+      throw new Error(`Failed to fetch webinars for ${from} to ${to}: ${errorData.message || 'Unknown error'}`);
+    }
+    
+    const data = await response.json();
+    const webinars = data.webinars || [];
+    
+    console.log(`[zoom-api][monthly-fetch] Page ${pageNum}: fetched ${webinars.length} webinars`);
+    
+    allWebinars = allWebinars.concat(webinars);
+    nextPageToken = data.next_page_token || '';
+    pageNum++;
+    
+  } while (nextPageToken);
+  
+  return allWebinars;
+}
+
+// Handle listing webinars with enhanced monthly fetching
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
   console.log(`[zoom-api][list-webinars] Starting action for user: ${user.id}, force_sync: ${force_sync}`);
   
@@ -49,7 +116,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     // Get token and fetch from Zoom API
     const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
-    console.log('[zoom-api][list-webinars] Got Zoom token, fetching webinars directly from Zoom');
+    console.log('[zoom-api][list-webinars] Got Zoom token, fetching webinars using monthly intervals for the past 6 months');
     
     // First try to get the user's email
     const meResponse = await fetch('https://api.zoom.us/v2/users/me', {
@@ -81,35 +148,75 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     const meData = await meResponse.json();
     console.log(`[zoom-api][list-webinars] Got user info for: ${meData.email}`);
 
-    // Now fetch the webinars
-    const response = await fetch(`https://api.zoom.us/v2/users/${meData.id}/webinars?page_size=300`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    // Generate monthly date ranges for the last 6 months
+    const monthlyRanges = generateMonthlyDateRanges(6);
+    console.log(`[zoom-api][list-webinars] Fetching webinars for ${monthlyRanges.length} monthly periods`);
     
-    const responseData = await response.json();
+    // Fetch webinars for each month in parallel
+    const monthlyWebinarPromises = monthlyRanges.map(range => 
+      fetchWebinarsForMonth(token, meData.id, range.from, range.to)
+        .catch(error => {
+          console.error(`[zoom-api][list-webinars] Failed to fetch webinars for ${range.from} to ${range.to}:`, error);
+          return []; // Return empty array on error to continue with other months
+        })
+    );
     
-    if (!response.ok) {
-      console.error('[zoom-api][list-webinars] Zoom webinars error:', responseData);
-      
-      if (responseData.code === 4700) {
-        throw new Error('Webinar capabilities not enabled for this Zoom account. This feature requires a Zoom paid plan with webinar add-on.');
-      } else if (responseData.code === 4711 || responseData.message?.includes('scopes')) {
-        throw new Error('Missing required OAuth webinar scopes. Please add webinar:read:webinar:admin to your Zoom app.');
-      } else {
-        throw new Error(`Failed to fetch webinars: ${responseData.message || 'Unknown error'} (Code: ${responseData.code || 'Unknown'})`);
+    const monthlyResults = await Promise.all(monthlyWebinarPromises);
+    
+    // Combine and deduplicate webinars from all months
+    const allWebinars = [];
+    const seenWebinarIds = new Set();
+    
+    for (const monthWebinars of monthlyResults) {
+      for (const webinar of monthWebinars) {
+        if (!seenWebinarIds.has(webinar.id)) {
+          seenWebinarIds.add(webinar.id);
+          allWebinars.push(webinar);
+        }
       }
     }
     
-    console.log(`[zoom-api][list-webinars] Successfully fetched ${responseData.webinars?.length || 0} webinars from Zoom API`);
+    console.log(`[zoom-api][monthly-fetch] Total unique webinars fetched: ${allWebinars.length}`);
+    
+    // Also supplement with regular API for very recent webinars to ensure completeness
+    console.log('[zoom-api][list-webinars] Supplementing with regular API for recent webinars');
+    try {
+      const recentResponse = await fetch(`https://api.zoom.us/v2/users/${meData.id}/webinars?page_size=300`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (recentResponse.ok) {
+        const recentData = await recentResponse.json();
+        const recentWebinars = recentData.webinars || [];
+        
+        // Add any recent webinars not already in our collection
+        let newRecentCount = 0;
+        for (const webinar of recentWebinars) {
+          if (!seenWebinarIds.has(webinar.id)) {
+            seenWebinarIds.add(webinar.id);
+            allWebinars.push(webinar);
+            newRecentCount++;
+          }
+        }
+        console.log(`[zoom-api][list-webinars] Regular API page 1: added ${newRecentCount} new webinars`);
+      }
+    } catch (recentError) {
+      console.warn('[zoom-api][list-webinars] Failed to fetch recent webinars, continuing with monthly data:', recentError);
+    }
+    
+    console.log(`[zoom-api][list-webinars] Total webinars fetched from all sources: ${allWebinars.length}`);
     
     let itemsUpdated = 0;
+    let newWebinars = 0;
+    let updatedWebinars = 0;
+    let removedWebinars = 0;
     let existingWebinars = [];
     
-    // If there are webinars, compare with existing data to detect changes
-    if (responseData.webinars && responseData.webinars.length > 0) {
+    // If there are webinars, process them with participant data for completed webinars
+    if (allWebinars && allWebinars.length > 0) {
       // Get existing webinars for comparison
       const { data: existingData } = await supabase
         .from('zoom_webinars')
@@ -120,7 +227,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       
       // For each webinar, get participant counts for completed webinars
       const webinarsWithParticipantData = await Promise.all(
-        responseData.webinars.map(async (webinar: any) => {
+        allWebinars.map(async (webinar: any) => {
           // Only fetch participant data for completed webinars
           const webinarStartTime = new Date(webinar.start_time);
           const isCompleted = webinar.status === 'ended' || 
@@ -170,28 +277,36 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         })
       );
       
-      // Update the responseData with enhanced webinars
-      responseData.webinars = webinarsWithParticipantData;
+      // Update the allWebinars with enhanced data
+      allWebinars.splice(0, allWebinars.length, ...webinarsWithParticipantData);
       
       // Compare and detect changes
-      for (const webinar of responseData.webinars) {
+      for (const webinar of allWebinars) {
         const existing = existingWebinars.find(w => w.webinar_id === webinar.id.toString());
         
-        if (!existing || 
-            existing.topic !== webinar.topic ||
-            existing.start_time !== webinar.start_time ||
-            existing.duration !== webinar.duration ||
-            existing.agenda !== webinar.agenda ||
-            existing.status !== webinar.status ||
-            JSON.stringify(existing.raw_data) !== JSON.stringify(webinar)) {
+        if (!existing) {
+          newWebinars++;
+          itemsUpdated++;
+        } else if (
+          existing.topic !== webinar.topic ||
+          existing.start_time !== webinar.start_time ||
+          existing.duration !== webinar.duration ||
+          existing.agenda !== webinar.agenda ||
+          existing.status !== webinar.status ||
+          JSON.stringify(existing.raw_data) !== JSON.stringify(webinar)) {
+          updatedWebinars++;
           itemsUpdated++;
         }
       }
       
-      console.log(`[zoom-api][list-webinars] Detected ${itemsUpdated} webinars with changes out of ${responseData.webinars.length} total`);
+      // Check for removed webinars (exist in DB but not in API)
+      const apiWebinarIds = new Set(allWebinars.map(w => w.id.toString()));
+      removedWebinars = existingWebinars.filter(w => !apiWebinarIds.has(w.webinar_id)).length;
+      
+      console.log(`[zoom-api][list-webinars] Detected ${newWebinars} new, ${updatedWebinars} updated, ${removedWebinars} removed webinars`);
       
       // If changes detected or force sync, update the database
-      if (itemsUpdated > 0 || force_sync) {
+      if (itemsUpdated > 0 || removedWebinars > 0 || force_sync) {
         // First delete existing webinars for this user
         const { error: deleteError } = await supabase
           .from('zoom_webinars')
@@ -203,7 +318,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         }
         
         // Insert new webinars
-        const webinarsToInsert = responseData.webinars.map((webinar: any) => ({
+        const webinarsToInsert = allWebinars.map((webinar: any) => ({
           user_id: user.id,
           webinar_id: webinar.id,
           webinar_uuid: webinar.uuid,
@@ -234,7 +349,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
             sync_type: 'webinars',
             status: 'success',
             items_synced: webinarsToInsert.length,
-            message: `Successfully synced ${webinarsToInsert.length} webinars with ${itemsUpdated} changes detected`
+            message: `Successfully synced ${webinarsToInsert.length} webinars (${newWebinars} new, ${updatedWebinars} updated, ${removedWebinars} removed) using monthly intervals for the past 6 months`
           });
           
         console.log(`[zoom-api][list-webinars] Database updated with ${webinarsToInsert.length} webinars`);
@@ -247,7 +362,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
             sync_type: 'webinars',
             status: 'success',
             items_synced: 0,
-            message: `No changes detected in ${responseData.webinars.length} webinars`
+            message: `No changes detected in ${allWebinars.length} webinars from 6-month historical fetch`
           });
           
         console.log('[zoom-api][list-webinars] No changes detected, database not updated');
@@ -261,18 +376,31 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
           sync_type: 'webinars',
           status: 'success',
           items_synced: 0,
-          message: 'No webinars found to sync'
+          message: 'No webinars found in 6-month historical fetch'
         });
         
       console.log('[zoom-api][list-webinars] No webinars found in Zoom account');
     }
     
+    // Log summary
+    console.log('[zoom-api][list-webinars] Sync summary:');
+    console.log(`  - Total webinars from API: ${allWebinars.length}`);
+    console.log(`  - New webinars: ${newWebinars}`);
+    console.log(`  - Updated webinars: ${updatedWebinars}`);
+    console.log(`  - Removed webinars: ${removedWebinars}`);
+    console.log(`  - Force sync: ${force_sync}`);
+    
+    console.log(`[zoom-api][list-webinars] Successfully synced ${allWebinars.length} webinars (${newWebinars} new, ${updatedWebinars} updated, ${removedWebinars} removed) using monthly intervals for the past 6 months`);
+    
     return new Response(JSON.stringify({ 
-      webinars: responseData.webinars || [],
+      webinars: allWebinars || [],
       source: 'api',
       syncResults: {
-        itemsFetched: responseData.webinars?.length || 0,
-        itemsUpdated: itemsUpdated
+        itemsFetched: allWebinars?.length || 0,
+        itemsUpdated: itemsUpdated,
+        newWebinars: newWebinars,
+        updatedWebinars: updatedWebinars,
+        removedWebinars: removedWebinars
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
