@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -21,7 +22,8 @@ import {
   PaginationNext,
   PaginationPrevious
 } from '@/components/ui/pagination';
-import { Search, Download } from 'lucide-react';
+import { Search, Download, AlertTriangle, Info } from 'lucide-react';
+import { WebinarParticipantSyncButton } from '../WebinarParticipantSyncButton';
 
 interface WebinarParticipantsTabProps {
   webinar: ZoomWebinar;
@@ -91,10 +93,23 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState('10');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // Explicitly type cast to handle each type correctly
   const registrants = participants.registrants as Registrant[] || [];
   const attendees = participants.attendees as Attendee[] || [];
+  
+  // Get participant counts from webinar metadata
+  const expectedParticipants = webinar.participants_count || 0;
+  const expectedRegistrants = webinar.registrants_count || 0;
+  const actualParticipants = attendees.length;
+  const actualRegistrants = registrants.length;
+  
+  // Check for data inconsistencies
+  const hasMissingAttendees = expectedParticipants > 0 && actualParticipants === 0;
+  const hasIncompleteAttendees = expectedParticipants > actualParticipants;
+  const hasMissingRegistrants = expectedRegistrants > 0 && actualRegistrants === 0;
+  const hasIncompleteRegistrants = expectedRegistrants > actualRegistrants;
   
   // Use the appropriate array based on the selected tab
   const displayParticipants = participantType === 'registrants' ? registrants : attendees;
@@ -157,18 +172,64 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   const startIndex = isShowingAll ? 1 : (validCurrentPage - 1) * itemsPerPageNum + 1;
   const endIndex = isShowingAll ? totalParticipants : Math.min(validCurrentPage * itemsPerPageNum, totalParticipants);
   
+  const handleSyncComplete = () => {
+    // Trigger a refresh by incrementing the trigger
+    setRefreshTrigger(prev => prev + 1);
+    // In a real implementation, this would trigger a refetch of the participants data
+    window.location.reload(); // Simple refresh for now
+  };
+  
   return (
     <div>
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
         <h2 className="text-xl font-semibold">Webinar Participants</h2>
         
         <div className="flex flex-col sm:flex-row gap-2">
+          <WebinarParticipantSyncButton
+            webinarId={webinar.id}
+            onSyncComplete={handleSyncComplete}
+            hasParticipants={actualParticipants > 0}
+            participantsCount={expectedParticipants}
+            actualParticipants={actualParticipants}
+          />
+          
           <Button variant="outline" className="gap-1">
             <Download className="h-4 w-4" />
             <span>Export</span>
           </Button>
         </div>
       </div>
+      
+      {/* Data Status Alerts */}
+      {hasMissingAttendees && (
+        <Alert className="mb-4 border-destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Missing Attendee Data:</strong> This webinar shows {expectedParticipants} participants in the metadata 
+            but no attendee records were found. Use the sync button above to fetch the missing data from Zoom.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {hasIncompleteAttendees && !hasMissingAttendees && (
+        <Alert className="mb-4 border-yellow-500">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Incomplete Attendee Data:</strong> Expected {expectedParticipants} participants 
+            but only found {actualParticipants}. Some data may be missing.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {(hasMissingRegistrants || hasIncompleteRegistrants) && (
+        <Alert className="mb-4 border-yellow-500">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Registrant Data Issue:</strong> Expected {expectedRegistrants} registrants 
+            but found {actualRegistrants}. {hasMissingRegistrants ? 'All data is missing.' : 'Some data may be incomplete.'}
+          </AlertDescription>
+        </Alert>
+      )}
       
       <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
         <Tabs 
@@ -178,10 +239,16 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
         >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="registrants">
-              Registrants ({registrants.length})
+              Registrants ({actualRegistrants})
+              {expectedRegistrants !== actualRegistrants && (
+                <span className="ml-1 text-xs opacity-70">/{expectedRegistrants}</span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="attendees">
-              Attendees ({attendees.length})
+              Attendees ({actualParticipants})
+              {expectedParticipants !== actualParticipants && (
+                <span className="ml-1 text-xs opacity-70">/{expectedParticipants}</span>
+              )}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -236,7 +303,14 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
             {paginatedParticipants.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
-                  No participants found
+                  {(participantType === 'attendees' && hasMissingAttendees) ? (
+                    <div className="space-y-2">
+                      <p>No attendee data found</p>
+                      <p className="text-sm">Use the sync button above to fetch attendee data from Zoom</p>
+                    </div>
+                  ) : (
+                    "No participants found"
+                  )}
                 </TableCell>
               </TableRow>
             ) : (

@@ -1,24 +1,20 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
-import { PlusCircle, ArrowLeft, Settings, LoaderCircle, RefreshCw } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { RefreshCw, Settings, Plus } from 'lucide-react';
+import { UpdateParticipantDataButton } from '@/components/dashboard/charts/UpdateParticipantDataButton';
+import { BulkParticipantSyncButton } from './BulkParticipantSyncButton';
+import { ZoomWebinar } from '@/hooks/zoom';
 
 interface WebinarHeaderProps {
-  errorDetails: {
-    isMissingCredentials: boolean;
-    isScopesError: boolean;
-  };
+  errorDetails: any;
   isRefetching: boolean;
   isLoading: boolean;
   refreshWebinars: (force?: boolean) => Promise<void>;
   lastSyncTime: Date | null;
   onSetupZoom: () => void;
-  credentialsStatus: {
-    hasCredentials: boolean;
-    isVerified: boolean;
-  } | null;
+  credentialsStatus: any;
+  webinars?: ZoomWebinar[];
 }
 
 export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
@@ -28,75 +24,66 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
   refreshWebinars,
   lastSyncTime,
   onSetupZoom,
-  credentialsStatus
+  credentialsStatus,
+  webinars = []
 }) => {
-  const [isCreateLoading, setIsCreateLoading] = React.useState(false);
+  const hasCredentials = credentialsStatus?.hasCredentials;
+  const isDisabled = isLoading || isRefetching || !hasCredentials;
 
-  const handleCreateWebinar = () => {
-    setIsCreateLoading(true);
-    toast({
-      title: "Feature Coming Soon",
-      description: "Creating webinars will be available in a future update.",
-    });
-    setTimeout(() => setIsCreateLoading(false), 1000);
+  const handleRefresh = async () => {
+    await refreshWebinars(true);
   };
 
-  const handleForceSync = async () => {
-    // Toast to indicate sync is starting
-    const syncToast = toast({
-      title: "Syncing webinars",
-      description: "Retrieving data from Zoom...",
-    });
-
-    try {
-      // Pass true to force a full sync from the Zoom API
-      await refreshWebinars(true);
-      
-      // Success toast will be shown by the operation itself
-      // We don't need to show another toast here
-    } catch (error) {
-      // Error handling is done in the operation itself
-    } finally {
-      // Dismiss the syncing toast
-      syncToast.dismiss();
-    }
+  const handleParticipantSync = () => {
+    // This will be called when bulk sync completes
+    refreshWebinars();
   };
 
   return (
-    <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Webinars</h1>
-        <p className="text-muted-foreground">Manage and analyze your Zoom webinar events</p>
+        <h1 className="text-3xl font-bold">Webinars</h1>
+        <p className="text-muted-foreground mt-1">
+          Manage and analyze your Zoom webinars
+          {lastSyncTime && (
+            <span className="ml-2 text-sm">
+              • Last synced: {lastSyncTime.toLocaleString()}
+            </span>
+          )}
+        </p>
       </div>
-      <div className="flex gap-2">
-        {credentialsStatus?.hasCredentials ? (
+      
+      <div className="flex flex-col sm:flex-row gap-2">
+        {hasCredentials && (
           <>
-            <Button onClick={handleCreateWebinar} disabled={isCreateLoading}>
-              {isCreateLoading ? (
-                <LoaderCircle className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <PlusCircle className="h-4 w-4 mr-2" />
-              )}
-              Create Webinar
-            </Button>
-            <Button variant="outline" onClick={onSetupZoom}>
-              <Settings className="h-4 w-4 mr-2" />
-              Zoom Settings
-            </Button>
+            <BulkParticipantSyncButton
+              webinars={webinars}
+              onSyncComplete={handleParticipantSync}
+            />
+            
+            <UpdateParticipantDataButton
+              isUpdating={isRefetching}
+              isDisabled={isDisabled}
+              onUpdate={handleParticipantSync}
+            />
           </>
-        ) : (
-          <>
-            <Button onClick={onSetupZoom}>
-              <Settings className="h-4 w-4 mr-2" />
-              Connect Zoom Account
-            </Button>
-            <Button variant="outline" asChild>
-              <Link to="/dashboard">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Link>
-            </Button>
-          </>
+        )}
+        
+        <Button
+          variant="outline"
+          onClick={handleRefresh}
+          disabled={isDisabled}
+          className="gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
+          {isRefetching ? 'Syncing...' : 'Refresh'}
+        </Button>
+        
+        {!hasCredentials && (
+          <Button onClick={onSetupZoom} className="gap-2">
+            <Settings className="h-4 w-4" />
+            Setup Zoom
+          </Button>
         )}
       </div>
     </div>
