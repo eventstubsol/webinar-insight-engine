@@ -1,4 +1,3 @@
-
 import { QueryClient } from '@tanstack/react-query';
 import { 
   refreshWebinarsFromAPI, 
@@ -49,7 +48,7 @@ async function executeWithTimeout<T>(
 }
 
 /**
- * Refresh webinars operation with improved error handling and timeout safety
+ * Refresh webinars operation with non-destructive sync and improved error handling
  */
 export async function refreshWebinarsOperation(
   userId: string | undefined,
@@ -70,7 +69,7 @@ export async function refreshWebinarsOperation(
   let participantsUpdated = 0;
   
   try {
-    console.log(`[refreshWebinarsOperation] Starting refresh with force=${force} for user ${userId}`);
+    console.log(`[refreshWebinarsOperation] Starting non-destructive refresh with force=${force} for user ${userId}`);
     
     // Make the API call to fetch fresh data from Zoom with timeout protection
     const refreshData = await executeWithTimeout(
@@ -80,7 +79,7 @@ export async function refreshWebinarsOperation(
         timeoutTriggered = true;
         toast({
           title: 'Sync taking longer than expected',
-          description: 'The operation is still running in the background. You can continue using the app.',
+          description: 'The operation is still running in the background. Historical data will be preserved.',
           variant: 'default'
         });
       }
@@ -100,20 +99,28 @@ export async function refreshWebinarsOperation(
     // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
     
-    // Show a consolidated notification with both webinar and participant data
+    // Show enhanced notification with non-destructive sync results
     if (refreshData.syncResults) {
-      const webinarsUpdated = refreshData.syncResults.itemsUpdated || 0;
+      const { 
+        newWebinars = 0, 
+        updatedWebinars = 0, 
+        preservedWebinars = 0, 
+        totalWebinars = 0,
+        dataRange 
+      } = refreshData.syncResults;
+      
+      const syncMessage = `${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`;
+      const totalMessage = `Total: ${totalWebinars} webinars${dataRange?.oldest ? ` (from ${new Date(dataRange.oldest).toLocaleDateString()})` : ''}`;
+      const participantMessage = participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : '';
       
       toast({
-        title: 'Sync completed successfully',
-        description: `Updated ${webinarsUpdated} webinars${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`,
-        variant: 'success'
+        title: 'Non-destructive sync completed',
+        description: `${syncMessage}. ${totalMessage}${participantMessage}`,
+        variant: 'default'
       });
     } else {
-      toast({
-        title: 'Webinars synced',
-        description: `Webinar data has been updated from Zoom${participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : ''}`
-      });
+      // Fallback for backward compatibility
+      showSyncSuccessNotification(refreshData);
     }
   } catch (err: any) {
     isCompleted = true;
@@ -124,18 +131,18 @@ export async function refreshWebinarsOperation(
     if (timeoutTriggered) {
       toast({
         title: 'Sync may be incomplete',
-        description: 'The operation took too long. Data may be partially updated.',
+        description: 'The operation took too long. Historical data has been preserved.',
         variant: 'warning'
       });
     } else {
-      showErrorNotification(err, 'Sync failed');
+      showErrorNotification(err, 'Non-destructive sync failed');
     }
     
     throw err;
   } finally {
     // Ensure that even if there's an uncaught exception, we set isCompleted
     // This flag can be used by the calling code to reset UI states
-    console.log(`[refreshWebinarsOperation] Operation completed: ${isCompleted}`);
+    console.log(`[refreshWebinarsOperation] Non-destructive operation completed: ${isCompleted}`);
   }
 }
 

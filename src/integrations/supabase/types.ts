@@ -963,6 +963,7 @@ export type Database = {
           is_simulive: boolean | null
           join_url: string | null
           language: string | null
+          last_synced_at: string | null
           on_demand: boolean | null
           panelists_video: boolean | null
           password: string | null
@@ -1001,6 +1002,7 @@ export type Database = {
           is_simulive?: boolean | null
           join_url?: string | null
           language?: string | null
+          last_synced_at?: string | null
           on_demand?: boolean | null
           panelists_video?: boolean | null
           password?: string | null
@@ -1039,6 +1041,7 @@ export type Database = {
           is_simulive?: boolean | null
           join_url?: string | null
           language?: string | null
+          last_synced_at?: string | null
           on_demand?: boolean | null
           panelists_video?: boolean | null
           password?: string | null
