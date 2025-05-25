@@ -35,7 +35,7 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   const uniqueViewers = new Set(participants.attendees.map(a => a.user_email)).size;
   const totalUsers = participants.attendees.length;
   
-  // Extract presenters and panelists from webinar data if available
+  // Extract presenter and panelists from webinar data
   const presenter = webinar.raw_data?.alternative_host || webinar.host_email;
   const panelists = webinar.raw_data?.panelists || [];
   
@@ -87,23 +87,24 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
                 <span className="font-medium">Presenter:</span> {presenter}
               </div>
               
-              {panelists.length > 0 ? (
-                panelists.map((panelist: any, index: number) => (
-                  <React.Fragment key={index}>
-                    <Users className="h-4 w-4 text-muted-foreground mt-1" />
-                    <div>
-                      <span className="font-medium">Panelist:</span> {panelist.name || panelist.email || 'Unknown'}
-                    </div>
-                  </React.Fragment>
-                ))
-              ) : (
-                <>
-                  <Users className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div>
-                    <span className="font-medium">Panelist:</span> None
+              <Users className="h-4 w-4 text-muted-foreground mt-1" />
+              <div>
+                <span className="font-medium">Panelists:</span>{' '}
+                {panelists.length > 0 ? (
+                  <div className="mt-1">
+                    {panelists.map((panelist: any, index: number) => (
+                      <div key={index} className="text-sm text-muted-foreground ml-4">
+                        • {panelist.name || panelist.email || `Panelist ${index + 1}`}
+                        {panelist.email && panelist.name && (
+                          <span className="text-xs text-muted-foreground ml-1">({panelist.email})</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                </>
-              )}
+                ) : (
+                  'No panelists assigned'
+                )}
+              </div>
               
               <Video className="h-4 w-4 text-muted-foreground mt-1" />
               <div>

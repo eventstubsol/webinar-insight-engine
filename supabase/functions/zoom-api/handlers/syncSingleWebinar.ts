@@ -1,4 +1,3 @@
-
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 
@@ -36,6 +35,32 @@ async function getHostInfo(token: string, webinarData: any) {
   return { hostEmail, hostId };
 }
 
+// Enhanced helper function to get panelist information for single webinar
+async function getPanelistInfo(token: string, webinarId: string) {
+  console.log(`[zoom-api][sync-single-webinar] Fetching panelist info for webinar: ${webinarId}`);
+  
+  try {
+    const panelistResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/panelists`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (panelistResponse.ok) {
+      const panelistData = await panelistResponse.json();
+      console.log(`[zoom-api][sync-single-webinar] Successfully fetched ${panelistData.panelists?.length || 0} panelists for webinar ${webinarId}`);
+      return panelistData.panelists || [];
+    } else {
+      console.log(`[zoom-api][sync-single-webinar] No panelists found or error for webinar ${webinarId}: ${panelistResponse.status}`);
+      return [];
+    }
+  } catch (error) {
+    console.error(`[zoom-api][sync-single-webinar] Error fetching panelist info for webinar ${webinarId}:`, error);
+    return [];
+  }
+}
+
 // Handle syncing a single webinar's complete data
 export async function handleSyncSingleWebinar(req: Request, supabase: any, user: any, credentials: any, webinarId: string) {
   if (!webinarId) {
@@ -53,11 +78,13 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
     attendees_synced: 0,
     instances_synced: 0,
     host_info_resolved: false,
+    panelist_info_resolved: false,
+    panelists_count: 0,
     error_details: []
   };
   
   try {
-    // 1. Sync webinar metadata with enhanced host resolution
+    // 1. Sync webinar metadata with enhanced host and panelist resolution
     console.log(`[zoom-api][sync-single-webinar] Fetching webinar metadata for: ${webinarId}`);
     const webinarRes = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
       headers: {
@@ -79,7 +106,21 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
         console.warn(`[zoom-api][sync-single-webinar] Could not resolve host email for webinar: ${webinarId}`);
       }
       
-      // Update webinar in database with enhanced host information
+      // Enhanced panelist information resolution
+      const panelistData = await getPanelistInfo(token, webinarId);
+      if (panelistData.length > 0) {
+        syncResults.panelist_info_resolved = true;
+        syncResults.panelists_count = panelistData.length;
+        console.log(`[zoom-api][sync-single-webinar] Panelist info resolved: ${panelistData.length} panelists`);
+        
+        // Add panelist data to webinar raw_data
+        webinarData.panelists = panelistData;
+        webinarData.panelists_count = panelistData.length;
+      } else {
+        console.log(`[zoom-api][sync-single-webinar] No panelists found for webinar: ${webinarId}`);
+      }
+      
+      // Update webinar in database with enhanced host and panelist information
       const { error: webinarError } = await supabase
         .from('zoom_webinars')
         .upsert({
@@ -107,7 +148,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       } else {
         syncResults.webinar_updated = true;
         totalItemsSynced += 1;
-        console.log(`[zoom-api][sync-single-webinar] Updated webinar metadata for: ${webinarId} with host: ${hostEmail || 'unknown'}`);
+        console.log(`[zoom-api][sync-single-webinar] Updated webinar metadata for: ${webinarId} with host: ${hostEmail || 'unknown'} and ${syncResults.panelists_count} panelists`);
       }
     } else {
       const errorText = await webinarRes.text();
@@ -265,8 +306,8 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       console.log(`[zoom-api][sync-single-webinar] No instances found or error:`, errorText);
     }
     
-    // Record sync in history with enhanced results
-    const syncMessage = `Single webinar sync for ${webinarId}: ${syncResults.registrants_synced} registrants, ${syncResults.attendees_synced} attendees, ${syncResults.instances_synced} instances, host info: ${syncResults.host_info_resolved ? 'resolved' : 'missing'}`;
+    // Record sync in history with enhanced results including panelist info
+    const syncMessage = `Single webinar sync for ${webinarId}: ${syncResults.registrants_synced} registrants, ${syncResults.attendees_synced} attendees, ${syncResults.instances_synced} instances, host info: ${syncResults.host_info_resolved ? 'resolved' : 'missing'}, panelists: ${syncResults.panelists_count}`;
     
     await supabase
       .from('zoom_sync_history')
@@ -279,7 +320,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
         sync_details: syncResults
       });
     
-    console.log(`[zoom-api][sync-single-webinar] Completed sync for webinar: ${webinarId}, total items: ${totalItemsSynced}, host resolved: ${syncResults.host_info_resolved}`);
+    console.log(`[zoom-api][sync-single-webinar] Completed sync for webinar: ${webinarId}, total items: ${totalItemsSynced}, host resolved: ${syncResults.host_info_resolved}, panelists: ${syncResults.panelists_count}`);
     
     return new Response(JSON.stringify({
       success: true,

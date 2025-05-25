@@ -1,8 +1,8 @@
-
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 import { fetchWebinarsFromZoomAPI, performNonDestructiveUpsert } from './sync/nonDestructiveSync.ts';
 import { enhanceWebinarsWithParticipantData } from './sync/participantDataProcessor.ts';
+import { enhanceWebinarsWithPanelistData } from './sync/panellistDataProcessor.ts';
 import { calculateSyncStats, recordSyncHistory } from './sync/syncStatsCalculator.ts';
 import { checkDatabaseCache } from './sync/databaseCache.ts';
 
@@ -148,14 +148,18 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       dataRange: { oldest: null, newest: null }
     };
     
-    // If there are webinars, process them with enhanced host information and participant data
+    // If there are webinars, process them with enhanced host information, participant data, and panelist data
     if (allWebinars && allWebinars.length > 0) {
       // Enhance webinars with host information first
       const webinarsWithHostInfo = await enhanceWebinarsWithHostInfo(allWebinars, token);
       console.log(`[zoom-api][list-webinars] Enhanced ${webinarsWithHostInfo.length} webinars with host information`);
       
+      // Enhance webinars with panelist data
+      const webinarsWithPanelistInfo = await enhanceWebinarsWithPanelistData(webinarsWithHostInfo, token);
+      console.log(`[zoom-api][list-webinars] Enhanced ${webinarsWithPanelistInfo.length} webinars with panelist information`);
+      
       // Enhance webinars with participant data for completed webinars
-      const enhancedWebinars = await enhanceWebinarsWithParticipantData(webinarsWithHostInfo, token);
+      const enhancedWebinars = await enhanceWebinarsWithParticipantData(webinarsWithPanelistInfo, token);
       
       // Perform non-destructive upsert
       syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
@@ -170,7 +174,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         'webinars',
         'success',
         syncResults.newWebinars + syncResults.updatedWebinars,
-        `Non-destructive sync with host resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+        `Non-destructive sync with host and panelist resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
       );
     } else {
       // Record empty sync in history but still preserve existing data
