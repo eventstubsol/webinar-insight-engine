@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -22,7 +21,7 @@ import {
   PaginationNext,
   PaginationPrevious
 } from '@/components/ui/pagination';
-import { Search, Download, AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { Search, Download } from 'lucide-react';
 
 interface WebinarParticipantsTabProps {
   webinar: ZoomWebinar;
@@ -97,14 +96,6 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   const registrants = participants.registrants as Registrant[] || [];
   const attendees = participants.attendees as Attendee[] || [];
   
-  // Determine webinar completion status
-  const now = new Date();
-  const startTime = new Date(webinar.start_time);
-  const estimatedEndTime = new Date(startTime.getTime() + (webinar.duration || 60) * 60 * 1000);
-  const isCompleted = webinar.status === 'ended' || 
-                     webinar.status === 'aborted' ||
-                     (startTime < now && estimatedEndTime < now);
-
   // Use the appropriate array based on the selected tab
   const displayParticipants = participantType === 'registrants' ? registrants : attendees;
     
@@ -178,40 +169,6 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
           </Button>
         </div>
       </div>
-
-      {/* Show status alerts */}
-      {!isCompleted && (
-        <Alert className="mb-4">
-          <Clock className="h-4 w-4" />
-          <AlertDescription>
-            This webinar is still active or hasn't started yet. Attendee data will be available after the webinar ends.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isCompleted && attendees.length === 0 && participantType === 'attendees' && (
-        <Alert className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            No attendee data is available for this completed webinar yet. This could be because:
-            <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>The webinar just ended and Zoom is still processing the data</li>
-              <li>No one attended the webinar</li>
-              <li>There was an issue accessing the attendee data from Zoom</li>
-            </ul>
-            Try refreshing the data or check back in a few minutes.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {registrants.length > 0 && participantType === 'registrants' && (
-        <Alert className="mb-4">
-          <CheckCircle className="h-4 w-4" />
-          <AlertDescription>
-            Showing {registrants.length} registered participants for this webinar.
-          </AlertDescription>
-        </Alert>
-      )}
       
       <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
         <Tabs 
@@ -225,8 +182,6 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
             </TabsTrigger>
             <TabsTrigger value="attendees">
               Attendees ({attendees.length})
-              {!isCompleted && <Clock className="h-3 w-3 ml-1" />}
-              {isCompleted && attendees.length === 0 && <AlertCircle className="h-3 w-3 ml-1" />}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -280,24 +235,8 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
           <TableBody>
             {paginatedParticipants.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                  {participantType === 'attendees' && !isCompleted ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <Clock className="h-8 w-8" />
-                      <div>Attendee data will be available after the webinar ends</div>
-                    </div>
-                  ) : participantType === 'attendees' && isCompleted ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <AlertCircle className="h-8 w-8" />
-                      <div>No attendee data available</div>
-                      <div className="text-sm">Data may still be processing or no one attended</div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <AlertCircle className="h-8 w-8" />
-                      <div>No participants found</div>
-                    </div>
-                  )}
+                <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                  No participants found
                 </TableCell>
               </TableRow>
             ) : (

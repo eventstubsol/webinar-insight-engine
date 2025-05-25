@@ -52,14 +52,6 @@ export const DashboardStats = () => {
   const engagementTrend = { value: 0, label: "0%", direction: 'flat' as const };
   const durationTrend = { value: 0, label: "0%", direction: 'flat' as const };
   
-  // Check if we have any participant data
-  const hasParticipantData = webinars.some(w => 
-    (w.raw_data?.registrants_count && w.raw_data.registrants_count > 0) ||
-    (w.raw_data?.participants_count && w.raw_data.participants_count > 0) ||
-    (w.registrants_count && w.registrants_count > 0) ||
-    (w.participants_count && w.participants_count > 0)
-  );
-  
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
       <StatCard
@@ -74,7 +66,7 @@ export const DashboardStats = () => {
       <StatCard
         title="Total Registrants"
         value={isLoading ? undefined : getTotalRegistrants(webinars).toString()}
-        description={hasParticipantData ? "Registered participants" : "Sync needed for data"}
+        description="Registered participants"
         icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-sky-50 border-sky-200"
@@ -83,7 +75,7 @@ export const DashboardStats = () => {
       <StatCard
         title="Total Attendees"
         value={isLoading ? undefined : getTotalAttendees(webinars).toString()}
-        description={hasParticipantData ? "Attended participants" : "Sync needed for data"}
+        description="Attended participants"
         icon={<Users className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-sky-50 border-sky-200"
@@ -92,7 +84,7 @@ export const DashboardStats = () => {
       <StatCard
         title="Attendance Rate"
         value={isLoading ? undefined : getAttendanceRate(webinars)}
-        description={hasParticipantData ? "Attendance percentage" : "Sync needed for data"}
+        description="Attendance percentage"
         icon={<Activity className="h-3 w-3 sm:h-4 sm:w-4" />}
         isLoading={isLoading}
         cardColor="bg-green-50 border-green-200"

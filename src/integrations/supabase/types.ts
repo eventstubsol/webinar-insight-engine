@@ -15,7 +15,6 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
-          organization_id: string | null
           updated_at: string
         }
         Insert: {
@@ -23,7 +22,6 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
-          organization_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -31,18 +29,9 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
-          organization_id?: string | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -186,12 +175,8 @@ export type Database = {
           id: string
           items_synced: number
           message: string | null
-          pages_processed: number | null
           status: string
-          sync_details: Json | null
           sync_type: string
-          total_expected: number | null
-          total_retrieved: number | null
           user_id: string
           workspace_id: string | null
         }
@@ -200,12 +185,8 @@ export type Database = {
           id?: string
           items_synced?: number
           message?: string | null
-          pages_processed?: number | null
           status: string
-          sync_details?: Json | null
           sync_type: string
-          total_expected?: number | null
-          total_retrieved?: number | null
           user_id: string
           workspace_id?: string | null
         }
@@ -214,12 +195,8 @@ export type Database = {
           id?: string
           items_synced?: number
           message?: string | null
-          pages_processed?: number | null
           status?: string
-          sync_details?: Json | null
           sync_type?: string
-          total_expected?: number | null
-          total_retrieved?: number | null
           user_id?: string
           workspace_id?: string | null
         }
@@ -1100,20 +1077,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      check_column_exists_in_table: {
-        Args: { p_table_name: string; p_column_name: string }
-        Returns: boolean
-      }
-      get_zoom_api_settings: {
-        Args: { org_id: string }
-        Returns: {
-          id: string
-          account_id: string
-          client_id: string
-          client_secret: string
-          redirect_uri: string
-        }[]
-      }
       has_role: {
         Args: {
           check_user_id: string
@@ -1124,19 +1087,6 @@ export type Database = {
       is_workspace_member: {
         Args: { workspace_id: string; check_role?: string }
         Returns: boolean
-      }
-      mark_webinar_changes: {
-        Args: { webinar_id: string; changed_fields_json: Json }
-        Returns: undefined
-      }
-      upsert_zoom_api_settings: {
-        Args: {
-          p_account_id: string
-          p_client_id: string
-          p_client_secret: string
-          p_organization_id: string
-        }
-        Returns: string
       }
     }
     Enums: {

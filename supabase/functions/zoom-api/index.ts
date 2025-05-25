@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.1";
 import { corsHeaders, handleCors, addCorsHeaders, createErrorResponse } from "./cors.ts";
@@ -16,8 +17,6 @@ import {
   handleGetWebinarInstances,
   handleGetInstanceParticipants
 } from "./webinars.ts";
-import { handleComprehensiveSync } from "./handlers/comprehensiveSync.ts";
-import { handleChunkedSync } from "./handlers/chunkedSync.ts";
 
 // Maximum timeout for operations (30 seconds)
 const OPERATION_TIMEOUT = 30000;
@@ -124,59 +123,6 @@ serve(async (req: Request) => {
           response = await executeWithTimeout(
             () => handleVerifyCredentials(req, supabaseAdmin, user, verifyCredentials),
             OPERATION_TIMEOUT
-          );
-          break;
-        
-        case "chunked-sync":
-          // Get Zoom credentials for chunked sync
-          const chunkedCredentials = await getZoomCredentials(supabaseAdmin, user.id);
-          if (!chunkedCredentials) {
-            return createErrorResponse("Zoom credentials not found", 400);
-          }
-          
-          // Verify credentials
-          await verifyZoomCredentials(chunkedCredentials);
-          
-          // Parse chunked sync options
-          const chunkOptions = {
-            dataType: body.options?.dataType || 'participants',
-            webinarIds: body.options?.webinarIds || [],
-            batchSize: body.options?.batchSize || 5,
-            chunkIndex: body.options?.chunkIndex || 0,
-            totalChunks: body.options?.totalChunks || 1
-          };
-          
-          response = await executeWithTimeout(
-            () => handleChunkedSync(req, supabaseAdmin, user, chunkedCredentials, chunkOptions),
-            OPERATION_TIMEOUT
-          );
-          break;
-      
-        case "comprehensive-sync":
-          // Get Zoom credentials for comprehensive sync
-          const comprehensiveCredentials = await getZoomCredentials(supabaseAdmin, user.id);
-          if (!comprehensiveCredentials) {
-            return createErrorResponse("Zoom credentials not found", 400);
-          }
-          
-          // Verify credentials
-          await verifyZoomCredentials(comprehensiveCredentials);
-          
-          // Parse comprehensive sync options
-          const syncOptions = {
-            includeParticipants: body.options?.includeParticipants ?? true,
-            includeInstances: body.options?.includeInstances ?? true,
-            includeChat: body.options?.includeChat ?? true,
-            includePolls: body.options?.includePolls ?? true,
-            includeQuestions: body.options?.includeQuestions ?? true,
-            includeRecordings: body.options?.includeRecordings ?? true,
-            includeEngagement: body.options?.includeEngagement ?? false,
-            batchSize: body.options?.batchSize ?? 5
-          };
-          
-          response = await executeWithTimeout(
-            () => handleComprehensiveSync(req, supabaseAdmin, user, comprehensiveCredentials, syncOptions),
-            60000 // Reduce to 60 seconds for basic sync only
           );
           break;
           
