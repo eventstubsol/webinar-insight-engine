@@ -1114,6 +1114,10 @@ export type Database = {
         Args: { workspace_id: string; check_role?: string }
         Returns: boolean
       }
+      mark_webinar_changes: {
+        Args: { webinar_id: string; changed_fields_json: Json }
+        Returns: undefined
+      }
       upsert_zoom_api_settings: {
         Args: {
           p_account_id: string
