@@ -1,52 +1,86 @@
-
 // Functions for syncing webinar data to database with enhanced host information
 export async function syncWebinarMetadata(
   supabase: any, 
   user: any, 
   webinarData: any, 
-  hostEmail: string | null, 
-  hostId: string | null,
-  hostName?: string | null,
-  hostFirstName?: string | null,
-  hostLastName?: string | null
+  hostEmail?: string,
+  hostId?: string,
+  hostName?: string,
+  hostFirstName?: string,
+  hostLastName?: string
 ) {
-  // Ensure host information is preserved in raw_data
-  const enhancedRawData = {
-    ...webinarData,
-    host_info: {
-      email: hostEmail,
-      display_name: hostName,
-      first_name: hostFirstName,
-      last_name: hostLastName,
-      id: hostId
-    }
-  };
-
-  const { error: webinarError } = await supabase
-    .from('zoom_webinars')
-    .upsert({
+  console.log(`[webinar-data-syncer] Syncing webinar metadata for: ${webinarData.id}`);
+  
+  try {
+    // Prepare webinar data with enhanced host information and actual timing data
+    const webinarRecord = {
       user_id: user.id,
-      webinar_id: webinarData.id,
-      webinar_uuid: webinarData.uuid,
+      webinar_id: webinarData.id?.toString(),
+      webinar_uuid: webinarData.uuid || webinarData.webinar_uuid,
       topic: webinarData.topic,
-      start_time: webinarData.start_time,
-      duration: webinarData.duration,
-      timezone: webinarData.timezone,
-      agenda: webinarData.agenda || '',
-      host_email: hostEmail || null,
-      host_id: hostId || null,
-      host_name: hostName || null,
-      host_first_name: hostFirstName || null,
-      host_last_name: hostLastName || null,
-      status: webinarData.status,
       type: webinarData.type,
-      raw_data: enhancedRawData,
-      last_synced_at: new Date().toISOString()
-    }, {
-      onConflict: 'user_id,webinar_id'
+      status: webinarData.status,
+      start_time: webinarData.start_time ? new Date(webinarData.start_time).toISOString() : null,
+      duration: webinarData.duration || null,
+      timezone: webinarData.timezone,
+      agenda: webinarData.agenda || null,
+      webinar_created_at: webinarData.created_at ? new Date(webinarData.created_at).toISOString() : null,
+      join_url: webinarData.join_url,
+      start_url: webinarData.start_url || null,
+      registration_url: webinarData.registration_url || null,
+      password: webinarData.password || null,
+      host_id: hostId || webinarData.host_id,
+      host_email: hostEmail || webinarData.host_email,
+      host_name: hostName || webinarData.host_name,
+      host_first_name: hostFirstName || webinarData.host_first_name,
+      host_last_name: hostLastName || webinarData.host_last_name,
+      // NEW: Include actual timing fields
+      actual_start_time: webinarData.actual_start_time ? new Date(webinarData.actual_start_time).toISOString() : null,
+      actual_duration: webinarData.actual_duration || null,
+      // Other fields
+      approval_type: webinarData.settings?.approval_type || webinarData.approval_type,
+      registration_type: webinarData.settings?.registration_type || webinarData.registration_type,
+      enforce_login: webinarData.settings?.enforce_login || false,
+      on_demand: webinarData.settings?.on_demand || false,
+      practice_session: webinarData.settings?.practice_session || false,
+      hd_video: webinarData.settings?.hd_video || false,
+      host_video: webinarData.settings?.host_video || true,
+      panelists_video: webinarData.settings?.panelists_video || true,
+      is_simulive: webinarData.settings?.is_simulive || false,
+      auto_recording_type: webinarData.settings?.auto_recording || null,
+      contact_name: webinarData.settings?.contact_name || null,
+      contact_email: webinarData.settings?.contact_email || null,
+      language: webinarData.settings?.language || 'en-US',
+      audio_type: webinarData.settings?.audio || 'both',
+      last_synced_at: new Date().toISOString(),
+      raw_data: webinarData
+    };
+    
+    console.log(`[webinar-data-syncer] Upserting webinar with actual timing data:`, {
+      webinar_id: webinarRecord.webinar_id,
+      actual_start_time: webinarRecord.actual_start_time,
+      actual_duration: webinarRecord.actual_duration
     });
-
-  return { error: webinarError };
+    
+    const { error } = await supabase
+      .from('zoom_webinars')
+      .upsert(webinarRecord, {
+        onConflict: 'user_id,webinar_id',
+        ignoreDuplicates: false
+      });
+    
+    if (error) {
+      console.error(`[webinar-data-syncer] Error upserting webinar ${webinarData.id}:`, error);
+      return { error, count: 0 };
+    }
+    
+    console.log(`[webinar-data-syncer] Successfully synced webinar metadata for: ${webinarData.id} with actual timing data`);
+    return { error: null, count: 1 };
+    
+  } catch (error) {
+    console.error(`[webinar-data-syncer] Exception syncing webinar ${webinarData.id}:`, error);
+    return { error, count: 0 };
+  }
 }
 
 export async function syncRegistrants(supabase: any, user: any, token: string, webinarId: string) {

@@ -1,3 +1,4 @@
+
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 import { getHostInfo } from './sync/hostResolver.ts';
@@ -14,7 +15,74 @@ import {
   type SyncResults
 } from './sync/syncResultsManager.ts';
 
-// Handle syncing a single webinar's complete data with enhanced host information
+// New function to fetch actual timing data for a single webinar
+async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
+  const webinarId = webinarData.id;
+  const webinarUuid = webinarData.webinar_uuid || webinarData.uuid;
+  const status = webinarData.status?.toLowerCase();
+  
+  console.log(`[zoom-api][sync-single-webinar] Checking actual timing for webinar ${webinarId}, status: ${status}, UUID: ${webinarUuid}`);
+  
+  // Only fetch for ended or aborted webinars that have a UUID
+  if (!webinarUuid || (status !== 'ended' && status !== 'aborted')) {
+    console.log(`[zoom-api][sync-single-webinar] Skipping actual timing fetch - not an ended webinar or no UUID`);
+    return null;
+  }
+  
+  try {
+    console.log(`[zoom-api][sync-single-webinar] Fetching past webinar data for ${webinarId} (UUID: ${webinarUuid})`);
+    
+    const response = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarUuid}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log(`[zoom-api][sync-single-webinar] Past webinar data not found for ${webinarId}, may not have been started`);
+        return null;
+      } else {
+        throw new Error(`API call failed with status ${response.status}`);
+      }
+    }
+    
+    const pastWebinarData = await response.json();
+    console.log(`[zoom-api][sync-single-webinar] Successfully fetched past webinar data for ${webinarId}`);
+    
+    // Extract actual timing data
+    const actualStartTime = pastWebinarData.start_time || null;
+    const actualEndTime = pastWebinarData.end_time || null;
+    let actualDuration = pastWebinarData.duration || null;
+    
+    // Calculate duration if we have start and end times but no duration
+    if (actualStartTime && actualEndTime && !actualDuration) {
+      const startMs = new Date(actualStartTime).getTime();
+      const endMs = new Date(actualEndTime).getTime();
+      actualDuration = Math.round((endMs - startMs) / (1000 * 60)); // Duration in minutes
+    }
+    
+    console.log(`[zoom-api][sync-single-webinar] Extracted timing data for ${webinarId}:`, {
+      actualStartTime,
+      actualDuration,
+      actualEndTime
+    });
+    
+    return {
+      actual_start_time: actualStartTime,
+      actual_duration: actualDuration,
+      actual_end_time: actualEndTime,
+      participants_count: pastWebinarData.participants_count || webinarData.participants_count || 0
+    };
+    
+  } catch (error) {
+    console.error(`[zoom-api][sync-single-webinar] Error fetching past webinar data for ${webinarId}:`, error);
+    return null;
+  }
+}
+
+// Handle syncing a single webinar's complete data with enhanced host information and actual timing data
 export async function handleSyncSingleWebinar(req: Request, supabase: any, user: any, credentials: any, webinarId: string) {
   if (!webinarId) {
     throw new Error('Webinar ID is required');
@@ -69,7 +137,20 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
         console.log(`[zoom-api][sync-single-webinar] No panelists found for webinar: ${webinarId}`);
       }
       
-      // Update webinar in database with enhanced host and panelist information
+      // NEW: Fetch actual timing data for ended webinars
+      console.log(`[zoom-api][sync-single-webinar] Step 1.5: Fetching actual timing data`);
+      const actualTimingData = await fetchSingleWebinarActualTiming(token, webinarData);
+      
+      if (actualTimingData) {
+        // Merge actual timing data into webinar data
+        Object.assign(webinarData, actualTimingData);
+        syncResults.actual_timing_resolved = true;
+        console.log(`[zoom-api][sync-single-webinar] Actual timing data resolved for webinar: ${webinarId}`);
+      } else {
+        console.log(`[zoom-api][sync-single-webinar] No actual timing data available for webinar: ${webinarId}`);
+      }
+      
+      // Update webinar in database with enhanced host, panelist, and timing information
       const { error: webinarError } = await syncWebinarMetadata(
         supabase, 
         user, 
@@ -87,10 +168,11 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       } else {
         syncResults.webinar_updated = true;
         totalItemsSynced += 1;
-        console.log(`[zoom-api][sync-single-webinar] Updated webinar metadata for: ${webinarId} with complete host info:`, {
+        console.log(`[zoom-api][sync-single-webinar] Updated webinar metadata for: ${webinarId} with complete info:`, {
           email: hostEmail || 'unknown',
           name: hostName || 'unknown',
-          panelists: syncResults.panelists_count
+          panelists: syncResults.panelists_count,
+          actualTiming: syncResults.actual_timing_resolved
         });
       }
     } else {
@@ -125,7 +207,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
     syncResults.instances_synced = instancesResult.count;
     totalItemsSynced += instancesResult.count;
     
-    // Record sync in history with enhanced results including complete host and panelist info
+    // Record sync in history with enhanced results including complete host, panelist, and timing info
     await recordSyncHistory(
       supabase,
       user,
@@ -135,7 +217,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       syncResults.error_details.length > 0 ? 'partial_success' : 'success'
     );
     
-    console.log(`[zoom-api][sync-single-webinar] Completed sync for webinar: ${webinarId}, total items: ${totalItemsSynced}, host resolved: ${syncResults.host_info_resolved}, panelists: ${syncResults.panelists_count}`);
+    console.log(`[zoom-api][sync-single-webinar] Completed sync for webinar: ${webinarId}, total items: ${totalItemsSynced}, host resolved: ${syncResults.host_info_resolved}, panelists: ${syncResults.panelists_count}, actual timing: ${syncResults.actual_timing_resolved}`);
     
     return new Response(JSON.stringify({
       success: true,
