@@ -17,6 +17,7 @@ import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
 import { Clock, Download, ChartBar, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatWebinarId } from '@/lib/utils';
 
 interface WebinarListViewProps {
   webinars: ZoomWebinar[];
@@ -83,7 +84,7 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
                     <div>
                       {webinar.topic}
                       <p className="text-muted-foreground text-xs mt-1 line-clamp-1">
-                        ID: {webinar.id}
+                        ID: {formatWebinarId(webinar.id)}
                       </p>
                     </div>
                   </TableCell>

@@ -18,6 +18,7 @@ import { ZoomWebinar } from '@/hooks/useZoomApi';
 import { format } from 'date-fns';
 import { Calendar, Clock, Users, Eye, Download, ChartBar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatWebinarId } from '@/lib/utils';
 
 interface WebinarGridViewProps {
   webinars: ZoomWebinar[];
@@ -69,7 +70,7 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
                 {webinar.topic}
               </CardTitle>
               <CardDescription className="text-xs mt-1">
-                Webinar ID: {webinar.id}
+                Webinar ID: {formatWebinarId(webinar.id)}
               </CardDescription>
             </CardHeader>
             <CardContent className="pb-2">

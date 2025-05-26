@@ -10,6 +10,7 @@ import { WebinarStatusBadge } from '@/components/webinars/list/WebinarStatusBadg
 import { WebinarSyncButton } from '@/components/webinars/WebinarSyncButton';
 import { getWebinarStatus } from '@/components/webinars/list/webinarHelpers';
 import { extractHostInfo, formatHostDisplay } from './utils/hostDisplayUtils';
+import { formatWebinarId } from '@/lib/utils';
 
 interface WebinarDashboardHeaderProps {
   webinar: ZoomWebinar;
@@ -39,7 +40,7 @@ export const WebinarDashboardHeader: React.FC<WebinarDashboardHeaderProps> = ({
           Back to webinars
         </Link>
         <span>•</span>
-        <span>Webinar ID: {webinar.id}</span>
+        <span>Webinar ID: {formatWebinarId(webinar.id)}</span>
       </div>
       
       {/* Main header */}

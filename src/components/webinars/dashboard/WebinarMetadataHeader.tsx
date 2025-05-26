@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { format, parseISO } from 'date-fns';
 import { WebinarRecordingInfo } from './WebinarRecordingInfo';
 import { extractHostInfo, extractPresenterInfo, formatHostDisplay } from './utils/hostDisplayUtils';
+import { formatWebinarId } from '@/lib/utils';
 import {
   User,
   Calendar,
@@ -96,7 +97,7 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
               
               <Hash className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
-                <span className="font-medium">Webinar ID:</span> {webinar.id}
+                <span className="font-medium">Webinar ID:</span> {formatWebinarId(webinar.id)}
               </div>
               
               <Calendar className="h-4 w-4 text-muted-foreground mt-1" />

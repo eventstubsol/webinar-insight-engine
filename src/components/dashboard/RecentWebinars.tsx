@@ -22,6 +22,7 @@ import { parseISO, format, isValid } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
 import { isWebinarPast, isWebinarLive } from '@/components/webinars/list/webinarHelpers';
+import { formatWebinarId } from '@/lib/utils';
 
 export const RecentWebinars = () => {
   const { webinars, isLoading } = useZoomWebinars();
@@ -118,7 +119,7 @@ export const RecentWebinars = () => {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{webinar.topic}</div>
-                    <div className="text-xs text-muted-foreground">ID: {webinar.id}</div>
+                    <div className="text-xs text-muted-foreground">ID: {formatWebinarId(webinar.id)}</div>
                   </TableCell>
                   <TableCell>{webinar.duration ? `${webinar.duration} min` : '—'}</TableCell>
                 </TableRow>
