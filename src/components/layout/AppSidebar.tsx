@@ -57,13 +57,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="py-4">
-        <div className="px-4 flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-teal-500 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">W</span>
+        <div className="px-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-teal-500 flex items-center justify-center">
+              <span className="text-white font-bold text-lg">W</span>
+            </div>
+            <div className="font-bold text-xl group-data-[collapsible=icon]:hidden">WebinarWise</div>
           </div>
-          <div className="font-bold text-xl">WebinarWise</div>
+          <SidebarTrigger className="ml-2" />
         </div>
-        <SidebarTrigger />
       </SidebarHeader>
       
       <SidebarContent className="px-2">
