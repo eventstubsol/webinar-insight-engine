@@ -1,7 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from './cors.ts';
-import { getZoomCredentials } from './credentials.ts';
+import { getZoomCredentials, handleSaveCredentials } from './credentials.ts';
 import { handleListWebinars } from './handlers/listWebinars.ts';
 import { handleGetWebinar } from './handlers/getWebinar.ts';
 import { handleGetParticipants } from './handlers/getParticipants.ts';
@@ -61,9 +61,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Handle check-credentials-status action without requiring credentials
+    // Handle actions that don't require credentials
     if (action === 'check-credentials-status') {
       return await handleCheckCredentialsStatus(req, supabase, user);
+    }
+    
+    if (action === 'save-credentials') {
+      return await handleSaveCredentials(req, supabase, user, body);
     }
 
     // Get Zoom credentials for other actions
