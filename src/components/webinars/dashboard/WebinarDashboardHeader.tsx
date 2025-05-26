@@ -9,6 +9,7 @@ import { ChevronLeft, Calendar, Clock, Download, Share2 } from 'lucide-react';
 import { WebinarStatusBadge } from '@/components/webinars/list/WebinarStatusBadge';
 import { WebinarSyncButton } from '@/components/webinars/WebinarSyncButton';
 import { getWebinarStatus } from '@/components/webinars/list/webinarHelpers';
+import { extractHostInfo, formatHostDisplay } from './utils/hostDisplayUtils';
 
 interface WebinarDashboardHeaderProps {
   webinar: ZoomWebinar;
@@ -21,6 +22,10 @@ export const WebinarDashboardHeader: React.FC<WebinarDashboardHeaderProps> = ({
   const formattedDate = webinar.start_time ? 
     format(parseISO(webinar.start_time), 'EEEE, MMMM d, yyyy • h:mm a') : 
     'Date not set';
+
+  // Extract and format host information
+  const hostInfo = extractHostInfo(webinar);
+  const formattedHost = formatHostDisplay(hostInfo);
 
   return (
     <div className="space-y-4">
@@ -71,7 +76,7 @@ export const WebinarDashboardHeader: React.FC<WebinarDashboardHeaderProps> = ({
         {webinar.host_email && (
           <div className="flex items-center gap-1">
             <span className="font-medium">Host:</span>
-            <span>{webinar.host_email}</span>
+            <span>{formattedHost}</span>
           </div>
         )}
       </div>
