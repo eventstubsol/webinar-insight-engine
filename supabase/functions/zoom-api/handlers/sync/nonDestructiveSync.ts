@@ -80,7 +80,7 @@ export async function fetchWebinarsFromZoomAPI(token: string, userId: string): P
 }
 
 /**
- * Perform non-destructive upsert of webinars into database
+ * Perform non-destructive upsert of webinars into database with comprehensive field mapping
  */
 export async function performNonDestructiveUpsert(
   supabase: any, 
@@ -88,13 +88,25 @@ export async function performNonDestructiveUpsert(
   webinars: any[], 
   existingWebinars: any[]
 ): Promise<{ newWebinars: number; updatedWebinars: number; preservedWebinars: number }> {
-  console.log(`[zoom-api][performNonDestructiveUpsert] Starting non-destructive upsert for ${webinars.length} webinars...`);
+  console.log(`[zoom-api][performNonDestructiveUpsert] Starting comprehensive upsert for ${webinars.length} webinars...`);
   
   let newWebinars = 0;
   let updatedWebinars = 0;
   const currentTimestamp = new Date().toISOString();
   
   for (const webinar of webinars) {
+    // Extract actual timing data from webinar response
+    const actualStartTime = webinar.actual_start_time || 
+                            webinar.start_time_actual || 
+                            webinar.actualStartTime || 
+                            null;
+                            
+    const actualDuration = webinar.actual_duration || 
+                           webinar.duration_actual || 
+                           webinar.actualDuration || 
+                           null;
+
+    // Comprehensive field mapping - extracting all available data
     const webinarData = {
       user_id: userId,
       webinar_id: webinar.id,
@@ -102,15 +114,66 @@ export async function performNonDestructiveUpsert(
       topic: webinar.topic,
       start_time: webinar.start_time,
       duration: webinar.duration,
+      actual_start_time: actualStartTime,
+      actual_duration: actualDuration,
       timezone: webinar.timezone,
       agenda: webinar.agenda || '',
       host_email: webinar.host_email,
       status: webinar.status,
       type: webinar.type,
+      
+      // 🔥 URL FIELDS - Available in raw_data but previously not mapped
+      join_url: webinar.join_url,
+      registration_url: webinar.registration_url,
+      start_url: webinar.start_url,
+      password: webinar.password,
+      
+      // 🔥 TIMESTAMP FIELDS - Available in raw_data but previously not mapped  
+      webinar_created_at: webinar.created_at,
+      
+      // 🔥 HOST FIELDS - Enhanced host info but previously not mapped
+      host_id: webinar.host_info?.id || webinar.host_id,
+      host_name: webinar.host_info?.display_name || webinar.host_name,
+      host_first_name: webinar.host_info?.first_name || webinar.host_first_name,
+      host_last_name: webinar.host_info?.last_name || webinar.host_last_name,
+      
+      // 🔥 CONFIGURATION FIELDS - Available in raw_data but previously not mapped
+      is_simulive: webinar.is_simulive !== undefined ? webinar.is_simulive : false,
+      
+      // Settings fields (from enhanced data or basic webinar data)
+      approval_type: webinar.settings?.approval_type || webinar.approval_type,
+      registration_type: webinar.settings?.registration_type || webinar.registration_type,
+      auto_recording_type: webinar.settings?.auto_recording || webinar.auto_recording,
+      
+      // Boolean settings with defaults
+      enforce_login: webinar.settings?.enforce_login !== undefined ? webinar.settings.enforce_login : false,
+      on_demand: webinar.settings?.on_demand !== undefined ? webinar.settings.on_demand : false,
+      practice_session: webinar.settings?.practice_session !== undefined ? webinar.settings.practice_session : false,
+      hd_video: webinar.settings?.hd_video !== undefined ? webinar.settings.hd_video : false,
+      host_video: webinar.settings?.host_video !== undefined ? webinar.settings.host_video : true,
+      panelists_video: webinar.settings?.panelists_video !== undefined ? webinar.settings.panelists_video : true,
+      
+      // Audio and language settings
+      audio_type: webinar.settings?.audio || webinar.audio || 'both',
+      language: webinar.language || 'en-US',
+      
+      // Contact info (if available)
+      contact_name: webinar.settings?.contact_name || webinar.contact_name,
+      contact_email: webinar.settings?.contact_email || webinar.contact_email,
+      
+      // Raw data and timestamps
       raw_data: webinar,
       last_synced_at: currentTimestamp,
       updated_at: currentTimestamp
     };
+    
+    // Log field mapping success for debugging
+    const mappedFields = Object.keys(webinarData).filter(key => 
+      webinarData[key] !== null && 
+      webinarData[key] !== undefined && 
+      webinarData[key] !== ''
+    );
+    console.log(`[zoom-api][performNonDestructiveUpsert] Webinar ${webinar.id}: mapped ${mappedFields.length} fields`);
     
     // Use UPSERT with ON CONFLICT to either insert new or update existing
     const { error: upsertError } = await supabase
@@ -127,18 +190,24 @@ export async function performNonDestructiveUpsert(
       const existingWebinar = existingWebinars?.find(w => w.webinar_id === webinar.id.toString());
       if (!existingWebinar) {
         newWebinars++;
+        console.log(`[zoom-api][performNonDestructiveUpsert] ✅ New webinar added: ${webinar.id}`);
       } else {
         // Check if data actually changed to count as an update
         const hasChanges = 
           existingWebinar.topic !== webinar.topic ||
           existingWebinar.start_time !== webinar.start_time ||
           existingWebinar.duration !== webinar.duration ||
+          existingWebinar.actual_start_time !== actualStartTime ||
+          existingWebinar.actual_duration !== actualDuration ||
           existingWebinar.agenda !== webinar.agenda ||
           existingWebinar.status !== webinar.status ||
+          existingWebinar.join_url !== webinar.join_url ||
+          existingWebinar.host_name !== (webinar.host_info?.display_name || webinar.host_name) ||
           JSON.stringify(existingWebinar.raw_data) !== JSON.stringify(webinar);
         
         if (hasChanges) {
           updatedWebinars++;
+          console.log(`[zoom-api][performNonDestructiveUpsert] ✅ Webinar updated: ${webinar.id}`);
         }
       }
     }
@@ -149,7 +218,7 @@ export async function performNonDestructiveUpsert(
   const preservedWebinarsList = existingWebinars?.filter(w => !apiWebinarIds.has(w.webinar_id)) || [];
   const preservedWebinars = preservedWebinarsList.length;
   
-  console.log(`[zoom-api][performNonDestructiveUpsert] Upsert completed: ${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`);
+  console.log(`[zoom-api][performNonDestructiveUpsert] 🎉 Comprehensive upsert completed: ${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`);
   
   return { newWebinars, updatedWebinars, preservedWebinars };
 }
