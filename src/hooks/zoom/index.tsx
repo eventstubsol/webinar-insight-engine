@@ -13,15 +13,18 @@ export * from './useZoomInstanceParticipants';
 export * from './useZoomWebinarRecordings';
 
 // Export utilities for backward compatibility
-export * from './utils/webinarUtils';
 export * from './utils/errorUtils';
-export * from './utils/timeoutUtils';
+export * from './utils/notificationUtils';
+export * from './utils/operationUtils';
 
-// Export services and operations for direct access
-export * from './services/webinarApiService';
-export * from './services/databaseQueries';
-export * from './services/apiOperations';
-// Note: Removed duplicate fetchSyncHistory export to avoid conflict
+// Export services - use explicit exports to avoid conflicts
+export { zoomApiClient } from './services/zoomApiClient';
+export { zoomDatabaseService } from './services/zoomDatabaseService';
+export { WebinarSyncOperation } from './operations/webinarSyncOperation';
+
+// Export sync history service
 export { fetchSyncHistory } from './services/syncHistoryService';
+
+// Export operations
 export * from './operations';
 export * from './webinarOperations';

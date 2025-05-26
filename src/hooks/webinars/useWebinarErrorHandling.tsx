@@ -1,37 +1,34 @@
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { parseErrorDetails } from '@/hooks/zoom/utils/errorHandling';
 
 export function useWebinarErrorHandling(
   error: Error | null,
-  errorBannerDismissed: boolean,
-  isFirstLoad: boolean,
-  activeTab: string,
-  setActiveTab: (tab: string) => void
+  errorDetails: any
 ) {
-  const errorDetails = parseErrorDetails(error);
+  const [errorBannerDismissed, setErrorBannerDismissed] = useState(false);
 
   // Reset error dismissal state when there's a new error
   useEffect(() => {
     if (error) {
       console.log('[useWebinarErrorHandling] Error state updated:', error.message);
+      setErrorBannerDismissed(false); // Reset dismissal on new error
     }
   }, [error]);
 
-  // Auto-switch to setup tab for critical errors
-  useEffect(() => {
-    if (error && 
-        !isFirstLoad && 
-        (errorDetails.isMissingCredentials || errorDetails.isScopesError) && 
-        activeTab !== "setup" && 
-        !errorBannerDismissed) {
-      console.log('[useWebinarErrorHandling] Critical configuration error detected, switching to setup tab');
-      setActiveTab("setup");
-    }
-  }, [error, errorDetails, activeTab, isFirstLoad, errorBannerDismissed, setActiveTab]);
+  const dismissErrorBanner = () => {
+    setErrorBannerDismissed(true);
+  };
+
+  const resetErrorBanner = () => {
+    setErrorBannerDismissed(false);
+  };
 
   return {
     errorMessage: error?.message || null,
-    errorDetails
+    errorDetails,
+    dismissErrorBanner,
+    errorBannerDismissed,
+    resetErrorBanner
   };
 }

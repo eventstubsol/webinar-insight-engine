@@ -37,7 +37,7 @@ export function useWebinarState() {
     setDateRange
   } = useWebinarUIState();
   
-  // Get error handling
+  // Get error handling with all required functions
   const {
     errorMessage,
     dismissErrorBanner,
@@ -108,6 +108,7 @@ export function useWebinarState() {
     errorMessage,
     dismissErrorBanner,
     errorBannerDismissed,
+    resetErrorBanner,
     
     // Config
     AUTO_REFRESH_INTERVAL
