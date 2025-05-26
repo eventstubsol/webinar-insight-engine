@@ -2,6 +2,7 @@
 import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { getStartTimeDisplay, getDurationDisplay } from './utils/timeDisplayUtils';
 import {
   Clock,
@@ -74,13 +75,21 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
       
       <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
         <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-        <div>
-          <span className="font-medium">{startTimeInfo.label}</span> {startTimeInfo.time}
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{startTimeInfo.label}</span> 
+          <span>{startTimeInfo.time}</span>
+          {!startTimeInfo.isActual && webinar.status === 'ended' && (
+            <Badge variant="outline" className="text-xs">Scheduled</Badge>
+          )}
         </div>
         
         <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-        <div>
-          <span className="font-medium">{durationInfo.label}</span> {durationInfo.duration}
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{durationInfo.label}</span> 
+          <span>{durationInfo.duration}</span>
+          {!durationInfo.isActual && webinar.status === 'ended' && (
+            <Badge variant="outline" className="text-xs">Scheduled</Badge>
+          )}
         </div>
         
         <Eye className="h-4 w-4 text-muted-foreground mt-1" />

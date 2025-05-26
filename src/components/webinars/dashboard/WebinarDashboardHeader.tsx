@@ -1,84 +1,84 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { format, parseISO } from 'date-fns';
-import { ZoomWebinar } from '@/hooks/zoom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Calendar, Clock, Download, Share2 } from 'lucide-react';
-import { WebinarStatusBadge } from '@/components/webinars/list/WebinarStatusBadge';
 import { WebinarSyncButton } from '@/components/webinars/WebinarSyncButton';
-import { getWebinarStatus } from '@/components/webinars/list/webinarHelpers';
-import { extractHostInfo, formatHostDisplay } from './utils/hostDisplayUtils';
+import { WebinarTimingSyncButton } from '@/components/webinars/WebinarTimingSyncButton';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ZoomWebinar } from '@/hooks/zoom';
 import { formatWebinarId } from '@/lib/utils';
 
 interface WebinarDashboardHeaderProps {
   webinar: ZoomWebinar;
 }
 
-export const WebinarDashboardHeader: React.FC<WebinarDashboardHeaderProps> = ({ 
-  webinar 
-}) => {
-  const status = getWebinarStatus(webinar);
-  const formattedDate = webinar.start_time ? 
-    format(parseISO(webinar.start_time), 'EEEE, MMMM d, yyyy • h:mm a') : 
-    'Date not set';
+export const WebinarDashboardHeader: React.FC<WebinarDashboardHeaderProps> = ({ webinar }) => {
+  const navigate = useNavigate();
 
-  // Extract and format host information
-  const hostInfo = extractHostInfo(webinar);
-  const formattedHost = formatHostDisplay(hostInfo);
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'waiting':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'started':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'ended':
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+      default:
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+    }
+  };
+
+  const handleRefresh = () => {
+    // Refresh the page to reload data
+    window.location.reload();
+  };
 
   return (
-    <div className="space-y-4">
-      {/* Breadcrumb navigation */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link 
-          to="/webinars"
-          className="flex items-center hover:text-primary transition-colors"
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="flex items-start gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate('/webinars')}
+          className="mt-1"
         >
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Back to webinars
-        </Link>
-        <span>•</span>
-        <span>Webinar ID: {formatWebinarId(webinar.id)}</span>
-      </div>
-      
-      {/* Main header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">{webinar.topic}</h1>
-        <div className="flex flex-wrap gap-2">
-          <WebinarSyncButton 
-            webinarId={webinar.id} 
-            showLastSync={true}
-            className="order-first"
-          />
-          <Button size="sm" variant="outline" className="gap-1">
-            <Download className="h-4 w-4" />
-            <span>Export</span>
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1">
-            <Share2 className="h-4 w-4" />
-            <span>Share</span>
-          </Button>
-        </div>
-      </div>
-      
-      {/* Webinar meta information */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <WebinarStatusBadge status={status} />
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          <span>{formattedDate}</span>
-        </div>
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <Clock className="h-4 w-4" />
-          <span>{webinar.duration} minutes</span>
-        </div>
-        {webinar.host_email && (
-          <div className="flex items-center gap-1">
-            <span className="font-medium">Host:</span>
-            <span>{formattedHost}</span>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back to Webinars
+        </Button>
+        
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-bold">{webinar.topic}</h1>
+            <Badge className={getStatusColor(webinar.status)}>
+              {webinar.status || 'Unknown'}
+            </Badge>
           </div>
+          <p className="text-muted-foreground">
+            Webinar ID: {formatWebinarId(webinar.id)}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <WebinarTimingSyncButton
+          webinarId={webinar.id}
+          webinarStatus={webinar.status}
+          onSyncComplete={handleRefresh}
+          variant="outline"
+        />
+        <WebinarSyncButton
+          webinarId={webinar.id}
+          size="default"
+          variant="outline"
+        />
+        {webinar.join_url && (
+          <Button asChild variant="default">
+            <a href={webinar.join_url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Join Webinar
+            </a>
+          </Button>
         )}
       </div>
     </div>
