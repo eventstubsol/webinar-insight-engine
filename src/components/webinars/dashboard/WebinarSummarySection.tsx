@@ -15,7 +15,8 @@ import {
   UserX,
   UserPlus,
   Eye,
-  Users
+  Users,
+  AlertTriangle
 } from 'lucide-react';
 
 interface WebinarSummarySectionProps {
@@ -83,7 +84,7 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         {scheduledTimeInfo && (
           <>
             <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-            <div>
+            <div className={scheduledTimeInfo.isDataMissing ? "text-muted-foreground" : ""}>
               <span className="font-medium">{scheduledTimeInfo.label}</span> {scheduledTimeInfo.time}
             </div>
           </>
@@ -91,8 +92,12 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         
         {actualTimeInfo && (
           <>
-            <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-            <div>
+            {actualTimeInfo.isDataMissing ? (
+              <AlertTriangle className="h-4 w-4 text-amber-500 mt-1" />
+            ) : (
+              <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+            )}
+            <div className={actualTimeInfo.isDataMissing ? "text-amber-600" : ""}>
               <span className="font-medium">{actualTimeInfo.label}</span> {actualTimeInfo.time}
             </div>
           </>
@@ -101,7 +106,7 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         {scheduledDurationInfo && (
           <>
             <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-            <div>
+            <div className={scheduledDurationInfo.isDataMissing ? "text-muted-foreground" : ""}>
               <span className="font-medium">{scheduledDurationInfo.label}</span> {scheduledDurationInfo.duration}
             </div>
           </>
@@ -109,8 +114,12 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         
         {actualDurationInfo && (
           <>
-            <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-            <div>
+            {actualDurationInfo.isDataMissing ? (
+              <AlertTriangle className="h-4 w-4 text-amber-500 mt-1" />
+            ) : (
+              <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+            )}
+            <div className={actualDurationInfo.isDataMissing ? "text-amber-600" : ""}>
               <span className="font-medium">{actualDurationInfo.label}</span> {actualDurationInfo.duration}
             </div>
           </>

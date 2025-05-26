@@ -3,9 +3,10 @@ import { enhanceWebinarsWithHostInfo } from './hostInfoProcessor.ts';
 import { enhanceWebinarsWithPanelistData } from './panellistDataProcessor.ts';
 import { enhanceWebinarsWithParticipantData } from './participantDataProcessor.ts';
 import { enhanceWebinarsWithRecordingData, storeRecordingData } from './recordingDataProcessor.ts';
+import { enhanceWebinarsWithActualTimingData } from './actualTimingDataProcessor.ts';
 
 /**
- * Orchestrates the enhancement of webinar data with host, panelist, participant, and recording information
+ * Orchestrates the enhancement of webinar data with host, panelist, participant, actual timing, and recording information
  */
 export async function enhanceWebinarsWithAllData(webinars: any[], token: string, supabase?: any, userId?: string) {
   console.log(`[zoom-api][enhancement-orchestrator] Starting enhancement process for ${webinars.length} webinars`);
@@ -28,13 +29,17 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
     console.log(`[zoom-api][enhancement-orchestrator] Step 3: Enhancing with participant data`);
     const webinarsWithParticipantInfo = await enhanceWebinarsWithParticipantData(webinarsWithPanelistInfo, token);
     
-    // Step 4: Enhance with recording data for completed webinars
-    console.log(`[zoom-api][enhancement-orchestrator] Step 4: Enhancing with recording data`);
-    const enhancedWebinars = await enhanceWebinarsWithRecordingData(webinarsWithParticipantInfo, token);
+    // Step 4: Enhance with actual timing data for ended webinars
+    console.log(`[zoom-api][enhancement-orchestrator] Step 4: Enhancing with actual timing data`);
+    const webinarsWithActualTiming = await enhanceWebinarsWithActualTimingData(webinarsWithParticipantInfo, token);
     
-    // Step 5: Store recording data in database if supabase client is provided
+    // Step 5: Enhance with recording data for completed webinars
+    console.log(`[zoom-api][enhancement-orchestrator] Step 5: Enhancing with recording data`);
+    const enhancedWebinars = await enhanceWebinarsWithRecordingData(webinarsWithActualTiming, token);
+    
+    // Step 6: Store recording data in database if supabase client is provided
     if (supabase && userId) {
-      console.log(`[zoom-api][enhancement-orchestrator] Step 5: Storing recording data in database`);
+      console.log(`[zoom-api][enhancement-orchestrator] Step 6: Storing recording data in database`);
       let totalRecordingsStored = 0;
       
       for (const webinar of enhancedWebinars) {
