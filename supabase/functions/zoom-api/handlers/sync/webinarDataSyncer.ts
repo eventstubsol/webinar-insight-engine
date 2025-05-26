@@ -1,3 +1,4 @@
+
 // Functions for syncing webinar data to database with enhanced logging for actual timing data
 export async function syncWebinarMetadata(
   supabase: any, 
@@ -166,12 +167,12 @@ export async function syncRegistrants(supabase: any, user: any, token: string, w
     .eq('webinar_id', webinarId)
     .eq('participant_type', 'registrant');
   
-  // Insert new registrants
+  // Insert new registrants with proper handling for the new unique constraint
   const registrantsToInsert = registrantsData.registrants.map((registrant: any) => ({
     user_id: user.id,
     webinar_id: webinarId,
     participant_type: 'registrant',
-    participant_id: registrant.id,
+    participant_id: registrant.id || `reg_${registrant.email}_${Date.now()}`, // Ensure participant_id is never null
     email: registrant.email,
     name: `${registrant.first_name} ${registrant.last_name}`.trim(),
     join_time: registrant.create_time,
@@ -180,7 +181,10 @@ export async function syncRegistrants(supabase: any, user: any, token: string, w
   
   const { error: registrantsError } = await supabase
     .from('zoom_webinar_participants')
-    .insert(registrantsToInsert);
+    .upsert(registrantsToInsert, {
+      onConflict: 'user_id,webinar_id,participant_type,participant_id',
+      ignoreDuplicates: false
+    });
   
   if (registrantsError) {
     console.error(`[zoom-api][data-syncer] Error inserting registrants:`, registrantsError);
@@ -224,12 +228,12 @@ export async function syncAttendees(supabase: any, user: any, token: string, web
     .eq('webinar_id', webinarId)
     .eq('participant_type', 'attendee');
   
-  // Insert new attendees
+  // Insert new attendees with proper handling for the new unique constraint
   const attendeesToInsert = attendeesData.participants.map((attendee: any) => ({
     user_id: user.id,
     webinar_id: webinarId,
     participant_type: 'attendee',
-    participant_id: attendee.id,
+    participant_id: attendee.id || `att_${attendee.user_email}_${Date.now()}`, // Ensure participant_id is never null
     email: attendee.user_email,
     name: attendee.name,
     join_time: attendee.join_time,
@@ -240,7 +244,10 @@ export async function syncAttendees(supabase: any, user: any, token: string, web
   
   const { error: attendeesError } = await supabase
     .from('zoom_webinar_participants')
-    .insert(attendeesToInsert);
+    .upsert(attendeesToInsert, {
+      onConflict: 'user_id,webinar_id,participant_type,participant_id',
+      ignoreDuplicates: false
+    });
   
   if (attendeesError) {
     console.error(`[zoom-api][data-syncer] Error inserting attendees:`, attendeesError);
@@ -279,7 +286,7 @@ export async function syncWebinarInstances(supabase: any, user: any, token: stri
   let syncedCount = 0;
   const errors: string[] = [];
 
-  // Process each instance
+  // Process each instance with proper upsert using the new unique constraint
   for (const instance of instancesData.webinars) {
     const { error: instanceError } = await supabase
       .from('zoom_webinar_instances')
@@ -293,7 +300,8 @@ export async function syncWebinarInstances(supabase: any, user: any, token: stri
         duration: instance.duration,
         raw_data: instance
       }, {
-        onConflict: 'user_id,webinar_id,instance_id'
+        onConflict: 'user_id,webinar_id,instance_id',
+        ignoreDuplicates: false
       });
     
     if (instanceError) {
