@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { corsHeaders } from './cors.ts';
 import { handleListWebinars } from './handlers/listWebinars.ts';
@@ -9,7 +10,11 @@ import { handleUpdateWebinarParticipants } from './handlers/updateWebinarPartici
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
 import { handleFetchTimingData } from './handlers/fetchTimingData.ts';
-import { handleCheckCredentialsStatus } from './credentials.ts';
+import { 
+  handleCheckCredentialsStatus, 
+  handleSaveCredentials, 
+  handleVerifyCredentials 
+} from './credentials.ts';
 import { handleAsyncSync } from './handlers/asyncSync.ts';
 
 console.log('[zoom-api] Function starting up');
@@ -56,6 +61,12 @@ Deno.serve(async (req) => {
       
       case 'check-credentials-status':
         return await handleCheckCredentialsStatus(req);
+      
+      case 'save-credentials':
+        return await handleSaveCredentials(req);
+      
+      case 'verify-credentials':
+        return await handleVerifyCredentials(req);
       
       case 'start-async-sync':
       case 'get-sync-status':

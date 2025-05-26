@@ -3,16 +3,34 @@ import { corsHeaders } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8'
 
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
 // Handle saving zoom credentials
-export async function handleSaveCredentials(req: Request, supabase: any, user: any, body: any) {
-  const { account_id, client_id, client_secret } = body;
-  
-  // Validate required fields
-  if (!account_id || !client_id || !client_secret) {
-    throw new Error('Missing required credentials: account_id, client_id, and client_secret are required');
-  }
-  
+export async function handleSaveCredentials(req: Request) {
   try {
+    const body = await req.json();
+    const { account_id, client_id, client_secret } = body;
+    
+    // Validate required fields
+    if (!account_id || !client_id || !client_secret) {
+      throw new Error('Missing required credentials: account_id, client_id, and client_secret are required');
+    }
+    
+    // Get the authenticated user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    
+    if (authError || !user) {
+      throw new Error('Authentication failed');
+    }
+    
     // First try to get a token to verify credentials
     const testToken = await getZoomJwtToken(account_id, client_id, client_secret);
     
@@ -62,6 +80,7 @@ export async function handleSaveCredentials(req: Request, supabase: any, user: a
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
+    console.error('[handleSaveCredentials] Error:', error);
     return new Response(JSON.stringify({
       success: false,
       error: error.message
@@ -73,26 +92,103 @@ export async function handleSaveCredentials(req: Request, supabase: any, user: a
 }
 
 // Handle checking credentials status
-export async function handleCheckCredentialsStatus(req: Request, supabase: any, user: any) {
-  const { data: credentials, error: credentialsError } = await supabase
-    .from('zoom_credentials')
-    .select('*')
-    .eq('user_id', user.id)
-    .single();
+export async function handleCheckCredentialsStatus(req: Request) {
+  try {
+    console.log('[handleCheckCredentialsStatus] Starting credentials check');
+    
+    // Get the authenticated user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.log('[handleCheckCredentialsStatus] No authorization header found');
+      return new Response(JSON.stringify({
+        hasCredentials: false,
+        isVerified: false,
+        lastVerified: null
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    
+    if (authError || !user) {
+      console.error('[handleCheckCredentialsStatus] Authentication failed:', authError);
+      return new Response(JSON.stringify({
+        hasCredentials: false,
+        isVerified: false,
+        lastVerified: null
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    console.log(`[handleCheckCredentialsStatus] Checking credentials for user: ${user.id}`);
+    
+    const { data: credentials, error: credentialsError } = await supabase
+      .from('zoom_credentials')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-  return new Response(JSON.stringify({
-    hasCredentials: !!credentials,
-    isVerified: credentials?.is_verified || false,
-    lastVerified: credentials?.last_verified_at || null
-  }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
+    if (credentialsError) {
+      console.error('[handleCheckCredentialsStatus] Database error:', credentialsError);
+      throw new Error(`Database error: ${credentialsError.message}`);
+    }
+
+    console.log(`[handleCheckCredentialsStatus] Found credentials: ${!!credentials}`);
+
+    return new Response(JSON.stringify({
+      hasCredentials: !!credentials,
+      isVerified: credentials?.is_verified || false,
+      lastVerified: credentials?.last_verified_at || null
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('[handleCheckCredentialsStatus] Error:', error);
+    return new Response(JSON.stringify({
+      error: 'Internal server error',
+      details: error.message
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 // Handle verifying credentials
-export async function handleVerifyCredentials(req: Request, supabase: any, user: any, credentials: any) {
+export async function handleVerifyCredentials(req: Request) {
   try {
+    // Get the authenticated user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    
+    if (authError || !user) {
+      throw new Error('Authentication failed');
+    }
+    
+    // Get user's credentials
+    const { data: credentials, error: credentialsError } = await supabase
+      .from('zoom_credentials')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+      
+    if (credentialsError || !credentials) {
+      throw new Error('No credentials found for this user');
+    }
+    
     const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
     
     // Now test if we have the proper scopes by making a simple request
@@ -152,12 +248,7 @@ export async function handleVerifyCredentials(req: Request, supabase: any, user:
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    // Update credentials in database to mark as not verified
-    await supabase
-      .from('zoom_credentials')
-      .update({ is_verified: false })
-      .eq('user_id', user.id);
-    
+    console.error('[handleVerifyCredentials] Error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       error: error.message 
@@ -168,11 +259,12 @@ export async function handleVerifyCredentials(req: Request, supabase: any, user:
   }
 }
 
-// Get Zoom credentials for a user
-export async function getZoomCredentials(supabase: any, userId: string) {
+// Get Zoom credentials for a user - for internal use
+export async function getZoomCredentials(userId: string) {
   console.log(`Getting Zoom credentials for user ${userId}`);
   
   try {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { data: credentials, error } = await supabase
       .from('zoom_credentials')
       .select('*')
@@ -196,7 +288,7 @@ export async function getZoomCredentials(supabase: any, userId: string) {
   }
 }
 
-// Verify that Zoom credentials are valid
+// Verify that Zoom credentials are valid - for internal use
 export async function verifyZoomCredentials(credentials: any) {
   if (!credentials) {
     throw new Error('Credentials are required');
