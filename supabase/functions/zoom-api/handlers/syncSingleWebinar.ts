@@ -1,4 +1,3 @@
-
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 import { getHostInfo } from './sync/hostResolver.ts';
@@ -14,7 +13,6 @@ import {
   recordSyncHistory,
   type SyncResults
 } from './sync/syncResultsManager.ts';
-import { fetchPastWebinarDetails } from './sync/actualTimingDataProcessor.ts';
 
 // Handle syncing a single webinar's complete data with enhanced host information
 export async function handleSyncSingleWebinar(req: Request, supabase: any, user: any, credentials: any, webinarId: string) {
@@ -22,8 +20,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
     throw new Error('Webinar ID is required');
   }
   
-  const { sync_timing_only } = await req.json();
-  console.log(`[zoom-api][sync-single-webinar] Starting sync for webinar: ${webinarId}, timing only: ${sync_timing_only}`);
+  console.log(`[zoom-api][sync-single-webinar] Starting sync for webinar: ${webinarId}`);
   
   const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
   
@@ -31,87 +28,6 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
   const syncResults = createInitialSyncResults();
   
   try {
-    // If timing-only sync, just update timing data
-    if (sync_timing_only) {
-      console.log(`[zoom-api][sync-single-webinar] Performing timing-only sync for webinar: ${webinarId}`);
-      
-      // Get the webinar from database first
-      const { data: webinarData, error: webinarError } = await supabase
-        .from('zoom_webinars')
-        .select('webinar_uuid, status')
-        .eq('webinar_id', webinarId)
-        .eq('user_id', user.id)
-        .single();
-      
-      if (webinarError || !webinarData) {
-        throw new Error(`Webinar not found: ${webinarId}`);
-      }
-      
-      if (webinarData.status !== 'ended') {
-        throw new Error('Timing data is only available for completed webinars');
-      }
-      
-      if (!webinarData.webinar_uuid) {
-        throw new Error('Webinar UUID is required for timing data sync');
-      }
-      
-      // Fetch actual timing data from past webinar API
-      const pastWebinarData = await fetchPastWebinarDetails(webinarData.webinar_uuid, token);
-      
-      if (pastWebinarData) {
-        // Update webinar with actual timing data
-        const { error: updateError } = await supabase
-          .from('zoom_webinars')
-          .update({
-            actual_start_time: pastWebinarData.start_time,
-            actual_end_time: pastWebinarData.end_time,
-            actual_duration: pastWebinarData.duration,
-            participants_count: pastWebinarData.total_participants || null,
-            last_synced_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('webinar_id', webinarId)
-          .eq('user_id', user.id);
-        
-        if (updateError) {
-          throw new Error(`Failed to update timing data: ${updateError.message}`);
-        }
-        
-        syncResults.webinar_updated = true;
-        syncResults.timing_data_synced = true;
-        totalItemsSynced = 1;
-        
-        console.log(`[zoom-api][sync-single-webinar] ✅ Timing data updated for webinar ${webinarId}:`, {
-          actual_start_time: pastWebinarData.start_time,
-          actual_duration: pastWebinarData.duration,
-          participants: pastWebinarData.total_participants
-        });
-      } else {
-        throw new Error('No timing data available from Zoom API');
-      }
-      
-      // Record successful timing sync
-      await recordSyncHistory(
-        supabase,
-        user,
-        webinarId,
-        totalItemsSynced,
-        syncResults,
-        'success',
-        `Timing data synced successfully`
-      );
-      
-      return new Response(JSON.stringify({
-        success: true,
-        webinar_id: webinarId,
-        items_synced: totalItemsSynced,
-        sync_results: syncResults,
-        timing_only: true
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-    
     // 1. Sync webinar metadata with enhanced host and panelist resolution
     console.log(`[zoom-api][sync-single-webinar] Fetching webinar metadata for: ${webinarId}`);
     const webinarRes = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {

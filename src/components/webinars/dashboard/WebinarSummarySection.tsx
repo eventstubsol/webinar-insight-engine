@@ -2,7 +2,6 @@
 import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { getStartTimeDisplay, getDurationDisplay } from './utils/timeDisplayUtils';
 import {
   Clock,
@@ -43,11 +42,6 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
   // Max concurrent views
   const maxConcurrentViews = webinar.max_concurrent_views || 'Not available';
 
-  // Helper function to determine if we should show a "Scheduled" badge
-  const shouldShowScheduledBadge = (isActual: boolean) => {
-    return !isActual && webinar.status !== 'ended';
-  };
-
   return (
     <div className="space-y-3">
       <h3 className="text-lg font-medium">Registration Summary</h3>
@@ -80,21 +74,13 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
       
       <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
         <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{startTimeInfo.label}</span> 
-          <span>{startTimeInfo.time}</span>
-          {shouldShowScheduledBadge(startTimeInfo.isActual) && (
-            <Badge variant="outline" className="text-xs">Scheduled</Badge>
-          )}
+        <div>
+          <span className="font-medium">{startTimeInfo.label}</span> {startTimeInfo.time}
         </div>
         
         <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{durationInfo.label}</span> 
-          <span>{durationInfo.duration}</span>
-          {shouldShowScheduledBadge(durationInfo.isActual) && (
-            <Badge variant="outline" className="text-xs">Scheduled</Badge>
-          )}
+        <div>
+          <span className="font-medium">{durationInfo.label}</span> {durationInfo.duration}
         </div>
         
         <Eye className="h-4 w-4 text-muted-foreground mt-1" />
