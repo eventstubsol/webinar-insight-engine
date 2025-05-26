@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { RefreshCw, Clock } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { syncWebinarTimingAPI } from '@/hooks/zoom/services/apiOperations';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 
@@ -49,21 +49,7 @@ export const WebinarTimingSyncButton: React.FC<WebinarTimingSyncButtonProps> = (
     setIsSyncing(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('zoom-api', {
-        body: { 
-          action: 'sync-single-webinar',
-          webinar_id: webinarId,
-          sync_timing_only: true
-        }
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      const result = await syncWebinarTimingAPI(webinarId);
 
       toast({
         title: 'Timing data synced',

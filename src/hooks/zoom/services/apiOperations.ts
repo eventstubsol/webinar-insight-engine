@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { ZoomWebinar } from '../types';
 
@@ -148,5 +149,33 @@ export async function fetchWebinarRecordingsAPI(webinarId: string): Promise<any>
   }
   
   console.log(`[fetchWebinarRecordingsAPI] Retrieved recordings data for webinar ${webinarId}`);
+  return data;
+}
+
+/**
+ * Sync timing data for a specific webinar
+ */
+export async function syncWebinarTimingAPI(webinarId: string): Promise<any> {
+  console.log(`[syncWebinarTimingAPI] Syncing timing data for webinar ID: ${webinarId}`);
+  
+  const { data, error } = await supabase.functions.invoke('zoom-api', {
+    body: { 
+      action: 'sync-single-webinar',
+      webinar_id: webinarId,
+      sync_timing_only: true
+    }
+  });
+  
+  if (error) {
+    console.error('[syncWebinarTimingAPI] Error:', error);
+    throw error;
+  }
+  
+  if (data.error) {
+    console.error('[syncWebinarTimingAPI] API returned error:', data.error);
+    throw new Error(data.error);
+  }
+  
+  console.log(`[syncWebinarTimingAPI] Successfully synced timing data for webinar ${webinarId}`);
   return data;
 }

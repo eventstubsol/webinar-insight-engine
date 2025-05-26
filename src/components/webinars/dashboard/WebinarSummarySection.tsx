@@ -43,6 +43,11 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
   // Max concurrent views
   const maxConcurrentViews = webinar.max_concurrent_views || 'Not available';
 
+  // Helper function to determine if we should show a "Scheduled" badge
+  const shouldShowScheduledBadge = (isActual: boolean) => {
+    return !isActual && webinar.status !== 'ended';
+  };
+
   return (
     <div className="space-y-3">
       <h3 className="text-lg font-medium">Registration Summary</h3>
@@ -78,7 +83,7 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         <div className="flex items-center gap-2">
           <span className="font-medium">{startTimeInfo.label}</span> 
           <span>{startTimeInfo.time}</span>
-          {!startTimeInfo.isActual && webinar.status === 'ended' && (
+          {shouldShowScheduledBadge(startTimeInfo.isActual) && (
             <Badge variant="outline" className="text-xs">Scheduled</Badge>
           )}
         </div>
@@ -87,7 +92,7 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         <div className="flex items-center gap-2">
           <span className="font-medium">{durationInfo.label}</span> 
           <span>{durationInfo.duration}</span>
-          {!durationInfo.isActual && webinar.status === 'ended' && (
+          {shouldShowScheduledBadge(durationInfo.isActual) && (
             <Badge variant="outline" className="text-xs">Scheduled</Badge>
           )}
         </div>
