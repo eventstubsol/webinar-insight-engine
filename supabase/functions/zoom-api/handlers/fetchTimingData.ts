@@ -1,221 +1,146 @@
 
-/**
- * Dedicated timing data fetch handler for past webinars
- */
-export async function handleFetchTimingData(req: Request): Promise<Response> {
-  console.log('[fetch-timing-data] Starting timing data fetch handler');
+import { corsHeaders } from '../cors.ts';
+import { getZoomJwtToken } from '../auth.ts';
+import { fetchSingleWebinarTimingData } from './enhancedTimingDataFetcher.ts';
+import { syncWebinarMetadata } from './sync/webinarMetadataSyncer.ts';
+
+export async function handleFetchTimingData(req: Request, supabase: any, user: any, credentials: any, webinar_id: string, webinar_uuid?: string) {
+  console.log(`[fetchTimingData] 🎯 ENHANCED: Starting timing data fetch for webinar: ${webinar_id}`);
+  console.log(`[fetchTimingData] UUID provided: ${webinar_uuid || 'none'}`);
+  console.log(`[fetchTimingData] User: ${user?.id}`);
+  
+  if (!webinar_id) {
+    console.error(`[fetchTimingData] ❌ No webinar ID provided`);
+    return new Response(JSON.stringify({ error: 'Webinar ID is required' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
   
   try {
-    const { webinar_id, webinar_uuid } = await req.json();
+    // Get Zoom token
+    const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
+    console.log(`[fetchTimingData] ✅ Got Zoom token successfully`);
     
-    if (!webinar_id) {
-      return new Response(JSON.stringify({ 
-        error: 'webinar_id is required' 
-      }), { status: 400 });
-    }
+    // Fetch timing data using the enhanced fetcher
+    console.log(`[fetchTimingData] 🔍 Calling enhanced timing data fetcher...`);
+    const timingData = await fetchSingleWebinarTimingData(webinar_id, webinar_uuid, token);
     
-    console.log(`[fetch-timing-data] Processing webinar: ${webinar_id}, UUID: ${webinar_uuid}`);
+    console.log(`[fetchTimingData] 📊 Enhanced timing data received:`, timingData);
     
-    // Get user from request
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authorization required' }), { status: 401 });
-    }
-    
-    // Create Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    
-    // Get user
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-    if (userError || !user) {
-      console.error('[fetch-timing-data] User error:', userError);
-      return new Response(JSON.stringify({ error: 'Authentication failed' }), { status: 401 });
-    }
-    
-    console.log(`[fetch-timing-data] Authenticated user: ${user.id}`);
-    
-    // Get Zoom credentials
-    const { data: credentials, error: credError } = await supabaseClient
-      .from('zoom_credentials')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    // If we have timing data, update the database
+    if (timingData.actual_start_time || timingData.actual_duration) {
+      console.log(`[fetchTimingData] 💾 Updating database with timing data...`);
       
-    if (credError || !credentials) {
-      console.error('[fetch-timing-data] Credentials error:', credError);
-      return new Response(JSON.stringify({ error: 'Zoom credentials not found' }), { status: 404 });
-    }
-    
-    // Get access token
-    let accessToken = credentials.access_token;
-    if (!accessToken) {
-      console.error('[fetch-timing-data] No access token available');
-      return new Response(JSON.stringify({ error: 'No valid access token' }), { status: 401 });
-    }
-    
-    // Fetch timing data from Zoom
-    const timingResult = await fetchPastWebinarData(webinar_id, webinar_uuid, accessToken);
-    
-    if (!timingResult.success) {
-      console.error('[fetch-timing-data] Failed to fetch timing data:', timingResult.error);
-      return new Response(JSON.stringify({ 
-        error: timingResult.error,
-        details: timingResult.details 
-      }), { status: 400 });
-    }
-    
-    // Update database with timing data
-    const updateResult = await updateWebinarTimingData(supabaseClient, user.id, webinar_id, timingResult.data);
-    
-    if (!updateResult.success) {
-      console.error('[fetch-timing-data] Failed to update database:', updateResult.error);
-      return new Response(JSON.stringify({ 
-        error: 'Failed to update database',
-        details: updateResult.error 
-      }), { status: 500 });
-    }
-    
-    console.log('[fetch-timing-data] Successfully fetched and stored timing data');
-    
-    return new Response(JSON.stringify({
-      success: true,
-      data: timingResult.data,
-      message: 'Timing data fetched and stored successfully'
-    }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-  } catch (error) {
-    console.error('[fetch-timing-data] Unexpected error:', error);
-    return new Response(JSON.stringify({ 
-      error: 'Internal server error',
-      details: error.message 
-    }), { status: 500 });
-  }
-}
-
-/**
- * Fetch past webinar data from Zoom API with comprehensive UUID handling
- */
-async function fetchPastWebinarData(webinarId: string, webinarUuid: string, accessToken: string) {
-  console.log(`[fetch-past-webinar] Starting fetch for webinar ${webinarId}`);
-  
-  // Prepare UUID candidates with different encoding strategies
-  const uuidCandidates = [];
-  
-  if (webinarUuid) {
-    uuidCandidates.push(
-      webinarUuid, // Original
-      encodeURIComponent(webinarUuid), // URL encoded
-      webinarUuid.replace(/\+/g, '%2B').replace(/\//g, '%2F').replace(/=/g, '%3D'), // Manual encoding
-      webinarUuid.replace(/\//g, '_').replace(/\+/g, '-'), // URL-safe base64
-    );
-  }
-  
-  // Also try the numeric webinar ID
-  uuidCandidates.push(webinarId);
-  
-  console.log(`[fetch-past-webinar] Testing ${uuidCandidates.length} UUID candidates`);
-  
-  for (let i = 0; i < uuidCandidates.length; i++) {
-    const candidate = uuidCandidates[i];
-    const apiUrl = `https://api.zoom.us/v2/past_webinars/${candidate}`;
-    
-    console.log(`[fetch-past-webinar] Attempt ${i + 1}/${uuidCandidates.length}: ${apiUrl}`);
-    
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
+      // First, get the existing webinar data
+      const { data: existingWebinar, error: fetchError } = await supabase
+        .from('zoom_webinars')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('webinar_id', webinar_id)
+        .single();
+      
+      if (fetchError) {
+        console.error(`[fetchTimingData] ❌ Error fetching existing webinar:`, fetchError);
+        throw new Error(`Failed to fetch existing webinar: ${fetchError.message}`);
+      }
+      
+      if (!existingWebinar) {
+        console.error(`[fetchTimingData] ❌ Webinar not found in database`);
+        throw new Error(`Webinar ${webinar_id} not found in database`);
+      }
+      
+      // Create updated webinar data with timing information
+      const updatedWebinarData = {
+        ...existingWebinar.raw_data,
+        id: webinar_id,
+        webinar_id: webinar_id,
+        uuid: webinar_uuid || existingWebinar.webinar_uuid,
+        topic: existingWebinar.topic,
+        status: existingWebinar.status,
+        // Add the timing data
+        actual_start_time: timingData.actual_start_time,
+        actual_duration: timingData.actual_duration,
+        actual_end_time: timingData.actual_end_time,
+        participants_count: timingData.participants_count
+      };
+      
+      console.log(`[fetchTimingData] 🔄 Calling syncWebinarMetadata with enhanced timing data...`);
+      
+      // Update the webinar with timing data
+      const syncResult = await syncWebinarMetadata(
+        supabase,
+        user,
+        updatedWebinarData,
+        existingWebinar.host_email,
+        existingWebinar.host_id,
+        existingWebinar.host_name,
+        existingWebinar.host_first_name,
+        existingWebinar.host_last_name
+      );
+      
+      if (syncResult.error) {
+        console.error(`[fetchTimingData] ❌ Error updating webinar with timing data:`, syncResult.error);
+        throw new Error(`Failed to update webinar: ${syncResult.error.message}`);
+      }
+      
+      console.log(`[fetchTimingData] ✅ Successfully updated webinar with timing data`);
+      
+      // Verify the update worked
+      const { data: updatedWebinar, error: verifyError } = await supabase
+        .from('zoom_webinars')
+        .select('actual_start_time, actual_duration, participants_count, last_synced_at')
+        .eq('user_id', user.id)
+        .eq('webinar_id', webinar_id)
+        .single();
+      
+      if (verifyError) {
+        console.warn(`[fetchTimingData] ⚠️ Error verifying update:`, verifyError);
+      } else {
+        console.log(`[fetchTimingData] 🔍 Verification - Database now contains:`, updatedWebinar);
+      }
+      
+      return new Response(JSON.stringify({
+        success: true,
+        webinar_id: webinar_id,
+        timing_data: timingData,
+        database_updated: true,
+        verification: updatedWebinar
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
       
-      console.log(`[fetch-past-webinar] Response status: ${response.status} ${response.statusText}`);
+    } else {
+      console.log(`[fetchTimingData] ⚠️ No timing data found for webinar ${webinar_id}`);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`[fetch-past-webinar] SUCCESS! Retrieved timing data:`, {
-          start_time: data.start_time,
-          end_time: data.end_time,
-          duration: data.duration,
-          participants_count: data.participants_count
-        });
-        
-        return {
-          success: true,
-          data: {
-            actual_start_time: data.start_time,
-            actual_end_time: data.end_time,
-            actual_duration: data.duration,
-            participants_count: data.participants_count,
-            raw_past_webinar_data: data
-          }
-        };
-      } else if (response.status === 404) {
-        console.log(`[fetch-past-webinar] 404 for candidate: ${candidate}`);
-        continue; // Try next candidate
-      } else {
-        const errorText = await response.text().catch(() => 'Unable to read error response');
-        console.error(`[fetch-past-webinar] API error ${response.status}: ${errorText}`);
-        continue; // Try next candidate
-      }
-    } catch (error) {
-      console.error(`[fetch-past-webinar] Network error for candidate ${candidate}:`, error);
-      continue; // Try next candidate
+      return new Response(JSON.stringify({
+        success: true,
+        webinar_id: webinar_id,
+        timing_data: null,
+        database_updated: false,
+        message: 'No timing data available for this webinar'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
-  }
-  
-  return {
-    success: false,
-    error: 'No valid UUID/ID found for past webinar data',
-    details: `Tested ${uuidCandidates.length} candidates: ${uuidCandidates.join(', ')}`
-  };
-}
-
-/**
- * Update webinar timing data in database
- */
-async function updateWebinarTimingData(supabaseClient: any, userId: string, webinarId: string, timingData: any) {
-  console.log(`[update-timing-data] Updating webinar ${webinarId} with timing data`);
-  
-  try {
-    const updatePayload = {
-      actual_start_time: timingData.actual_start_time ? new Date(timingData.actual_start_time).toISOString() : null,
-      actual_duration: timingData.actual_duration ? parseInt(timingData.actual_duration.toString()) : null,
-      participants_count: timingData.participants_count || null,
-      last_synced_at: new Date().toISOString(),
-      raw_data: timingData.raw_past_webinar_data || {}
-    };
-    
-    console.log('[update-timing-data] Update payload:', {
-      actual_start_time: updatePayload.actual_start_time,
-      actual_duration: updatePayload.actual_duration,
-      participants_count: updatePayload.participants_count
-    });
-    
-    const { data, error } = await supabaseClient
-      .from('zoom_webinars')
-      .update(updatePayload)
-      .eq('user_id', userId)
-      .eq('webinar_id', webinarId)
-      .select('actual_start_time, actual_duration, participants_count, last_synced_at');
-    
-    if (error) {
-      console.error('[update-timing-data] Database error:', error);
-      return { success: false, error: error.message };
-    }
-    
-    console.log('[update-timing-data] Successfully updated database:', data);
-    return { success: true, data };
     
   } catch (error) {
-    console.error('[update-timing-data] Unexpected error:', error);
-    return { success: false, error: error.message };
+    console.error(`[fetchTimingData] ❌ CRITICAL ERROR:`, error);
+    console.error(`[fetchTimingData] Error details:`, {
+      name: error.name,
+      message: error.message,
+      stack: error.stack?.substring(0, 500)
+    });
+    
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      webinar_id: webinar_id,
+      timing_data: null,
+      database_updated: false
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 }

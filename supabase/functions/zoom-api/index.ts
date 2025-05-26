@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { corsHeaders } from './cors.ts';
 import { handleListWebinars } from './handlers/listWebinars.ts';
@@ -59,8 +58,6 @@ Deno.serve(async (req) => {
         return await handleCheckCredentialsStatus(req);
       
       case 'start-async-sync':
-        return await handleAsyncSync(req);
-      
       case 'get-sync-status':
         return await handleAsyncSync(req);
       
