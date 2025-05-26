@@ -25,7 +25,8 @@ export function useSyncProgress() {
     results: null
   });
   
-  const pollingIntervalRef = useRef<number | null>(null);
+  // Fix: Use NodeJS.Timeout type instead of number for browser compatibility
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const startPolling = (jobId: string) => {
     console.log(`[useSyncProgress] Starting to poll job: ${jobId}`);
