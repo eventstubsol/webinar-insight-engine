@@ -1,5 +1,5 @@
 
-import { formatDistanceToNow } from 'https://deno.land/x/date_fns@v2.22.1/index.js';
+import { formatDistanceToNow } from 'https://esm.sh/date-fns@3.6.0/formatDistanceToNow';
 
 export interface SyncResults {
   webinar_updated: boolean;
