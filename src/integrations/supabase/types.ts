@@ -44,6 +44,57 @@ export type Database = {
           },
         ]
       }
+      sync_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_details: Json | null
+          id: string
+          job_type: string
+          metadata: Json | null
+          processed_items: number | null
+          progress: number
+          results: Json | null
+          started_at: string | null
+          status: string
+          total_items: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_details?: Json | null
+          id?: string
+          job_type?: string
+          metadata?: Json | null
+          processed_items?: number | null
+          progress?: number
+          results?: Json | null
+          started_at?: string | null
+          status?: string
+          total_items?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_details?: Json | null
+          id?: string
+          job_type?: string
+          metadata?: Json | null
+          processed_items?: number | null
+          progress?: number
+          results?: Json | null
+          started_at?: string | null
+          status?: string
+          total_items?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

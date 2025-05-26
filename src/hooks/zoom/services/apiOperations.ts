@@ -150,3 +150,116 @@ export async function fetchWebinarRecordingsAPI(webinarId: string): Promise<any>
   console.log(`[fetchWebinarRecordingsAPI] Retrieved recordings data for webinar ${webinarId}`);
   return data;
 }
+
+/**
+ * Start async webinar sync and return job ID immediately
+ */
+export async function startAsyncWebinarSync(userId: string, force: boolean = false): Promise<any> {
+  console.log(`[startAsyncWebinarSync] Starting async sync with force=${force}`);
+  
+  const { data, error } = await supabase.functions.invoke('zoom-api', {
+    body: { 
+      action: 'start-async-sync',
+      force_sync: force 
+    }
+  });
+  
+  if (error) {
+    console.error('[startAsyncWebinarSync] Function invocation error:', error);
+    throw new Error(error.message || 'Failed to start async sync');
+  }
+  
+  if (data.error) {
+    console.error('[startAsyncWebinarSync] API error:', data.error);
+    throw new Error(data.error);
+  }
+  
+  console.log('[startAsyncWebinarSync] Async sync started:', data);
+  return data;
+}
+
+/**
+ * Get sync job status and progress
+ */
+export async function getSyncJobStatus(jobId: string): Promise<any> {
+  console.log(`[getSyncJobStatus] Getting status for job: ${jobId}`);
+  
+  const { data, error } = await supabase.functions.invoke('zoom-api', {
+    body: { 
+      action: 'get-sync-status',
+      job_id: jobId
+    }
+  });
+  
+  if (error) {
+    console.error('[getSyncJobStatus] Function invocation error:', error);
+    throw new Error(error.message || 'Failed to get sync status');
+  }
+  
+  if (data.error) {
+    console.error('[getSyncJobStatus] API error:', data.error);
+    throw new Error(data.error);
+  }
+  
+  return data;
+}
+
+/**
+ * Poll sync job until completion
+ */
+export async function pollSyncJob(
+  jobId: string, 
+  onProgress?: (progress: any) => void,
+  pollingInterval: number = 2000,
+  maxAttempts: number = 150 // 5 minutes max
+): Promise<any> {
+  console.log(`[pollSyncJob] Starting to poll job: ${jobId}`);
+  
+  let attempts = 0;
+  
+  while (attempts < maxAttempts) {
+    try {
+      const status = await getSyncJobStatus(jobId);
+      
+      if (onProgress) {
+        onProgress(status);
+      }
+      
+      // Job completed successfully
+      if (status.status === 'completed') {
+        console.log(`[pollSyncJob] Job completed successfully: ${jobId}`);
+        return status;
+      }
+      
+      // Job failed
+      if (status.status === 'failed') {
+        console.error(`[pollSyncJob] Job failed: ${jobId}`, status.error_details);
+        throw new Error(status.error_details?.error || 'Sync job failed');
+      }
+      
+      // Job still running, continue polling
+      if (status.status === 'running' || status.status === 'pending') {
+        await new Promise(resolve => setTimeout(resolve, pollingInterval));
+        attempts++;
+        continue;
+      }
+      
+      // Unknown status
+      console.warn(`[pollSyncJob] Unknown job status: ${status.status}`);
+      await new Promise(resolve => setTimeout(resolve, pollingInterval));
+      attempts++;
+      
+    } catch (error) {
+      console.error(`[pollSyncJob] Error polling job ${jobId}:`, error);
+      attempts++;
+      
+      if (attempts >= maxAttempts) {
+        throw new Error(`Polling timeout after ${maxAttempts} attempts`);
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, pollingInterval));
+    }
+  }
+  
+  throw new Error(`Polling timeout for job ${jobId}`);
+}

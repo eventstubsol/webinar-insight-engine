@@ -14,6 +14,8 @@ import { handleGetInstanceParticipants } from './handlers/getInstanceParticipant
 import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
+import { handleStartAsyncSync } from './handlers/asyncSync/startAsyncSync.ts';
+import { handleGetSyncStatus } from './handlers/asyncSync/getSyncStatus.ts';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -83,6 +85,13 @@ async function handleRequest(req: Request): Promise<Response> {
       case 'verify-credentials':
         const verifyCredentials = await getZoomCredentials(supabase, user.id);
         return await handleVerifyCredentials(req, supabase, user, verifyCredentials);
+      
+      case 'start-async-sync':
+        const asyncCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleStartAsyncSync(req, supabase, user, asyncCredentials, params.force_sync || false);
+      
+      case 'get-sync-status':
+        return await handleGetSyncStatus(req, supabase, user, params.job_id);
       
       case 'list-webinars':
         const listCredentials = await getZoomCredentials(supabase, user.id);
