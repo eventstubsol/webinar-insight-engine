@@ -5,12 +5,10 @@ import { getZoomJwtToken } from '../auth.ts';
 /**
  * Handle fetching recordings for a specific webinar
  */
-export async function handleGetWebinarRecordings(req: Request, supabase: any, user: any, credentials: any) {
+export async function handleGetWebinarRecordings(req: Request, supabase: any, user: any, credentials: any, webinar_id: string) {
   console.log(`[zoom-api][get-webinar-recordings] Starting recordings fetch for user: ${user.id}`);
   
   try {
-    const { webinar_id } = await req.json();
-    
     if (!webinar_id) {
       return new Response(JSON.stringify({ 
         error: 'Missing required parameter: webinar_id' 

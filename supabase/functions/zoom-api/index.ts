@@ -105,7 +105,7 @@ async function handleRequest(req: Request): Promise<Response> {
       
       case 'get-webinar-recordings':
         const recordingsCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials);
+        return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials, params.webinar_id);
       
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
