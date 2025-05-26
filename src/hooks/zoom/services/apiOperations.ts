@@ -152,10 +152,10 @@ export async function fetchWebinarRecordingsAPI(webinarId: string): Promise<any>
 }
 
 /**
- * Start async webinar sync and return job ID immediately
+ * Start comprehensive async webinar sync and return job ID immediately
  */
 export async function startAsyncWebinarSync(userId: string, force: boolean = false): Promise<any> {
-  console.log(`[startAsyncWebinarSync] Starting async sync with force=${force}`);
+  console.log(`[startAsyncWebinarSync] Starting comprehensive async sync with force=${force}`);
   
   const { data, error } = await supabase.functions.invoke('zoom-api', {
     body: { 
@@ -166,7 +166,7 @@ export async function startAsyncWebinarSync(userId: string, force: boolean = fal
   
   if (error) {
     console.error('[startAsyncWebinarSync] Function invocation error:', error);
-    throw new Error(error.message || 'Failed to start async sync');
+    throw new Error(error.message || 'Failed to start comprehensive async sync');
   }
   
   if (data.error) {
@@ -174,7 +174,7 @@ export async function startAsyncWebinarSync(userId: string, force: boolean = fal
     throw new Error(data.error);
   }
   
-  console.log('[startAsyncWebinarSync] Async sync started:', data);
+  console.log('[startAsyncWebinarSync] Comprehensive async sync started:', data);
   return data;
 }
 
@@ -205,15 +205,15 @@ export async function getSyncJobStatus(jobId: string): Promise<any> {
 }
 
 /**
- * Poll sync job until completion
+ * Poll sync job until completion with extended timeout for comprehensive sync
  */
 export async function pollSyncJob(
   jobId: string, 
   onProgress?: (progress: any) => void,
-  pollingInterval: number = 2000,
-  maxAttempts: number = 150 // 5 minutes max
+  pollingInterval: number = 3000,
+  maxAttempts: number = 200 // 10 minutes max for comprehensive sync
 ): Promise<any> {
-  console.log(`[pollSyncJob] Starting to poll job: ${jobId}`);
+  console.log(`[pollSyncJob] Starting to poll comprehensive sync job: ${jobId}`);
   
   let attempts = 0;
   
@@ -227,14 +227,14 @@ export async function pollSyncJob(
       
       // Job completed successfully
       if (status.status === 'completed') {
-        console.log(`[pollSyncJob] Job completed successfully: ${jobId}`);
+        console.log(`[pollSyncJob] Comprehensive sync job completed successfully: ${jobId}`);
         return status;
       }
       
       // Job failed
       if (status.status === 'failed') {
-        console.error(`[pollSyncJob] Job failed: ${jobId}`, status.error_details);
-        throw new Error(status.error_details?.error || 'Sync job failed');
+        console.error(`[pollSyncJob] Comprehensive sync job failed: ${jobId}`, status.error_details);
+        throw new Error(status.error_details?.error || 'Comprehensive sync job failed');
       }
       
       // Job still running, continue polling
@@ -250,16 +250,16 @@ export async function pollSyncJob(
       attempts++;
       
     } catch (error) {
-      console.error(`[pollSyncJob] Error polling job ${jobId}:`, error);
+      console.error(`[pollSyncJob] Error polling comprehensive sync job ${jobId}:`, error);
       attempts++;
       
       if (attempts >= maxAttempts) {
-        throw new Error(`Polling timeout after ${maxAttempts} attempts`);
+        throw new Error(`Comprehensive sync polling timeout after ${maxAttempts} attempts`);
       }
       
       await new Promise(resolve => setTimeout(resolve, pollingInterval));
     }
   }
   
-  throw new Error(`Polling timeout for job ${jobId}`);
+  throw new Error(`Comprehensive sync polling timeout for job ${jobId}`);
 }

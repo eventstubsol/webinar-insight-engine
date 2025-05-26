@@ -11,6 +11,8 @@ interface SyncProgress {
   isPolling: boolean;
   error: string | null;
   results: any;
+  currentStage?: string;
+  stages?: any;
 }
 
 export function useSyncProgress() {
@@ -22,14 +24,15 @@ export function useSyncProgress() {
     processedItems: 0,
     isPolling: false,
     error: null,
-    results: null
+    results: null,
+    currentStage: undefined,
+    stages: undefined
   });
   
-  // Fix: Use NodeJS.Timeout type instead of number for browser compatibility
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const startPolling = (jobId: string) => {
-    console.log(`[useSyncProgress] Starting to poll job: ${jobId}`);
+    console.log(`[useSyncProgress] Starting to poll comprehensive sync job: ${jobId}`);
     
     setSyncProgress(prev => ({
       ...prev,
@@ -44,7 +47,7 @@ export function useSyncProgress() {
       clearInterval(pollingIntervalRef.current);
     }
     
-    // Start polling
+    // Start polling with extended timeout for comprehensive sync
     pollingIntervalRef.current = setInterval(async () => {
       try {
         const status = await getSyncJobStatus(jobId);
@@ -56,6 +59,8 @@ export function useSyncProgress() {
           totalItems: status.total_items || 0,
           processedItems: status.processed_items || 0,
           results: status.results,
+          currentStage: status.metadata?.current_stage,
+          stages: status.metadata?.stages,
           error: status.status === 'failed' ? status.error_details?.error : null
         }));
         
@@ -71,11 +76,11 @@ export function useSyncProgress() {
             isPolling: false
           }));
           
-          console.log(`[useSyncProgress] Polling stopped for job: ${jobId}, final status: ${status.status}`);
+          console.log(`[useSyncProgress] Comprehensive sync polling stopped for job: ${jobId}, final status: ${status.status}`);
         }
         
-      } catch (error) {
-        console.error(`[useSyncProgress] Error polling job ${jobId}:`, error);
+      } catch (error: any) {
+        console.error(`[useSyncProgress] Error polling comprehensive sync job ${jobId}:`, error);
         
         setSyncProgress(prev => ({
           ...prev,
@@ -88,11 +93,11 @@ export function useSyncProgress() {
           pollingIntervalRef.current = null;
         }
       }
-    }, 2000); // Poll every 2 seconds
+    }, 3000); // Poll every 3 seconds for comprehensive sync
   };
   
   const stopPolling = () => {
-    console.log('[useSyncProgress] Stopping polling');
+    console.log('[useSyncProgress] Stopping comprehensive sync polling');
     
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -106,7 +111,7 @@ export function useSyncProgress() {
   };
   
   const resetProgress = () => {
-    console.log('[useSyncProgress] Resetting progress');
+    console.log('[useSyncProgress] Resetting comprehensive sync progress');
     
     stopPolling();
     
@@ -118,7 +123,9 @@ export function useSyncProgress() {
       processedItems: 0,
       isPolling: false,
       error: null,
-      results: null
+      results: null,
+      currentStage: undefined,
+      stages: undefined
     });
   };
   

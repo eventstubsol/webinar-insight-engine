@@ -4,7 +4,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import { corsHeaders } from './cors.ts';
 import { getZoomCredentials, handleSaveCredentials, handleCheckCredentialsStatus, handleVerifyCredentials } from './credentials.ts';
-import { getZoomJwtToken } from './auth.ts';
 
 import { handleListWebinars } from './handlers/listWebinars.ts';
 import { handleGetWebinar } from './handlers/getWebinar.ts';
@@ -23,9 +22,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // CRITICAL FIX: Increase timeout to 60 seconds to accommodate enhancement processing
+  // ENHANCED: Increase timeout to 120 seconds for comprehensive sync operations
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Operation timed out after 60000ms')), 60000);
+    setTimeout(() => reject(new Error('Operation timed out after 120000ms')), 120000);
   });
 
   try {
@@ -40,9 +39,10 @@ serve(async (req) => {
     // Enhanced error response with timeout detection
     const isTimeout = error.message && error.message.includes('timed out');
     const errorResponse = {
-      error: isTimeout ? 'Request timed out. Please try again with a smaller dataset.' : error.message,
+      error: isTimeout ? 'Request timed out. For comprehensive sync operations, please check job status using the job ID.' : error.message,
       category: isTimeout ? 'timeout' : 'server_error',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      suggestion: isTimeout ? 'Use async sync for large datasets and poll for status updates.' : undefined
     };
     
     return new Response(JSON.stringify(errorResponse), {
