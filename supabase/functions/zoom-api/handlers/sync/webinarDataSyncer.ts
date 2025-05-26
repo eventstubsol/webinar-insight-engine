@@ -9,16 +9,16 @@ export async function syncWebinarMetadata(
   hostFirstName?: string,
   hostLastName?: string
 ) {
-  console.log(`[webinar-data-syncer] Syncing webinar metadata for: ${webinarData.id}`);
+  console.log(`[DB-SYNC] 💾 === DATABASE SYNC START ===`);
+  console.log(`[DB-SYNC] Syncing webinar metadata for: ${webinarData.id}`);
+  console.log(`[DB-SYNC] User ID: ${user.id}`);
   
   try {
-    // Log the actual timing data we're about to upsert
-    console.log(`[webinar-data-syncer] === DATABASE UPSERT DEBUG ===`);
-    console.log(`[webinar-data-syncer] Webinar ID: ${webinarData.id}`);
-    console.log(`[webinar-data-syncer] Input timing data:`);
-    console.log(`[webinar-data-syncer] - actual_start_time: ${webinarData.actual_start_time}`);
-    console.log(`[webinar-data-syncer] - actual_duration: ${webinarData.actual_duration}`);
-    console.log(`[webinar-data-syncer] - actual_end_time: ${webinarData.actual_end_time}`);
+    // Log the actual timing data we're about to upsert with enhanced detail
+    console.log(`[DB-SYNC] 📊 Input timing data validation:`);
+    console.log(`[DB-SYNC] - webinarData.actual_start_time: ${webinarData.actual_start_time} (type: ${typeof webinarData.actual_start_time})`);
+    console.log(`[DB-SYNC] - webinarData.actual_duration: ${webinarData.actual_duration} (type: ${typeof webinarData.actual_duration})`);
+    console.log(`[DB-SYNC] - webinarData.actual_end_time: ${webinarData.actual_end_time} (type: ${typeof webinarData.actual_end_time})`);
     
     // Prepare webinar data with enhanced host information and actual timing data
     const webinarRecord = {
@@ -64,11 +64,13 @@ export async function syncWebinarMetadata(
       raw_data: webinarData
     };
     
-    console.log(`[webinar-data-syncer] Prepared record timing fields:`);
-    console.log(`[webinar-data-syncer] - actual_start_time: ${webinarRecord.actual_start_time}`);
-    console.log(`[webinar-data-syncer] - actual_duration: ${webinarRecord.actual_duration}`);
+    console.log(`[DB-SYNC] 🎯 Prepared database record timing fields:`);
+    console.log(`[DB-SYNC] - actual_start_time: ${webinarRecord.actual_start_time} (type: ${typeof webinarRecord.actual_start_time})`);
+    console.log(`[DB-SYNC] - actual_duration: ${webinarRecord.actual_duration} (type: ${typeof webinarRecord.actual_duration})`);
+    console.log(`[DB-SYNC] - webinar_uuid: ${webinarRecord.webinar_uuid}`);
+    console.log(`[DB-SYNC] - status: ${webinarRecord.status}`);
     
-    console.log(`[webinar-data-syncer] Executing upsert to zoom_webinars table...`);
+    console.log(`[DB-SYNC] 🚀 Executing upsert to zoom_webinars table...`);
     
     const { data: upsertData, error } = await supabase
       .from('zoom_webinars')
@@ -76,42 +78,60 @@ export async function syncWebinarMetadata(
         onConflict: 'user_id,webinar_id',
         ignoreDuplicates: false
       })
-      .select('actual_start_time, actual_duration');
+      .select('actual_start_time, actual_duration, webinar_id, last_synced_at');
     
     if (error) {
-      console.error(`[webinar-data-syncer] UPSERT ERROR for webinar ${webinarData.id}:`, error);
-      console.error(`[webinar-data-syncer] Error details:`, JSON.stringify(error, null, 2));
+      console.error(`[DB-SYNC] ❌ UPSERT ERROR:`, error);
+      console.error(`[DB-SYNC] Error code: ${error.code}`);
+      console.error(`[DB-SYNC] Error message: ${error.message}`);
+      console.error(`[DB-SYNC] Error details:`, JSON.stringify(error, null, 2));
       return { error, count: 0 };
     }
     
-    console.log(`[webinar-data-syncer] UPSERT SUCCESS for webinar ${webinarData.id}`);
-    console.log(`[webinar-data-syncer] Upsert result data:`, upsertData);
+    console.log(`[DB-SYNC] ✅ UPSERT SUCCESS!`);
+    console.log(`[DB-SYNC] Upsert returned data:`, upsertData);
     
-    // Additional verification query
-    console.log(`[webinar-data-syncer] Performing verification query...`);
+    // Enhanced verification query with more fields
+    console.log(`[DB-SYNC] 🔍 Performing detailed verification query...`);
     const { data: verifyData, error: verifyError } = await supabase
       .from('zoom_webinars')
-      .select('webinar_id, actual_start_time, actual_duration, last_synced_at')
+      .select('webinar_id, actual_start_time, actual_duration, last_synced_at, status, webinar_uuid')
       .eq('user_id', user.id)
       .eq('webinar_id', webinarData.id?.toString())
       .single();
       
     if (verifyError) {
-      console.error(`[webinar-data-syncer] Verification query failed:`, verifyError);
+      console.error(`[DB-SYNC] ❌ Verification query failed:`, verifyError);
+      console.error(`[DB-SYNC] Verification error code: ${verifyError.code}`);
+      console.error(`[DB-SYNC] Verification error message: ${verifyError.message}`);
     } else {
-      console.log(`[webinar-data-syncer] VERIFICATION RESULT:`, verifyData);
-      console.log(`[webinar-data-syncer] - DB actual_start_time: ${verifyData.actual_start_time}`);
-      console.log(`[webinar-data-syncer] - DB actual_duration: ${verifyData.actual_duration}`);
-      console.log(`[webinar-data-syncer] - DB last_synced_at: ${verifyData.last_synced_at}`);
+      console.log(`[DB-SYNC] ✅ VERIFICATION SUCCESSFUL:`, verifyData);
+      console.log(`[DB-SYNC] Final DB state:`);
+      console.log(`[DB-SYNC] - webinar_id: ${verifyData.webinar_id}`);
+      console.log(`[DB-SYNC] - actual_start_time: ${verifyData.actual_start_time}`);
+      console.log(`[DB-SYNC] - actual_duration: ${verifyData.actual_duration}`);
+      console.log(`[DB-SYNC] - status: ${verifyData.status}`);
+      console.log(`[DB-SYNC] - webinar_uuid: ${verifyData.webinar_uuid}`);
+      console.log(`[DB-SYNC] - last_synced_at: ${verifyData.last_synced_at}`);
+      
+      // Check if timing data was successfully saved
+      if (webinarData.actual_start_time && !verifyData.actual_start_time) {
+        console.error(`[DB-SYNC] ⚠️ WARNING: Expected timing data was not saved!`);
+        console.error(`[DB-SYNC] Expected actual_start_time: ${webinarData.actual_start_time}`);
+        console.error(`[DB-SYNC] Actual DB actual_start_time: ${verifyData.actual_start_time}`);
+      } else if (webinarData.actual_start_time && verifyData.actual_start_time) {
+        console.log(`[DB-SYNC] ✅ Timing data successfully saved to database`);
+      }
     }
     
-    console.log(`[webinar-data-syncer] === DATABASE UPSERT DEBUG END ===`);
-    console.log(`[webinar-data-syncer] Successfully synced webinar metadata for: ${webinarData.id} with actual timing data`);
+    console.log(`[DB-SYNC] === DATABASE SYNC END ===`);
     return { error: null, count: 1 };
     
   } catch (error) {
-    console.error(`[webinar-data-syncer] EXCEPTION syncing webinar ${webinarData.id}:`, error);
-    console.error(`[webinar-data-syncer] Exception stack:`, error.stack);
+    console.error(`[DB-SYNC] ❌ EXCEPTION during database sync:`, error);
+    console.error(`[DB-SYNC] Exception name: ${error.name}`);
+    console.error(`[DB-SYNC] Exception message: ${error.message}`);
+    console.error(`[DB-SYNC] Exception stack:`, error.stack);
     return { error, count: 0 };
   }
 }
