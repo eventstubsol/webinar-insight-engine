@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { useZoomWebinarRecordings } from '@/hooks/zoom/useZoomWebinarRecordings';
@@ -102,6 +103,11 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
               <Calendar className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
                 <span className="font-medium">Webinar Date:</span> {webinarDate}
+              </div>
+              
+              <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+              <div>
+                <span className="font-medium">Timezone:</span> {webinar.timezone || 'Not specified'}
               </div>
               
               <User className="h-4 w-4 text-muted-foreground mt-1" />
