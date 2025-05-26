@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from './cors.ts';
 import { getZoomCredentials } from './auth.ts';
 import { handleListWebinars } from './handlers/listWebinars.ts';
