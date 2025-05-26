@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { useZoomWebinarRecordings } from '@/hooks/zoom/useZoomWebinarRecordings';
@@ -5,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { format, parseISO } from 'date-fns';
 import { WebinarRecordingInfo } from './WebinarRecordingInfo';
+import { extractHostInfo, extractPresenterInfo, formatHostDisplay } from './utils/hostDisplayUtils';
 import {
   User,
   Calendar,
@@ -52,8 +54,12 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   const uniqueViewers = new Set(participants.attendees.map(a => a.user_email)).size;
   const totalUsers = participants.attendees.length;
   
-  // Extract presenter and panelists from webinar data
-  const presenter = webinar.alternative_host || webinar.host_email;
+  // Extract and format host and presenter information
+  const hostInfo = extractHostInfo(webinar);
+  const presenterInfo = extractPresenterInfo(webinar);
+  
+  const formattedHost = formatHostDisplay(hostInfo);
+  const formattedPresenter = formatHostDisplay(presenterInfo);
   
   // Get panelists from webinar data - now properly typed
   const panelists = Array.isArray(webinar.panelists) ? webinar.panelists : [];
@@ -85,7 +91,7 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
             <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
               <User className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
-                <span className="font-medium">Webinar Host:</span> {webinar.host_email}
+                <span className="font-medium">Webinar Host:</span> {formattedHost}
               </div>
               
               <Hash className="h-4 w-4 text-muted-foreground mt-1" />
@@ -100,7 +106,7 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
               
               <User className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
-                <span className="font-medium">Presenter:</span> {presenter}
+                <span className="font-medium">Presenter:</span> {formattedPresenter}
               </div>
               
               <Users className="h-4 w-4 text-muted-foreground mt-1" />
