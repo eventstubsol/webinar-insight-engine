@@ -10,7 +10,7 @@ import { handleUpdateWebinarParticipants } from './handlers/updateWebinarPartici
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
 import { handleFetchTimingData } from './handlers/fetchTimingData.ts';
-import { handleCheckCredentialsStatus } from './handlers/checkCredentialsStatus.ts';
+import { handleCheckCredentialsStatus } from './credentials.ts';
 import { handleAsyncSync } from './handlers/asyncSync.ts';
 
 console.log('[zoom-api] Function starting up');
