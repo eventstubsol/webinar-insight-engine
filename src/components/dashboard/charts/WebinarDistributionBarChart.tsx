@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
-import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { TimeRangeView } from '@/hooks/useWebinarDistribution';
 
 // Color palette for the bars - 12 different colors
@@ -73,6 +73,7 @@ export const WebinarDistributionBarChart: React.FC<WebinarDistributionBarChartPr
             axisLine={{ stroke: '#cbd5e1' }}
             tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
           />
+          <ChartTooltip content={<ChartTooltipContent />} />
           <Bar 
             dataKey="total" 
             name="Total Webinars" 
