@@ -161,7 +161,12 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
               <div>
                 <span className="font-medium">Total Denied:</span> {totalDenied}
               </div>
-              
+            </div>
+            
+            <h3 className="text-lg font-medium mt-4">Session Summary</h3>
+            <Separator />
+            
+            <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
               <Clock className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
                 <span className="font-medium">Actual Start:</span> {actualStart}
@@ -171,12 +176,7 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
               <div>
                 <span className="font-medium">Actual Duration:</span> {actualDuration} minutes
               </div>
-            </div>
-            
-            <h3 className="text-lg font-medium mt-4">Session Summary</h3>
-            <Separator />
-            
-            <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
+              
               <Eye className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
                 <span className="font-medium">Unique Viewers:</span> {uniqueViewers}
