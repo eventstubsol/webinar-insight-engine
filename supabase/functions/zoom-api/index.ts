@@ -9,7 +9,7 @@ import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
 import { handleGetInstanceParticipants } from './handlers/getInstanceParticipants.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
-import { handleCheckCredentialsStatus } from './handlers/checkCredentialsStatus.ts';
+import { handleCheckCredentialsStatus } from './credentials.ts';
 
 import { handleGetActualTimingData } from './handlers/getActualTimingData.ts';
 
