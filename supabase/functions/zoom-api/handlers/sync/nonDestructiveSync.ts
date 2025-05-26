@@ -95,6 +95,17 @@ export async function performNonDestructiveUpsert(
   const currentTimestamp = new Date().toISOString();
   
   for (const webinar of webinars) {
+    // Extract actual timing data from webinar response
+    const actualStartTime = webinar.actual_start_time || 
+                            webinar.start_time_actual || 
+                            webinar.actualStartTime || 
+                            null;
+                            
+    const actualDuration = webinar.actual_duration || 
+                           webinar.duration_actual || 
+                           webinar.actualDuration || 
+                           null;
+
     const webinarData = {
       user_id: userId,
       webinar_id: webinar.id,
@@ -102,6 +113,8 @@ export async function performNonDestructiveUpsert(
       topic: webinar.topic,
       start_time: webinar.start_time,
       duration: webinar.duration,
+      actual_start_time: actualStartTime,
+      actual_duration: actualDuration,
       timezone: webinar.timezone,
       agenda: webinar.agenda || '',
       host_email: webinar.host_email,
@@ -133,6 +146,8 @@ export async function performNonDestructiveUpsert(
           existingWebinar.topic !== webinar.topic ||
           existingWebinar.start_time !== webinar.start_time ||
           existingWebinar.duration !== webinar.duration ||
+          existingWebinar.actual_start_time !== actualStartTime ||
+          existingWebinar.actual_duration !== actualDuration ||
           existingWebinar.agenda !== webinar.agenda ||
           existingWebinar.status !== webinar.status ||
           JSON.stringify(existingWebinar.raw_data) !== JSON.stringify(webinar);
