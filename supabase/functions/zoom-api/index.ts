@@ -1,11 +1,10 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from './cors.ts';
 import { getZoomCredentials } from './auth.ts';
 import { handleListWebinars } from './handlers/listWebinars.ts';
 import { handleGetWebinar } from './handlers/getWebinar.ts';
 import { handleGetParticipants } from './handlers/getParticipants.ts';
-import { handleUpdateWebinarParticipants } from './handlers/updateParticipants.ts';
+import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
 import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
 import { handleGetInstanceParticipants } from './handlers/getInstanceParticipants.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
