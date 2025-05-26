@@ -14,8 +14,9 @@ import {
   recordSyncHistory,
   type SyncResults
 } from './sync/syncResultsManager.ts';
+import { enhanceWebinarsWithActualTimingData } from './sync/actualTimingDataProcessor.ts';
 
-// Enhanced function to fetch actual timing data with improved status detection
+// Enhanced function to fetch actual timing data with improved UUID handling and error recovery
 async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
   const webinarId = webinarData.id;
   const apiStatus = webinarData.status?.toLowerCase();
@@ -24,7 +25,7 @@ async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
   console.log(`[TIMING-DEBUG] Webinar ID: ${webinarId}`);
   console.log(`[TIMING-DEBUG] API Status: ${apiStatus} (type: ${typeof apiStatus})`);
   
-  // ENHANCED: Better UUID field detection with validation
+  // ENHANCED: Better UUID field detection with validation and sanitization
   const possibleUuidFields = [
     { field: 'uuid', value: webinarData.uuid },
     { field: 'webinar_uuid', value: webinarData.webinar_uuid },
@@ -34,10 +35,12 @@ async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
   
   console.log(`[TIMING-DEBUG] Available UUID fields:`, possibleUuidFields);
   
-  // Find the first valid UUID (should be a string with reasonable length)
-  const validUuidField = possibleUuidFields.find(({ value }) => 
-    value && typeof value === 'string' && value.length > 10
-  );
+  // Find the first valid UUID with proper validation
+  const validUuidField = possibleUuidFields.find(({ value }) => {
+    if (!value || typeof value !== 'string' || value.length < 10) return false;
+    // Additional validation: UUID should not be just numbers (that's likely an ID, not UUID)
+    return value.includes('=') || value.includes('-') || value.includes('/') || value.includes('+') || value.length > 20;
+  });
   
   if (!validUuidField) {
     console.log(`[TIMING-DEBUG] ❌ SKIPPING: No valid UUID found in any field`);
@@ -45,10 +48,10 @@ async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
     return null;
   }
   
-  const webinarUuid = validUuidField.value;
+  let webinarUuid = validUuidField.value;
   console.log(`[TIMING-DEBUG] ✅ Using UUID from field '${validUuidField.field}': ${webinarUuid}`);
   
-  // IMPROVED: Enhanced status detection logic
+  // IMPROVED: Enhanced status detection logic with time-based fallback
   let shouldFetchTiming = false;
   const now = new Date();
   
@@ -58,7 +61,7 @@ async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
     console.log(`[TIMING-DEBUG] ✅ Webinar explicitly marked as '${apiStatus}'`);
   }
   // Check if status is undefined/null but webinar should be ended based on time
-  else if (!apiStatus || apiStatus === 'undefined') {
+  else if (!apiStatus || apiStatus === 'undefined' || apiStatus === 'null') {
     console.log(`[TIMING-DEBUG] ⚠️ Status is '${apiStatus}', checking time-based logic`);
     
     if (webinarData.start_time && webinarData.duration) {
@@ -91,78 +94,102 @@ async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
     return null;
   }
   
-  try {
-    const apiUrl = `https://api.zoom.us/v2/past_webinars/${webinarUuid}`;
-    console.log(`[TIMING-DEBUG] 🚀 Making API call to: ${apiUrl}`);
-    
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log(`[TIMING-DEBUG] API Response status: ${response.status} ${response.statusText}`);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.log(`[TIMING-DEBUG] ❌ API Error response: ${errorText}`);
+  // Try multiple UUID formats and encoding strategies
+  const uuidVariants = [
+    webinarUuid, // Original UUID
+    encodeURIComponent(webinarUuid), // URL encoded
+    webinarUuid.replace(/\+/g, '%2B').replace(/\//g, '%2F').replace(/=/g, '%3D'), // Manual encoding of common base64 chars
+  ];
+  
+  for (const [index, uuidVariant] of uuidVariants.entries()) {
+    try {
+      const apiUrl = `https://api.zoom.us/v2/past_webinars/${uuidVariant}`;
+      console.log(`[TIMING-DEBUG] 🚀 Attempt ${index + 1}: Making API call to: ${apiUrl}`);
       
-      if (response.status === 404) {
-        console.log(`[TIMING-DEBUG] 404 - Past webinar data not found (webinar may not have been started or completed yet)`);
-        console.log(`[TIMING-DEBUG] === TIMING FETCH END (404) ===`);
-        return null;
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log(`[TIMING-DEBUG] API Response status: ${response.status} ${response.statusText}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`[TIMING-DEBUG] ❌ API Error response: ${errorText}`);
+        
+        if (response.status === 404) {
+          console.log(`[TIMING-DEBUG] 404 - Past webinar data not found with UUID variant ${index + 1}`);
+          if (index < uuidVariants.length - 1) {
+            console.log(`[TIMING-DEBUG] Trying next UUID variant...`);
+            continue; // Try next UUID variant
+          } else {
+            console.log(`[TIMING-DEBUG] All UUID variants exhausted, webinar may not have been started or completed yet`);
+            console.log(`[TIMING-DEBUG] === TIMING FETCH END (404 - ALL VARIANTS TRIED) ===`);
+            return null;
+          }
+        } else {
+          console.error(`[TIMING-DEBUG] API call failed with status ${response.status}: ${errorText}`);
+          // For non-404 errors, don't try other variants
+          console.log(`[TIMING-DEBUG] === TIMING FETCH END (API ERROR) ===`);
+          return null;
+        }
+      }
+      
+      const pastWebinarData = await response.json();
+      console.log(`[TIMING-DEBUG] ✅ SUCCESS! Retrieved past webinar data with UUID variant ${index + 1}`);
+      console.log(`[TIMING-DEBUG] Raw API response keys:`, Object.keys(pastWebinarData));
+      
+      // Extract actual timing data with detailed logging
+      const actualStartTime = pastWebinarData.start_time;
+      const actualEndTime = pastWebinarData.end_time;
+      let actualDuration = pastWebinarData.duration;
+      
+      console.log(`[TIMING-DEBUG] Raw timing data extracted:`);
+      console.log(`[TIMING-DEBUG] - start_time: ${actualStartTime} (type: ${typeof actualStartTime})`);
+      console.log(`[TIMING-DEBUG] - end_time: ${actualEndTime} (type: ${typeof actualEndTime})`);
+      console.log(`[TIMING-DEBUG] - duration: ${actualDuration} (type: ${typeof actualDuration})`);
+      
+      // Calculate duration if we have start and end times but no duration
+      if (actualStartTime && actualEndTime && !actualDuration) {
+        const startMs = new Date(actualStartTime).getTime();
+        const endMs = new Date(actualEndTime).getTime();
+        actualDuration = Math.round((endMs - startMs) / (1000 * 60)); // Duration in minutes
+        console.log(`[TIMING-DEBUG] ⚡ Calculated duration: ${actualDuration} minutes`);
+      }
+      
+      const result = {
+        actual_start_time: actualStartTime,
+        actual_duration: actualDuration,
+        actual_end_time: actualEndTime,
+        participants_count: pastWebinarData.participants_count || webinarData.participants_count || 0
+      };
+      
+      console.log(`[TIMING-DEBUG] 🎯 Final timing result:`, result);
+      console.log(`[TIMING-DEBUG] === TIMING FETCH END (SUCCESS) ===`);
+      
+      return result;
+      
+    } catch (error) {
+      console.error(`[TIMING-DEBUG] ❌ EXCEPTION with UUID variant ${index + 1}:`, error);
+      console.error(`[TIMING-DEBUG] Error name: ${error.name}`);
+      console.error(`[TIMING-DEBUG] Error message: ${error.message}`);
+      
+      if (index < uuidVariants.length - 1) {
+        console.log(`[TIMING-DEBUG] Trying next UUID variant...`);
+        continue; // Try next UUID variant
       } else {
-        console.error(`[TIMING-DEBUG] API call failed with status ${response.status}: ${errorText}`);
-        console.log(`[TIMING-DEBUG] === TIMING FETCH END (API ERROR) ===`);
+        console.log(`[TIMING-DEBUG] === TIMING FETCH END (EXCEPTION - ALL VARIANTS TRIED) ===`);
         return null;
       }
     }
-    
-    const pastWebinarData = await response.json();
-    console.log(`[TIMING-DEBUG] ✅ SUCCESS! Retrieved past webinar data`);
-    console.log(`[TIMING-DEBUG] Raw API response keys:`, Object.keys(pastWebinarData));
-    
-    // Extract actual timing data with detailed logging
-    const actualStartTime = pastWebinarData.start_time;
-    const actualEndTime = pastWebinarData.end_time;
-    let actualDuration = pastWebinarData.duration;
-    
-    console.log(`[TIMING-DEBUG] Raw timing data extracted:`);
-    console.log(`[TIMING-DEBUG] - start_time: ${actualStartTime} (type: ${typeof actualStartTime})`);
-    console.log(`[TIMING-DEBUG] - end_time: ${actualEndTime} (type: ${typeof actualEndTime})`);
-    console.log(`[TIMING-DEBUG] - duration: ${actualDuration} (type: ${typeof actualDuration})`);
-    
-    // Calculate duration if we have start and end times but no duration
-    if (actualStartTime && actualEndTime && !actualDuration) {
-      const startMs = new Date(actualStartTime).getTime();
-      const endMs = new Date(actualEndTime).getTime();
-      actualDuration = Math.round((endMs - startMs) / (1000 * 60)); // Duration in minutes
-      console.log(`[TIMING-DEBUG] ⚡ Calculated duration: ${actualDuration} minutes`);
-    }
-    
-    const result = {
-      actual_start_time: actualStartTime,
-      actual_duration: actualDuration,
-      actual_end_time: actualEndTime,
-      participants_count: pastWebinarData.participants_count || webinarData.participants_count || 0
-    };
-    
-    console.log(`[TIMING-DEBUG] 🎯 Final timing result:`, result);
-    console.log(`[TIMING-DEBUG] === TIMING FETCH END (SUCCESS) ===`);
-    
-    return result;
-    
-  } catch (error) {
-    console.error(`[TIMING-DEBUG] ❌ EXCEPTION while fetching past webinar data:`, error);
-    console.error(`[TIMING-DEBUG] Error name: ${error.name}`);
-    console.error(`[TIMING-DEBUG] Error message: ${error.message}`);
-    console.log(`[TIMING-DEBUG] === TIMING FETCH END (EXCEPTION) ===`);
-    return null;
   }
+  
+  return null;
 }
 
-// Handle syncing a single webinar's complete data with enhanced logging
+// Handle syncing a single webinar's complete data with enhanced logging and timing enhancement
 export async function handleSyncSingleWebinar(req: Request, supabase: any, user: any, credentials: any, webinarId: string) {
   console.log(`[SYNC-DEBUG] 🚀 === SINGLE WEBINAR SYNC START ===`);
   console.log(`[SYNC-DEBUG] Function entry confirmed - handleSyncSingleWebinar is running`);
@@ -229,22 +256,49 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
         console.log(`[SYNC-DEBUG] ℹ️ No panelists found`);
       }
       
-      // ENHANCED: Fetch actual timing data with improved logic
-      console.log(`[SYNC-DEBUG] ⏰ Step 1.5: Starting ENHANCED ACTUAL TIMING DATA fetch process`);
-      const actualTimingData = await fetchSingleWebinarActualTiming(token, webinarData);
-      
-      if (actualTimingData) {
-        console.log(`[SYNC-DEBUG] 🎯 TIMING DATA RETRIEVED! Merging into webinar:`, actualTimingData);
-        Object.assign(webinarData, actualTimingData);
-        syncResults.actual_timing_resolved = true;
-        console.log(`[SYNC-DEBUG] ✅ SUCCESS: Actual timing data resolved and merged`);
-        console.log(`[SYNC-DEBUG] Final webinar timing data:`, {
-          actual_start_time: webinarData.actual_start_time,
-          actual_duration: webinarData.actual_duration,
-          actual_end_time: webinarData.actual_end_time
-        });
-      } else {
-        console.log(`[SYNC-DEBUG] ❌ No actual timing data retrieved`);
+      // ENHANCED: Fetch actual timing data using the batch enhancement processor
+      console.log(`[SYNC-DEBUG] ⏰ Step 1.5: Starting BATCH ACTUAL TIMING DATA enhancement process`);
+      try {
+        const webinarsWithTiming = await enhanceWebinarsWithActualTimingData([webinarData], token);
+        
+        if (webinarsWithTiming && webinarsWithTiming.length > 0) {
+          const enhancedWebinar = webinarsWithTiming[0];
+          if (enhancedWebinar.actual_start_time || enhancedWebinar.actual_duration) {
+            console.log(`[SYNC-DEBUG] 🎯 BATCH TIMING DATA RETRIEVED! Merging into webinar:`, {
+              actual_start_time: enhancedWebinar.actual_start_time,
+              actual_duration: enhancedWebinar.actual_duration,
+              actual_end_time: enhancedWebinar.actual_end_time
+            });
+            
+            // Merge the timing data
+            Object.assign(webinarData, {
+              actual_start_time: enhancedWebinar.actual_start_time,
+              actual_duration: enhancedWebinar.actual_duration,
+              actual_end_time: enhancedWebinar.actual_end_time
+            });
+            
+            syncResults.actual_timing_resolved = true;
+            console.log(`[SYNC-DEBUG] ✅ SUCCESS: Batch actual timing data resolved and merged`);
+          } else {
+            console.log(`[SYNC-DEBUG] ❌ Batch enhancement returned webinar without timing data`);
+          }
+        } else {
+          console.log(`[SYNC-DEBUG] ❌ Batch enhancement returned empty or invalid result`);
+        }
+      } catch (batchError) {
+        console.warn(`[SYNC-DEBUG] ⚠️ Batch timing enhancement failed, trying individual approach:`, batchError.message);
+        
+        // Fallback to individual timing fetch
+        const actualTimingData = await fetchSingleWebinarActualTiming(token, webinarData);
+        
+        if (actualTimingData) {
+          console.log(`[SYNC-DEBUG] 🎯 INDIVIDUAL TIMING DATA RETRIEVED! Merging into webinar:`, actualTimingData);
+          Object.assign(webinarData, actualTimingData);
+          syncResults.actual_timing_resolved = true;
+          console.log(`[SYNC-DEBUG] ✅ SUCCESS: Individual actual timing data resolved and merged`);
+        } else {
+          console.log(`[SYNC-DEBUG] ❌ No actual timing data retrieved from either method`);
+        }
       }
       
       // Log what we're about to send to the database

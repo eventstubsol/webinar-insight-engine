@@ -10,11 +10,12 @@ import { fetchUserInfo } from './sync/userInfoFetcher.ts';
 import { handleEmptySync } from './sync/emptySyncHandler.ts';
 import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
-// Enhanced timeout handling
+// Enhanced timeout handling with better error recovery
 const OPERATION_TIMEOUT = 50000; // 50 seconds (Edge Function limit is 60s)
-const ENHANCEMENT_TIMEOUT = 30000; // 30 seconds for enhancement phase
+const ENHANCEMENT_TIMEOUT = 25000; // Reduced to 25 seconds for enhancement phase
+const CIRCUIT_BREAKER_THRESHOLD = 3; // Number of failures before circuit opens
 
-// Handle listing webinars with non-destructive upsert-based sync and improved timeout handling
+// Handle listing webinars with improved error handling and timeout protection
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
   console.log(`[zoom-api][list-webinars] Starting non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
   console.log(`[zoom-api][list-webinars] Current timestamp: ${new Date().toISOString()}`);
@@ -31,25 +32,43 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       });
     }
     
-    // Get token and fetch user info with timeout
-    const tokenPromise = getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
-    const token = await Promise.race([
-      tokenPromise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Token generation timeout')), 10000))
-    ]);
+    // Get token and fetch user info with improved timeout handling
+    let token;
+    try {
+      const tokenPromise = getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
+      token = await Promise.race([
+        tokenPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Token generation timeout')), 10000))
+      ]);
+    } catch (error) {
+      console.error('[zoom-api][list-webinars] Token generation failed:', error);
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
     
     console.log('[zoom-api][list-webinars] Got Zoom token, fetching user info and webinars');
     
-    const meData = await fetchUserInfo(token);
-    console.log(`[zoom-api][list-webinars] Got user info for: ${meData.email}, ID: ${meData.id}`);
+    let meData;
+    try {
+      meData = await fetchUserInfo(token);
+      console.log(`[zoom-api][list-webinars] Got user info for: ${meData.email}, ID: ${meData.id}`);
+    } catch (error) {
+      console.error('[zoom-api][list-webinars] User info fetch failed:', error);
+      throw new Error(`Failed to fetch user information: ${error.message}`);
+    }
 
-    // Fetch webinars from Zoom API with timeout protection
+    // Fetch webinars from Zoom API with improved timeout protection
     console.log(`[zoom-api][list-webinars] Fetching webinars from API (${Date.now() - startTime}ms elapsed)`);
-    const webinarsPromise = fetchWebinarsFromZoomAPI(token, meData.id);
-    const allWebinars = await Promise.race([
-      webinarsPromise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Webinars fetch timeout')), 20000))
-    ]);
+    let allWebinars;
+    try {
+      const webinarsPromise = fetchWebinarsFromZoomAPI(token, meData.id);
+      allWebinars = await Promise.race([
+        webinarsPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Webinars fetch timeout')), 20000))
+      ]);
+    } catch (error) {
+      console.error('[zoom-api][list-webinars] Webinars fetch failed:', error);
+      throw new Error(`Failed to fetch webinars: ${error.message}`);
+    }
     
     // Log detailed statistics about the fetched data
     logWebinarStatistics(allWebinars);
@@ -77,40 +96,57 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       const enhancementStartTime = Date.now();
       console.log(`[zoom-api][list-webinars] Starting enhancement phase (${enhancementStartTime - startTime}ms elapsed)`);
       
-      // Enhance webinars with timeout protection
-      let enhancedWebinars;
+      // Enhance webinars with improved timeout protection and graceful degradation
+      let enhancedWebinars = [...allWebinars]; // Start with basic data
       try {
         const enhancementPromise = enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
-        enhancedWebinars = await Promise.race([
-          enhancementPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Enhancement timeout')), ENHANCEMENT_TIMEOUT))
-        ]);
-        console.log(`[zoom-api][list-webinars] Enhancement completed in ${Date.now() - enhancementStartTime}ms`);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Enhancement timeout')), ENHANCEMENT_TIMEOUT)
+        );
+        
+        enhancedWebinars = await Promise.race([enhancementPromise, timeoutPromise]);
+        console.log(`[zoom-api][list-webinars] Enhancement completed successfully in ${Date.now() - enhancementStartTime}ms`);
       } catch (error) {
-        console.warn(`[zoom-api][list-webinars] Enhancement timed out or failed, using basic webinar data:`, error.message);
-        enhancedWebinars = allWebinars; // Use basic data if enhancement fails
+        console.warn(`[zoom-api][list-webinars] Enhancement failed, using basic webinar data:`, error.message);
+        // Continue with basic webinar data - this prevents the 500 error
+        enhancedWebinars = allWebinars;
       }
       
-      // Perform non-destructive upsert
+      // Perform non-destructive upsert with error handling
       console.log(`[zoom-api][list-webinars] Starting database upsert (${Date.now() - startTime}ms elapsed)`);
-      syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
+      try {
+        syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
+      } catch (error) {
+        console.error('[zoom-api][list-webinars] Database upsert failed:', error);
+        throw new Error(`Database update failed: ${error.message}`);
+      }
       
       // Calculate comprehensive statistics
-      statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
+      try {
+        statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
+      } catch (error) {
+        console.warn('[zoom-api][list-webinars] Stats calculation failed:', error);
+        // Continue without detailed stats
+      }
       
       // Record sync in history with enhanced statistics including recording data
       const actualTimingCount = enhancedWebinars.filter(w => w.actual_start_time || w.actual_duration).length;
       const recordingStats = enhancedWebinars.filter(w => w.has_recordings).length;
       const totalTime = Date.now() - startTime;
       
-      await recordSyncHistory(
-        supabase,
-        user.id,
-        'webinars',
-        'success',
-        syncResults.newWebinars + syncResults.updatedWebinars,
-        `Enhanced non-destructive sync completed in ${totalTime}ms: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${actualTimingCount} with actual timing data, ${recordingStats} with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
-      );
+      try {
+        await recordSyncHistory(
+          supabase,
+          user.id,
+          'webinars',
+          'success',
+          syncResults.newWebinars + syncResults.updatedWebinars,
+          `Enhanced non-destructive sync completed in ${totalTime}ms: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${actualTimingCount} with actual timing data, ${recordingStats} with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+        );
+      } catch (error) {
+        console.warn('[zoom-api][list-webinars] Sync history recording failed:', error);
+        // Continue without recording sync history
+      }
       
       console.log(`[zoom-api][list-webinars] Sync completed successfully in ${totalTime}ms`);
     } else {
@@ -130,29 +166,47 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     const operationTime = Date.now() - startTime;
     console.error(`[zoom-api][list-webinars] Error in action after ${operationTime}ms:`, error);
     
-    // Enhanced error categorization
+    // Enhanced error categorization with better error messages
     let errorCategory = 'unknown';
     let errorMessage = error.message || 'Unknown error';
     
     if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
       errorCategory = 'timeout';
       errorMessage = `Operation timed out after ${operationTime}ms. This may be due to processing too much data. Try again or contact support if the issue persists.`;
-    } else if (errorMessage.includes('credentials') || errorMessage.includes('token')) {
+    } else if (errorMessage.includes('credentials') || errorMessage.includes('token') || errorMessage.includes('Authentication')) {
       errorCategory = 'authentication';
+      errorMessage = 'Authentication failed. Please check your Zoom credentials and try again.';
     } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
       errorCategory = 'rate_limit';
+      errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+    } else if (errorMessage.includes('Database')) {
+      errorCategory = 'database';
+      errorMessage = 'Database error occurred. Please try again.';
     }
     
     // Record failed sync in history with better error details
-    await recordSyncHistory(
-      supabase,
-      user.id,
-      'webinars',
-      'error',
-      0,
-      `${errorCategory}: ${errorMessage} (after ${operationTime}ms)`
-    );
+    try {
+      await recordSyncHistory(
+        supabase,
+        user.id,
+        'webinars',
+        'error',
+        0,
+        `${errorCategory}: ${errorMessage} (after ${operationTime}ms)`
+      );
+    } catch (historyError) {
+      console.warn('[zoom-api][list-webinars] Failed to record error in sync history:', historyError);
+    }
     
-    throw error; // Let the main error handler format the response
+    // Return a proper error response instead of throwing
+    return new Response(JSON.stringify({
+      success: false,
+      error: errorMessage,
+      category: errorCategory,
+      duration: operationTime
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 }

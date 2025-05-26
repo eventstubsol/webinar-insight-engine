@@ -1,7 +1,7 @@
 
 /**
  * Fetches actual timing data for ended webinars from the past_webinars endpoint
- * with improved error handling, batching, timeout protection, and enhanced status detection
+ * with improved error handling, better UUID handling, timeout protection, and enhanced status detection
  */
 export async function enhanceWebinarsWithActualTimingData(webinars: any[], token: string): Promise<any[]> {
   console.log(`[zoom-api][actual-timing-processor] Starting actual timing data enhancement for ${webinars.length} webinars`);
@@ -15,7 +15,7 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
     const status = webinar.status?.toLowerCase();
     const hasActualData = webinar.actual_start_time || webinar.actual_duration;
     
-    // ENHANCED: Check multiple UUID fields more thoroughly
+    // ENHANCED: Check multiple UUID fields more thoroughly with better validation
     const possibleUuids = [
       webinar.uuid,
       webinar.webinar_uuid, 
@@ -23,11 +23,13 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
       webinar.webinar_id?.toString()
     ].filter(Boolean);
     
-    const hasValidUuid = possibleUuids.length > 0 && possibleUuids.some(uuid => 
-      uuid && typeof uuid === 'string' && uuid.length > 10
-    );
+    const hasValidUuid = possibleUuids.length > 0 && possibleUuids.some(uuid => {
+      if (!uuid || typeof uuid !== 'string' || uuid.length < 10) return false;
+      // Better UUID validation: real UUIDs contain special characters, not just numbers
+      return uuid.includes('=') || uuid.includes('-') || uuid.includes('/') || uuid.includes('+') || uuid.length > 20;
+    });
     
-    // IMPROVED: Enhanced status detection logic
+    // IMPROVED: Enhanced status detection logic with time-based fallback
     let shouldFetchTiming = false;
     const now = new Date();
     
@@ -36,7 +38,7 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
       shouldFetchTiming = true;
     }
     // Check if status is undefined/null but webinar should be ended based on time
-    else if (!status || status === 'undefined') {
+    else if (!status || status === 'undefined' || status === 'null') {
       if (webinar.start_time && webinar.duration) {
         const startTime = new Date(webinar.start_time);
         const endTime = new Date(startTime.getTime() + (webinar.duration * 60 * 1000));
@@ -62,9 +64,9 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
   // Create a map for efficient lookup
   const webinarMap = new Map(webinars.map(w => [w.id || w.webinar_id, w]));
   
-  // Process in batches to prevent timeouts
-  const BATCH_SIZE = 5;
-  const API_TIMEOUT = 10000; // 10 seconds per API call
+  // Process in smaller batches to prevent timeouts and reduce memory usage
+  const BATCH_SIZE = 3; // Reduced batch size for better reliability
+  const API_TIMEOUT = 8000; // Reduced timeout per API call
   
   let processedCount = 0;
   let successCount = 0;
@@ -113,12 +115,12 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
 }
 
 /**
- * Process individual webinar timing data with timeout protection and enhanced status detection
+ * Process individual webinar timing data with improved UUID handling and error recovery
  */
 async function processWebinarTimingData(webinar: any, token: string, timeout: number): Promise<any | null> {
   const webinarId = webinar.id || webinar.webinar_id;
   
-  // ENHANCED: Try multiple UUID fields in order of preference
+  // ENHANCED: Try multiple UUID fields in order of preference with better validation
   const possibleUuids = [
     webinar.uuid,           // Most common field
     webinar.webinar_uuid,   // Alternative field
@@ -126,86 +128,110 @@ async function processWebinarTimingData(webinar: any, token: string, timeout: nu
     webinar.webinar_id?.toString()
   ].filter(Boolean);
   
-  // Find the first valid UUID (should be a string with reasonable length)
-  const webinarUuid = possibleUuids.find(uuid => 
-    uuid && typeof uuid === 'string' && uuid.length > 10
-  );
+  // Find the first valid UUID with improved validation
+  const webinarUuid = possibleUuids.find(uuid => {
+    if (!uuid || typeof uuid !== 'string' || uuid.length < 10) return false;
+    // Better validation: real UUIDs contain special characters, not just numbers
+    return uuid.includes('=') || uuid.includes('-') || uuid.includes('/') || uuid.includes('+') || uuid.length > 20;
+  });
   
   if (!webinarUuid) {
     console.log(`[zoom-api][actual-timing-processor] ❌ No valid UUID found for webinar ${webinarId}. Checked: [${possibleUuids.join(', ')}]`);
     return null;
   }
   
-  try {
-    console.log(`[zoom-api][actual-timing-processor] 🔍 Fetching past webinar data for ${webinarId} using UUID: ${webinarUuid}`);
-    
-    // Create timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('API call timeout')), timeout);
-    });
-    
-    // Create API call promise
-    const apiPromise = fetch(`https://api.zoom.us/v2/past_webinars/${webinarUuid}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+  // Try multiple UUID formats and encoding strategies
+  const uuidVariants = [
+    webinarUuid, // Original UUID
+    encodeURIComponent(webinarUuid), // URL encoded
+    webinarUuid.replace(/\+/g, '%2B').replace(/\//g, '%2F').replace(/=/g, '%3D'), // Manual encoding of common base64 chars
+  ];
+  
+  for (const [index, uuidVariant] of uuidVariants.entries()) {
+    try {
+      console.log(`[zoom-api][actual-timing-processor] 🔍 Attempt ${index + 1}: Fetching past webinar data for ${webinarId} using UUID: ${uuidVariant}`);
+      
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('API call timeout')), timeout);
+      });
+      
+      // Create API call promise
+      const apiPromise = fetch(`https://api.zoom.us/v2/past_webinars/${uuidVariant}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Race against timeout
+      const response = await Promise.race([apiPromise, timeoutPromise]) as Response;
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log(`[zoom-api][actual-timing-processor] ⚠️ Past webinar data not found for ${webinarId} (404) with UUID variant ${index + 1}`);
+          if (index < uuidVariants.length - 1) {
+            continue; // Try next UUID variant
+          } else {
+            console.log(`[zoom-api][actual-timing-processor] All UUID variants exhausted, webinar may not have been started or completed yet`);
+            return null;
+          }
+        } else {
+          const errorText = await response.text();
+          console.error(`[zoom-api][actual-timing-processor] ❌ API call failed for ${webinarId}: ${response.status} - ${errorText}`);
+          throw new Error(`API call failed with status ${response.status}: ${errorText}`);
+        }
       }
-    });
-    
-    // Race against timeout
-    const response = await Promise.race([apiPromise, timeoutPromise]) as Response;
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log(`[zoom-api][actual-timing-processor] ⚠️ Past webinar data not found for ${webinarId} (404), webinar may not have been started or completed yet`);
-        return null;
+      
+      const pastWebinarData = await response.json();
+      console.log(`[zoom-api][actual-timing-processor] ✅ Successfully fetched past webinar data for ${webinarId} with UUID variant ${index + 1}`);
+      console.log(`[zoom-api][actual-timing-processor] 📊 Raw timing data: start_time=${pastWebinarData.start_time}, duration=${pastWebinarData.duration}, end_time=${pastWebinarData.end_time}`);
+      
+      // Extract and validate actual timing data
+      const actualStartTime = pastWebinarData.start_time || null;
+      const actualEndTime = pastWebinarData.end_time || null;
+      let actualDuration = pastWebinarData.duration || null;
+      
+      // Calculate duration if we have start and end times but no duration
+      if (actualStartTime && actualEndTime && !actualDuration) {
+        const startMs = new Date(actualStartTime).getTime();
+        const endMs = new Date(actualEndTime).getTime();
+        actualDuration = Math.round((endMs - startMs) / (1000 * 60)); // Duration in minutes
+        console.log(`[zoom-api][actual-timing-processor] ⚡ Calculated duration: ${actualDuration} minutes`);
+      }
+      
+      const result = {
+        actual_start_time: actualStartTime,
+        actual_duration: actualDuration,
+        actual_end_time: actualEndTime,
+        // Also store additional metrics if available
+        participants_count: pastWebinarData.participants_count || webinar.participants_count || 0,
+        // Merge past webinar data into raw_data for complete information
+        raw_data: {
+          ...webinar.raw_data,
+          past_webinar_data: pastWebinarData
+        }
+      };
+      
+      console.log(`[zoom-api][actual-timing-processor] 🎯 Returning enhanced data for ${webinarId}:`, {
+        actual_start_time: result.actual_start_time,
+        actual_duration: result.actual_duration,
+        actual_end_time: result.actual_end_time
+      });
+      
+      return result; // Success with this UUID variant
+      
+    } catch (error) {
+      console.error(`[zoom-api][actual-timing-processor] ❌ Error with UUID variant ${index + 1} for ${webinarId}:`, error);
+      if (index < uuidVariants.length - 1) {
+        console.log(`[zoom-api][actual-timing-processor] Trying next UUID variant...`);
+        continue; // Try next UUID variant
       } else {
-        const errorText = await response.text();
-        console.error(`[zoom-api][actual-timing-processor] ❌ API call failed for ${webinarId}: ${response.status} - ${errorText}`);
-        throw new Error(`API call failed with status ${response.status}: ${errorText}`);
+        console.error(`[zoom-api][actual-timing-processor] All UUID variants failed for ${webinarId}`);
+        return null;
       }
     }
-    
-    const pastWebinarData = await response.json();
-    console.log(`[zoom-api][actual-timing-processor] ✅ Successfully fetched past webinar data for ${webinarId}`);
-    console.log(`[zoom-api][actual-timing-processor] 📊 Raw timing data: start_time=${pastWebinarData.start_time}, duration=${pastWebinarData.duration}, end_time=${pastWebinarData.end_time}`);
-    
-    // Extract and validate actual timing data
-    const actualStartTime = pastWebinarData.start_time || null;
-    const actualEndTime = pastWebinarData.end_time || null;
-    let actualDuration = pastWebinarData.duration || null;
-    
-    // Calculate duration if we have start and end times but no duration
-    if (actualStartTime && actualEndTime && !actualDuration) {
-      const startMs = new Date(actualStartTime).getTime();
-      const endMs = new Date(actualEndTime).getTime();
-      actualDuration = Math.round((endMs - startMs) / (1000 * 60)); // Duration in minutes
-      console.log(`[zoom-api][actual-timing-processor] ⚡ Calculated duration: ${actualDuration} minutes`);
-    }
-    
-    const result = {
-      actual_start_time: actualStartTime,
-      actual_duration: actualDuration,
-      actual_end_time: actualEndTime,
-      // Also store additional metrics if available
-      participants_count: pastWebinarData.participants_count || webinar.participants_count || 0,
-      // Merge past webinar data into raw_data for complete information
-      raw_data: {
-        ...webinar.raw_data,
-        past_webinar_data: pastWebinarData
-      }
-    };
-    
-    console.log(`[zoom-api][actual-timing-processor] 🎯 Returning enhanced data for ${webinarId}:`, {
-      actual_start_time: result.actual_start_time,
-      actual_duration: result.actual_duration,
-      actual_end_time: result.actual_end_time
-    });
-    
-    return result;
-    
-  } catch (error) {
-    console.error(`[zoom-api][actual-timing-processor] ❌ Error fetching past webinar data for ${webinarId}:`, error);
-    return null;
   }
+  
+  return null;
 }
