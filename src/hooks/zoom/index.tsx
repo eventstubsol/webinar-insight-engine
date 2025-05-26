@@ -11,6 +11,7 @@ export * from './useZoomWebinarParticipants';
 export * from './useZoomWebinarInstances';
 export * from './useZoomInstanceParticipants';
 export * from './useZoomWebinarRecordings';
+export * from './useActualTimingData';
 
 // Export utilities for backward compatibility
 export * from './utils/webinarUtils';
