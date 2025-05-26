@@ -12,6 +12,42 @@ export interface ZoomWebinar {
   type: number;
   registrants_count?: number;
   participants_count?: number;
+  
+  // Host information
+  host_id?: string;
+  host_name?: string;
+  host_first_name?: string;
+  host_last_name?: string;
+  
+  // Actual timing data
+  actual_start_time?: string;
+  actual_duration?: number;
+  
+  // URLs
+  join_url?: string;
+  registration_url?: string;
+  start_url?: string;
+  password?: string;
+  
+  // Configuration
+  is_simulive?: boolean;
+  webinar_created_at?: string;
+  
+  // Settings
+  approval_type?: number;
+  registration_type?: number;
+  auto_recording_type?: string;
+  enforce_login?: boolean;
+  on_demand?: boolean;
+  practice_session?: boolean;
+  hd_video?: boolean;
+  host_video?: boolean;
+  panelists_video?: boolean;
+  audio_type?: string;
+  language?: string;
+  contact_name?: string;
+  contact_email?: string;
+  
   raw_data?: Record<string, any>;
   [key: string]: any; // Allow additional properties
 }
