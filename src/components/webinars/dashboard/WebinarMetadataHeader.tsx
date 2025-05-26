@@ -4,7 +4,8 @@ import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { useZoomWebinarRecordings } from '@/hooks/zoom/useZoomWebinarRecordings';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { format, parseISO } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+import { parseISO } from 'date-fns';
 import { WebinarRecordingInfo } from './WebinarRecordingInfo';
 import { extractHostInfo, extractPresenterInfo, formatHostDisplay } from './utils/hostDisplayUtils';
 import { formatWebinarId } from '@/lib/utils';
@@ -66,16 +67,41 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
   const panelists = Array.isArray(webinar.panelists) ? webinar.panelists : [];
   console.log('[WebinarMetadataHeader] Processed panelists:', panelists);
   
-  // Format webinar date
+  // Get webinar timezone, fallback to UTC if not available
+  const webinarTimezone = webinar.timezone || 'UTC';
+  
+  // Format webinar date in the webinar's timezone
   const webinarDate = webinar.start_time ? 
-    format(parseISO(webinar.start_time), 'EEEE, MMMM d, yyyy • h:mm a') : 
+    formatInTimeZone(parseISO(webinar.start_time), webinarTimezone, 'EEEE, MMMM d, yyyy • h:mm a') : 
     'Date not set';
   
-  // Actual start time and duration
-  const actualStart = webinar.actual_start_time ? 
-    format(parseISO(webinar.actual_start_time), 'h:mm a') : 
-    format(parseISO(webinar.start_time), 'h:mm a');
-  const actualDuration = webinar.actual_duration || webinar.duration;
+  // Handle actual start time vs scheduled start time
+  const getStartTimeDisplay = () => {
+    if (webinar.actual_start_time) {
+      const actualStart = formatInTimeZone(parseISO(webinar.actual_start_time), webinarTimezone, 'h:mm a');
+      return { label: 'Actual Start:', time: actualStart };
+    } else if (webinar.start_time) {
+      const scheduledStart = formatInTimeZone(parseISO(webinar.start_time), webinarTimezone, 'h:mm a');
+      return { label: 'Scheduled Start:', time: scheduledStart };
+    } else {
+      return { label: 'Start Time:', time: 'Not available' };
+    }
+  };
+  
+  const startTimeInfo = getStartTimeDisplay();
+  
+  // Handle actual duration vs scheduled duration
+  const getDurationDisplay = () => {
+    if (webinar.actual_duration) {
+      return { label: 'Actual Duration:', duration: `${webinar.actual_duration} minutes` };
+    } else if (webinar.duration) {
+      return { label: 'Scheduled Duration:', duration: `${webinar.duration} minutes` };
+    } else {
+      return { label: 'Duration:', duration: 'Not specified' };
+    }
+  };
+  
+  const durationInfo = getDurationDisplay();
   
   // Max concurrent views
   const maxConcurrentViews = webinar.max_concurrent_views || 'Not available';
@@ -175,12 +201,12 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
             <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
               <Clock className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
-                <span className="font-medium">Actual Start:</span> {actualStart}
+                <span className="font-medium">{startTimeInfo.label}</span> {startTimeInfo.time}
               </div>
               
               <Clock className="h-4 w-4 text-muted-foreground mt-1" />
               <div>
-                <span className="font-medium">Actual Duration:</span> {actualDuration} minutes
+                <span className="font-medium">{durationInfo.label}</span> {durationInfo.duration}
               </div>
               
               <Eye className="h-4 w-4 text-muted-foreground mt-1" />
