@@ -74,20 +74,42 @@ export async function handleSaveCredentials(req: Request, supabase: any, user: a
 
 // Handle checking credentials status
 export async function handleCheckCredentialsStatus(req: Request, supabase: any, user: any) {
-  const { data: credentials, error: credentialsError } = await supabase
-    .from('zoom_credentials')
-    .select('*')
-    .eq('user_id', user.id)
-    .single();
+  try {
+    const { data: credentials, error: credentialsError } = await supabase
+      .from('zoom_credentials')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-  return new Response(JSON.stringify({
-    hasCredentials: !!credentials,
-    isVerified: credentials?.is_verified || false,
-    lastVerified: credentials?.last_verified_at || null
-  }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
+    if (credentialsError) {
+      console.error('[zoom-api] Error checking credentials:', credentialsError);
+      return new Response(JSON.stringify({
+        error: 'Failed to check credentials status',
+        code: 'database_error'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    return new Response(JSON.stringify({
+      hasCredentials: !!credentials,
+      isVerified: credentials?.is_verified || false,
+      lastVerified: credentials?.last_verified_at || null
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('[zoom-api] Exception checking credentials:', error);
+    return new Response(JSON.stringify({
+      error: 'Failed to check credentials status',
+      code: 'server_error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 // Handle verifying credentials
@@ -177,7 +199,7 @@ export async function getZoomCredentials(supabase: any, userId: string) {
       .from('zoom_credentials')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
       
     if (error) {
       console.error('Error fetching Zoom credentials:', error);

@@ -32,7 +32,13 @@ Deno.serve(async (req) => {
     // Get the authenticated user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('No authorization header');
+      return new Response(JSON.stringify({ 
+        error: 'No authorization header provided',
+        code: 'missing_auth'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const supabase = createClient(
@@ -46,13 +52,30 @@ Deno.serve(async (req) => {
     );
 
     if (authError || !user) {
-      throw new Error('Invalid authorization');
+      return new Response(JSON.stringify({ 
+        error: 'Invalid or expired authorization token',
+        code: 'invalid_auth'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Get Zoom credentials
+    // Handle check-credentials-status action without requiring credentials
+    if (action === 'check-credentials-status') {
+      return await handleCheckCredentialsStatus(req, supabase, user);
+    }
+
+    // Get Zoom credentials for other actions
     const credentials = await getZoomCredentials(supabase, user.id);
     if (!credentials) {
-      throw new Error('No Zoom credentials found');
+      return new Response(JSON.stringify({ 
+        error: 'No Zoom credentials found. Please connect your Zoom account first.',
+        code: 'missing_credentials'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // Route to appropriate handler
@@ -84,17 +107,21 @@ Deno.serve(async (req) => {
       case 'get-actual-timing-data':
         return await handleGetActualTimingData(req, supabase, user, credentials, body.webinar_id);
       
-      case 'check-credentials-status':
-        return await handleCheckCredentialsStatus(req, supabase, user, credentials);
-      
       default:
-        throw new Error(`Unknown action: ${action}`);
+        return new Response(JSON.stringify({ 
+          error: `Unknown action: ${action}`,
+          code: 'unknown_action'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
     }
 
   } catch (error) {
     console.error('[zoom-api] Error in action:', error);
     return new Response(JSON.stringify({ 
-      error: error.message,
+      error: error.message || 'Internal server error',
+      code: 'server_error',
       details: error.stack 
     }), {
       status: 500,
