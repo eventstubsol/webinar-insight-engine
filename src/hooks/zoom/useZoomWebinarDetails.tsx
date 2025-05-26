@@ -28,19 +28,37 @@ export function useZoomWebinarDetails(webinarId: string | null) {
         const rawData = dbWebinar.raw_data as any;
         console.log(`[useZoomWebinarDetails] Raw data panelists:`, rawData?.panelists);
         
-        // Return the complete webinar data with panelists at top level for easier access
+        // Create webinar data with proper field precedence
+        // Database fields should take precedence over raw_data fields
         const webinarData = {
+          // Start with raw_data
           ...rawData,
-          // Make sure panelists is available at the top level
-          panelists: rawData?.panelists || [],
-          // Include database fields that might not be in raw_data
+          // Override with database fields (these should take precedence)
           id: dbWebinar.webinar_id,
           webinar_id: dbWebinar.webinar_id,
           webinar_uuid: dbWebinar.webinar_uuid,
-          last_synced_at: dbWebinar.last_synced_at
+          topic: dbWebinar.topic,
+          start_time: dbWebinar.start_time,
+          duration: dbWebinar.duration,
+          timezone: dbWebinar.timezone,
+          agenda: dbWebinar.agenda,
+          host_email: dbWebinar.host_email,
+          host_id: dbWebinar.host_id,
+          status: dbWebinar.status,
+          type: dbWebinar.type,
+          last_synced_at: dbWebinar.last_synced_at,
+          // Ensure panelists is available at the top level for easier access
+          panelists: rawData?.panelists || [],
         };
         
-        console.log(`[useZoomWebinarDetails] Processed webinar data:`, webinarData);
+        console.log(`[useZoomWebinarDetails] Processed webinar data:`, {
+          id: webinarData.id,
+          host_email: webinarData.host_email,
+          host_id: webinarData.host_id,
+          panelists_count: webinarData.panelists?.length || 0,
+          raw_data_keys: Object.keys(rawData || {})
+        });
+        
         return webinarData;
       }
       
