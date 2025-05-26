@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   Calendar, 
   ChartBar, 
@@ -29,6 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export function AppSidebar() {
   const { user, profile, signOut, isAdmin } = useAuth();
+  const location = useLocation();
   
   const allMenuItems = [
     { title: 'Dashboard', icon: Home, path: '/dashboard' },
@@ -40,6 +41,16 @@ export function AppSidebar() {
     { title: 'Sharing', icon: Share, path: '/sharing' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
+
+  // Routes that redirect to dashboard should highlight the dashboard menu item
+  const dashboardRoutes = ['/dashboard', '/analytics', '/reports', '/filters', '/team', '/sharing', '/settings', '/onboarding'];
+  
+  const isItemActive = (itemPath: string) => {
+    if (itemPath === '/dashboard') {
+      return dashboardRoutes.includes(location.pathname);
+    }
+    return location.pathname === itemPath;
+  };
 
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'User';
 
@@ -63,7 +74,7 @@ export function AppSidebar() {
                 .filter(item => !item.adminOnly || isAdmin)
                 .map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild className="h-10 px-3">
+                  <SidebarMenuButton asChild className="h-10 px-3" isActive={isItemActive(item.path)}>
                     <Link to={item.path} className="flex items-center gap-3 text-sm font-medium">
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
