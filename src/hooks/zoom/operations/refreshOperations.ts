@@ -3,10 +3,10 @@ import { QueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { refreshWebinarsFromAPI } from '../services/webinarApiService';
 import { updateParticipantDataOperation } from './participantOperations';
-import { executeWithTimeout, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
+import { executeWithProgressFeedback, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
 
 /**
- * Refresh webinars operation with non-destructive sync and improved error handling
+ * Refresh webinars operation with enhanced timeout handling and progress feedback
  */
 export async function refreshWebinarsOperation(
   userId: string | undefined,
@@ -25,25 +25,40 @@ export async function refreshWebinarsOperation(
   let isCompleted = false;
   let timeoutTriggered = false;
   let participantsUpdated = 0;
+  let progressToast: any;
   
   try {
     console.log(`[refreshWebinarsOperation] Starting non-destructive refresh with force=${force} for user ${userId}`);
     
-    // Make the API call to fetch fresh data from Zoom with timeout protection
-    const refreshData = await executeWithTimeout(
+    // Show initial progress
+    progressToast = toast({
+      title: "Starting sync",
+      description: "Preparing to sync webinar data...",
+      duration: 0, // Don't auto-dismiss
+    });
+
+    // Make the API call with enhanced timeout and progress feedback
+    const refreshData = await executeWithProgressFeedback(
       () => refreshWebinarsFromAPI(userId, force),
-      OPERATION_TIMEOUT,
-      () => {
-        timeoutTriggered = true;
-        toast({
-          title: 'Sync taking longer than expected',
-          description: 'The operation is still running in the background. Historical data will be preserved.',
-          variant: 'default'
+      (stage: string) => {
+        // Update progress toast
+        if (progressToast) {
+          progressToast.dismiss();
+        }
+        progressToast = toast({
+          title: "Syncing webinars",
+          description: stage,
+          duration: 0, // Don't auto-dismiss
         });
       }
     );
     
     isCompleted = true;
+
+    // Dismiss progress toast
+    if (progressToast) {
+      progressToast.dismiss();
+    }
 
     // Also update participant data for completed webinars (silently)
     try {
@@ -72,7 +87,7 @@ export async function refreshWebinarsOperation(
       const participantMessage = participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : '';
       
       toast({
-        title: 'Non-destructive sync completed',
+        title: 'Sync completed successfully',
         description: `${syncMessage}. ${totalMessage}${participantMessage}`,
         variant: 'default'
       });
@@ -87,13 +102,19 @@ export async function refreshWebinarsOperation(
   } catch (err: any) {
     isCompleted = true;
     
+    // Dismiss progress toast
+    if (progressToast) {
+      progressToast.dismiss();
+    }
+    
     console.error('[refreshWebinarsOperation] Error during refresh:', err);
     
     // Different error handling based on error type
-    if (timeoutTriggered) {
+    if (err?.message?.includes('timed out')) {
+      timeoutTriggered = true;
       toast({
         title: 'Sync may be incomplete',
-        description: 'The operation took too long. Historical data has been preserved.',
+        description: 'The operation took longer than expected. Some data may still be processing. Please try again in a few minutes.',
         variant: 'warning'
       });
     } else {
@@ -119,9 +140,15 @@ export async function refreshWebinarsOperation(
           description: 'Please check your Zoom credentials',
           variant: 'destructive'
         });
+      } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+        toast({
+          title: 'Server Error',
+          description: 'The sync operation encountered a server error. This may be due to processing a large amount of data. Please try again in a few minutes.',
+          variant: 'destructive'
+        });
       } else {
         toast({
-          title: 'Non-destructive sync failed',
+          title: 'Sync failed',
           description: errorMessage,
           variant: 'destructive'
         });
@@ -131,7 +158,6 @@ export async function refreshWebinarsOperation(
     throw err;
   } finally {
     // Ensure that even if there's an uncaught exception, we set isCompleted
-    // This flag can be used by the calling code to reset UI states
-    console.log(`[refreshWebinarsOperation] Non-destructive operation completed: ${isCompleted}`);
+    console.log(`[refreshWebinarsOperation] Operation completed: ${isCompleted}, timeout triggered: ${timeoutTriggered}`);
   }
 }
