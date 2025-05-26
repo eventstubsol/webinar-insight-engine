@@ -1,12 +1,27 @@
 
-// Functions for syncing webinar data to database
+// Functions for syncing webinar data to database with enhanced host information
 export async function syncWebinarMetadata(
   supabase: any, 
   user: any, 
   webinarData: any, 
   hostEmail: string | null, 
-  hostId: string | null
+  hostId: string | null,
+  hostName?: string | null,
+  hostFirstName?: string | null,
+  hostLastName?: string | null
 ) {
+  // Ensure host information is preserved in raw_data
+  const enhancedRawData = {
+    ...webinarData,
+    host_info: {
+      email: hostEmail,
+      display_name: hostName,
+      first_name: hostFirstName,
+      last_name: hostLastName,
+      id: hostId
+    }
+  };
+
   const { error: webinarError } = await supabase
     .from('zoom_webinars')
     .upsert({
@@ -20,9 +35,12 @@ export async function syncWebinarMetadata(
       agenda: webinarData.agenda || '',
       host_email: hostEmail || null,
       host_id: hostId || null,
+      host_name: hostName || null,
+      host_first_name: hostFirstName || null,
+      host_last_name: hostLastName || null,
       status: webinarData.status,
       type: webinarData.type,
-      raw_data: webinarData,
+      raw_data: enhancedRawData,
       last_synced_at: new Date().toISOString()
     }, {
       onConflict: 'user_id,webinar_id'

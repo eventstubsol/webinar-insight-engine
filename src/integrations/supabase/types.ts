@@ -980,7 +980,10 @@ export type Database = {
           enforce_login: boolean | null
           hd_video: boolean | null
           host_email: string | null
+          host_first_name: string | null
           host_id: string | null
+          host_last_name: string | null
+          host_name: string | null
           host_video: boolean | null
           id: string
           is_simulive: boolean | null
@@ -1019,7 +1022,10 @@ export type Database = {
           enforce_login?: boolean | null
           hd_video?: boolean | null
           host_email?: string | null
+          host_first_name?: string | null
           host_id?: string | null
+          host_last_name?: string | null
+          host_name?: string | null
           host_video?: boolean | null
           id?: string
           is_simulive?: boolean | null
@@ -1058,7 +1064,10 @@ export type Database = {
           enforce_login?: boolean | null
           hd_video?: boolean | null
           host_email?: string | null
+          host_first_name?: string | null
           host_id?: string | null
+          host_last_name?: string | null
+          host_name?: string | null
           host_video?: boolean | null
           id?: string
           is_simulive?: boolean | null

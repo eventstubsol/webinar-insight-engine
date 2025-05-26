@@ -1,4 +1,3 @@
-
 // Utility functions for formatting host and presenter display information
 
 export interface HostInfo {
@@ -56,6 +55,7 @@ function formatOrganizationalName(emailPrefix: string): string {
 
 /**
  * Enhanced function to extract host information from webinar data
+ * Now prioritizes database-stored host name fields over email formatting
  */
 export function extractHostInfo(webinar: any): HostInfo {
   const hostEmail = webinar.host_email;
@@ -63,65 +63,98 @@ export function extractHostInfo(webinar: any): HostInfo {
   console.log('[extractHostInfo] Processing webinar data:', {
     host_email: hostEmail,
     host_id: webinar.host_id,
+    host_name: webinar.host_name,
+    host_first_name: webinar.host_first_name,
+    host_last_name: webinar.host_last_name,
     raw_data_keys: Object.keys(webinar.raw_data || {}),
-    panelists_count: webinar.panelists?.length || 0,
-    contact_name: webinar.raw_data?.settings?.contact_name,
-    host_name: webinar.raw_data?.host_name
+    panelists_count: webinar.panelists?.length || 0
   });
   
   const rawData = webinar.raw_data || {};
   let hostName = null;
   
-  // 1. Check direct host name fields in raw_data and webinar object
-  hostName = rawData.host_name || 
-             rawData.host?.name || 
-             webinar.host_name ||
-             rawData.settings?.contact_name ||
-             webinar.contact_name;
-  
-  // 2. Check if host is listed in panelists array
-  if (!hostName && Array.isArray(webinar.panelists) && webinar.panelists.length > 0) {
-    const hostPanelist = webinar.panelists.find((p: any) => 
-      p.email === hostEmail || 
-      p.user_email === hostEmail ||
-      p.id === webinar.host_id
-    );
-    if (hostPanelist) {
-      hostName = hostPanelist.name || hostPanelist.first_name || hostPanelist.display_name;
-      console.log('[extractHostInfo] Found host name in panelists:', hostName);
+  // 1. Check database-stored host name fields first (highest priority)
+  if (webinar.host_name && webinar.host_name.trim()) {
+    hostName = webinar.host_name.trim();
+    console.log('[extractHostInfo] Using database host_name field:', hostName);
+  } else if (webinar.host_first_name || webinar.host_last_name) {
+    // Combine first and last name if available
+    const firstName = webinar.host_first_name?.trim() || '';
+    const lastName = webinar.host_last_name?.trim() || '';
+    hostName = `${firstName} ${lastName}`.trim();
+    if (hostName) {
+      console.log('[extractHostInfo] Using database host name fields (first + last):', hostName);
     }
   }
   
-  // 3. Check alternative host information
-  if (!hostName && rawData.alternative_host) {
-    // Check if alternative_host contains name information
-    if (typeof rawData.alternative_host === 'string' && rawData.alternative_host.includes('<')) {
-      const nameMatch = rawData.alternative_host.match(/^(.+)\s*<.+>$/);
-      if (nameMatch) {
-        hostName = nameMatch[1].trim();
-        console.log('[extractHostInfo] Found host name in alternative_host:', hostName);
+  // 2. Check raw_data host_info if database fields are empty
+  if (!hostName && rawData.host_info) {
+    if (rawData.host_info.display_name) {
+      hostName = rawData.host_info.display_name.trim();
+      console.log('[extractHostInfo] Using raw_data host_info display_name:', hostName);
+    } else if (rawData.host_info.first_name || rawData.host_info.last_name) {
+      const firstName = rawData.host_info.first_name?.trim() || '';
+      const lastName = rawData.host_info.last_name?.trim() || '';
+      hostName = `${firstName} ${lastName}`.trim();
+      if (hostName) {
+        console.log('[extractHostInfo] Using raw_data host_info name fields:', hostName);
       }
     }
   }
   
-  // 4. Check settings and other nested objects for any name information
-  if (!hostName && rawData.settings) {
-    hostName = rawData.settings.host_name || 
-               rawData.settings.contact_name ||
-               rawData.settings.alternative_host_name;
-  }
-  
-  // 5. Check webinar level contact information
-  if (!hostName && (webinar.contact_name || rawData.contact_name)) {
-    hostName = webinar.contact_name || rawData.contact_name;
-  }
-  
-  // 6. Enhanced email prefix formatting as last resort
-  if (!hostName && hostEmail) {
-    const emailPrefix = hostEmail.split('@')[0];
-    if (emailPrefix && /^[a-zA-Z][\w._-]*$/.test(emailPrefix)) {
-      hostName = formatOrganizationalName(emailPrefix);
-      console.log('[extractHostInfo] Using enhanced formatted email prefix as name:', hostName);
+  // 3. Fall back to existing logic for legacy data
+  if (!hostName) {
+    // Check direct host name fields in raw_data and webinar object
+    hostName = rawData.host_name || 
+               rawData.host?.name || 
+               webinar.host_name ||
+               rawData.settings?.contact_name ||
+               webinar.contact_name;
+    
+    // Check if host is listed in panelists array
+    if (!hostName && Array.isArray(webinar.panelists) && webinar.panelists.length > 0) {
+      const hostPanelist = webinar.panelists.find((p: any) => 
+        p.email === hostEmail || 
+        p.user_email === hostEmail ||
+        p.id === webinar.host_id
+      );
+      if (hostPanelist) {
+        hostName = hostPanelist.name || hostPanelist.first_name || hostPanelist.display_name;
+        console.log('[extractHostInfo] Found host name in panelists:', hostName);
+      }
+    }
+    
+    // 4. Check alternative host information
+    if (!hostName && rawData.alternative_host) {
+      // Check if alternative_host contains name information
+      if (typeof rawData.alternative_host === 'string' && rawData.alternative_host.includes('<')) {
+        const nameMatch = rawData.alternative_host.match(/^(.+)\s*<.+>$/);
+        if (nameMatch) {
+          hostName = nameMatch[1].trim();
+          console.log('[extractHostInfo] Found host name in alternative_host:', hostName);
+        }
+      }
+    }
+    
+    // 5. Check settings and other nested objects for any name information
+    if (!hostName && rawData.settings) {
+      hostName = rawData.settings.host_name || 
+                 rawData.settings.contact_name ||
+                 rawData.settings.alternative_host_name;
+    }
+    
+    // 6. Check webinar level contact information
+    if (!hostName && (webinar.contact_name || rawData.contact_name)) {
+      hostName = webinar.contact_name || rawData.contact_name;
+    }
+    
+    // Enhanced email prefix formatting as last resort
+    if (!hostName && hostEmail) {
+      const emailPrefix = hostEmail.split('@')[0];
+      if (emailPrefix && /^[a-zA-Z][\w._-]*$/.test(emailPrefix)) {
+        hostName = formatOrganizationalName(emailPrefix);
+        console.log('[extractHostInfo] Using enhanced formatted email prefix as name:', hostName);
+      }
     }
   }
   

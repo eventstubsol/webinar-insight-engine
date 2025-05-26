@@ -44,6 +44,9 @@ export function useZoomWebinarDetails(webinarId: string | null) {
           agenda: dbWebinar.agenda,
           host_email: dbWebinar.host_email,
           host_id: dbWebinar.host_id,
+          host_name: dbWebinar.host_name,
+          host_first_name: dbWebinar.host_first_name,
+          host_last_name: dbWebinar.host_last_name,
           status: dbWebinar.status,
           type: dbWebinar.type,
           last_synced_at: dbWebinar.last_synced_at,
@@ -55,6 +58,9 @@ export function useZoomWebinarDetails(webinarId: string | null) {
           id: webinarData.id,
           host_email: webinarData.host_email,
           host_id: webinarData.host_id,
+          host_name: webinarData.host_name,
+          host_first_name: webinarData.host_first_name,
+          host_last_name: webinarData.host_last_name,
           panelists_count: webinarData.panelists?.length || 0,
           raw_data_keys: Object.keys(rawData || {})
         });

@@ -1,14 +1,17 @@
 
-// Helper functions for resolving host information
+// Enhanced helper functions for resolving complete host information
 export async function getHostInfo(token: string, webinarData: any) {
   console.log(`[zoom-api][host-resolver] Resolving host info for webinar: ${webinarData.id}`);
   
   let hostEmail = webinarData.host_email;
   let hostId = webinarData.host_id;
+  let hostName = null;
+  let hostFirstName = null;
+  let hostLastName = null;
   
-  // If host_email is missing but we have host_id, fetch it
-  if (!hostEmail && hostId) {
-    console.log(`[zoom-api][host-resolver] Host email missing, fetching from user API for host_id: ${hostId}`);
+  // Always try to fetch complete host information if we have host_id
+  if (hostId) {
+    console.log(`[zoom-api][host-resolver] Fetching complete host info from user API for host_id: ${hostId}`);
     
     try {
       const hostResponse = await fetch(`https://api.zoom.us/v2/users/${hostId}`, {
@@ -20,8 +23,28 @@ export async function getHostInfo(token: string, webinarData: any) {
       
       if (hostResponse.ok) {
         const hostData = await hostResponse.json();
-        hostEmail = hostData.email;
-        console.log(`[zoom-api][host-resolver] Successfully fetched host email: ${hostEmail}`);
+        
+        // Extract all name information
+        hostEmail = hostData.email || hostEmail;
+        hostName = hostData.display_name;
+        hostFirstName = hostData.first_name;
+        hostLastName = hostData.last_name;
+        
+        console.log(`[zoom-api][host-resolver] Successfully fetched complete host info:`, {
+          email: hostEmail,
+          display_name: hostName,
+          first_name: hostFirstName,
+          last_name: hostLastName
+        });
+        
+        // Store complete host information in webinar raw_data for preservation
+        webinarData.host_info = {
+          email: hostEmail,
+          display_name: hostName,
+          first_name: hostFirstName,
+          last_name: hostLastName,
+          id: hostId
+        };
       } else {
         console.warn(`[zoom-api][host-resolver] Failed to fetch host info: ${hostResponse.status}`);
       }
@@ -30,5 +53,11 @@ export async function getHostInfo(token: string, webinarData: any) {
     }
   }
   
-  return { hostEmail, hostId };
+  return { 
+    hostEmail, 
+    hostId, 
+    hostName, 
+    hostFirstName, 
+    hostLastName 
+  };
 }
