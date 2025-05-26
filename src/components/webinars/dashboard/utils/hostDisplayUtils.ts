@@ -1,56 +1,9 @@
+
 // Utility functions for formatting host and presenter display information
 
 export interface HostInfo {
   name?: string;
   email: string;
-}
-
-/**
- * Enhanced name formatting for organizational emails
- */
-function formatOrganizationalName(emailPrefix: string): string {
-  // Handle common organizational patterns
-  const organizationalPatterns: Record<string, string> = {
-    'coeinfo': 'Center of Excellence Info',
-    'info': 'Information',
-    'admin': 'Administrator',
-    'support': 'Support Team',
-    'marketing': 'Marketing Team',
-    'sales': 'Sales Team',
-    'webinar': 'Webinar Team',
-    'events': 'Events Team',
-    'training': 'Training Team',
-    'education': 'Education Team',
-    'hr': 'Human Resources',
-    'it': 'IT Department',
-    'finance': 'Finance Department'
-  };
-
-  // Check if it matches a known organizational pattern
-  const lowerPrefix = emailPrefix.toLowerCase();
-  if (organizationalPatterns[lowerPrefix]) {
-    return organizationalPatterns[lowerPrefix];
-  }
-
-  // Handle patterns like "johnsmith" or "john.smith" or "john_smith"
-  const parts = emailPrefix.split(/[._-]/);
-  
-  // If it's a single word, check if it might be a concatenated name
-  if (parts.length === 1 && emailPrefix.length > 3) {
-    // Try to split on capital letters (camelCase)
-    const camelCaseParts = emailPrefix.split(/(?=[A-Z])/);
-    if (camelCaseParts.length > 1) {
-      return camelCaseParts
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-        .join(' ');
-    }
-  }
-
-  // Standard formatting for multiple parts
-  return parts
-    .filter(part => part.length > 0)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
 }
 
 /**
@@ -102,7 +55,7 @@ export function extractHostInfo(webinar: any): HostInfo {
     }
   }
   
-  // 3. Fall back to existing logic for legacy data
+  // 3. Fall back to existing logic for legacy data (but no email formatting)
   if (!hostName) {
     // Check direct host name fields in raw_data and webinar object
     hostName = rawData.host_name || 
@@ -148,13 +101,9 @@ export function extractHostInfo(webinar: any): HostInfo {
       hostName = webinar.contact_name || rawData.contact_name;
     }
     
-    // Enhanced email prefix formatting as last resort
-    if (!hostName && hostEmail) {
-      const emailPrefix = hostEmail.split('@')[0];
-      if (emailPrefix && /^[a-zA-Z][\w._-]*$/.test(emailPrefix)) {
-        hostName = formatOrganizationalName(emailPrefix);
-        console.log('[extractHostInfo] Using enhanced formatted email prefix as name:', hostName);
-      }
+    // No email prefix formatting fallback - if no real name found, hostName stays null
+    if (!hostName) {
+      console.log('[extractHostInfo] No real host name found, will show only email');
     }
   }
   
@@ -246,16 +195,12 @@ export function extractPresenterInfo(webinar: any): HostInfo {
     return extractHostInfo(webinar);
   }
   
-  // 4. If we have email but no name, try to format the email prefix
-  if (!presenterName && presenterEmail && presenterEmail.includes('@')) {
-    const emailPrefix = presenterEmail.split('@')[0];
-    if (emailPrefix && /^[a-zA-Z][\w._-]*$/.test(emailPrefix)) {
-      presenterName = formatOrganizationalName(emailPrefix);
-      console.log('[extractPresenterInfo] Using formatted email prefix as name:', presenterName);
-    }
+  // No email prefix formatting fallback - if no real name found, presenterName stays null
+  if (!presenterName) {
+    console.log('[extractPresenterInfo] No real presenter name found, will show only email');
   }
   
-  // 5. Final fallback to host email if no presenter email
+  // 4. Final fallback to host email if no presenter email
   if (!presenterEmail) {
     presenterEmail = webinar.host_email;
   }
@@ -269,11 +214,12 @@ export function extractPresenterInfo(webinar: any): HostInfo {
 }
 
 /**
- * Formats display text for host/presenter info with enhanced name display
+ * Formats display text for host/presenter info - shows only email when no name is available
  */
 export function formatHostDisplay(hostInfo: HostInfo): string {
   if (hostInfo.name && hostInfo.name.trim()) {
     return `${hostInfo.name} (${hostInfo.email})`;
   }
+  // Just return the email address when no real name is available
   return hostInfo.email;
 }
