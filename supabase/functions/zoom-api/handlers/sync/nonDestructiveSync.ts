@@ -95,15 +95,13 @@ export async function performNonDestructiveUpsert(
   const currentTimestamp = new Date().toISOString();
   
   for (const webinar of webinars) {
-    // Extract actual timing data from enhanced webinar (now includes instance data)
+    // Extract actual timing data from enhanced webinar with proper field mapping
     const actualStartTime = webinar.actual_start_time || 
-                            webinar.instance_actual_start_time || 
-                            webinar.first_instance_start || 
+                            webinar.past_webinar_data?.start_time ||
                             null;
                             
     const actualDuration = webinar.actual_duration || 
-                           webinar.instance_actual_duration || 
-                           webinar.first_instance_duration || 
+                           webinar.past_webinar_data?.duration ||
                            null;
 
     const webinarData = {

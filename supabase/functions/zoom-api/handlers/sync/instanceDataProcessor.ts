@@ -27,59 +27,66 @@ export async function enhanceWebinarsWithInstanceData(
     
     let enhancedWebinar = { ...webinar };
     
-    // Only try to get instances for ended webinars
+    // Only try to get past webinar details for ended webinars
     if (webinar.status === 'ended') {
       try {
-        console.log(`[zoom-api][instance-processor] Fetching instances for ended webinar: ${webinar.id}`);
+        console.log(`[zoom-api][instance-processor] Fetching past webinar details for ended webinar: ${webinar.id}`);
         
-        const instanceResult = await syncWebinarInstances(
-          supabase, 
-          { id: userId }, 
-          token, 
-          webinar.id
-        );
+        // Get past webinar details directly from Zoom API
+        const pastWebinarResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${webinar.uuid || webinar.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
         
-        if (instanceResult.count > 0) {
+        if (pastWebinarResponse.ok) {
+          const pastWebinarData = await pastWebinarResponse.json();
           instancesFound++;
-          console.log(`[zoom-api][instance-processor] Found ${instanceResult.count} instances for webinar ${webinar.id}`);
           
-          // Fetch the stored instance data to extract actual timing
-          const { data: instances, error: fetchError } = await supabase
-            .from('zoom_webinar_instances')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('webinar_id', webinar.id)
-            .order('start_time', { ascending: true });
+          console.log(`[zoom-api][instance-processor] Found past webinar data for: ${webinar.id}`);
+          console.log(`[zoom-api][instance-processor] Past webinar actual timing - Start: ${pastWebinarData.start_time}, Duration: ${pastWebinarData.duration}, End: ${pastWebinarData.end_time}`);
           
-          if (!fetchError && instances && instances.length > 0) {
-            const firstInstance = instances[0];
-            
-            // Extract actual timing data from instance
-            if (firstInstance.start_time) {
-              enhancedWebinar.actual_start_time = firstInstance.start_time;
-              console.log(`[zoom-api][instance-processor] Set actual_start_time for webinar ${webinar.id}: ${firstInstance.start_time}`);
-            }
-            
-            if (firstInstance.duration) {
-              enhancedWebinar.actual_duration = firstInstance.duration;
-              console.log(`[zoom-api][instance-processor] Set actual_duration for webinar ${webinar.id}: ${firstInstance.duration} minutes`);
-            }
-            
-            // Store instance data in webinar for reference
-            enhancedWebinar.instance_data = instances;
-            enhancedWebinar.instances_count = instances.length;
-          } else if (fetchError) {
-            console.error(`[zoom-api][instance-processor] Error fetching stored instances for webinar ${webinar.id}:`, fetchError);
+          // Extract actual timing data from past webinar response
+          if (pastWebinarData.start_time) {
+            enhancedWebinar.actual_start_time = pastWebinarData.start_time;
+            console.log(`[zoom-api][instance-processor] Set actual_start_time for webinar ${webinar.id}: ${pastWebinarData.start_time}`);
+          }
+          
+          if (pastWebinarData.duration) {
+            enhancedWebinar.actual_duration = pastWebinarData.duration;
+            console.log(`[zoom-api][instance-processor] Set actual_duration for webinar ${webinar.id}: ${pastWebinarData.duration} minutes`);
+          }
+          
+          if (pastWebinarData.end_time) {
+            enhancedWebinar.actual_end_time = pastWebinarData.end_time;
+            console.log(`[zoom-api][instance-processor] Set actual_end_time for webinar ${webinar.id}: ${pastWebinarData.end_time}`);
+          }
+          
+          // Store the complete past webinar data for reference
+          enhancedWebinar.past_webinar_data = pastWebinarData;
+          
+          // Also sync to database for persistence
+          const instanceResult = await syncWebinarInstances(
+            supabase, 
+            { id: userId }, 
+            token, 
+            webinar.id
+          );
+          
+          if (instanceResult.count > 0) {
+            console.log(`[zoom-api][instance-processor] Stored instance data in database for webinar ${webinar.id}`);
           }
         } else {
-          console.log(`[zoom-api][instance-processor] No instances found for webinar ${webinar.id}`);
+          const errorText = await pastWebinarResponse.text();
+          console.log(`[zoom-api][instance-processor] No past webinar data found for webinar ${webinar.id}: ${errorText}`);
         }
       } catch (error) {
-        console.error(`[zoom-api][instance-processor] Error processing instances for webinar ${webinar.id}:`, error);
+        console.error(`[zoom-api][instance-processor] Error processing past webinar data for webinar ${webinar.id}:`, error);
         // Continue with other webinars even if one fails
       }
     } else {
-      console.log(`[zoom-api][instance-processor] Skipping instance sync for webinar ${webinar.id} with status: ${webinar.status}`);
+      console.log(`[zoom-api][instance-processor] Skipping past webinar fetch for webinar ${webinar.id} with status: ${webinar.status}`);
     }
     
     enhancedWebinars.push(enhancedWebinar);
@@ -87,7 +94,7 @@ export async function enhanceWebinarsWithInstanceData(
   
   console.log(`[zoom-api][instance-processor] Instance enhancement completed:`);
   console.log(`[zoom-api][instance-processor] - Processed: ${processedCount} webinars`);
-  console.log(`[zoom-api][instance-processor] - Instances found: ${instancesFound} webinars`);
+  console.log(`[zoom-api][instance-processor] - Past webinar data found: ${instancesFound} webinars`);
   
   return enhancedWebinars;
 }
