@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { useZoomWebinarRecordings } from '@/hooks/zoom/useZoomWebinarRecordings';
@@ -139,7 +138,7 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
           
           {/* Column 2: Registration and viewer statistics */}
           <div className="space-y-3">
-            <h3 className="text-lg font-medium">Registration Stats</h3>
+            <h3 className="text-lg font-medium">Registration Summary</h3>
             <Separator />
             
             <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
@@ -174,7 +173,7 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
               </div>
             </div>
             
-            <h3 className="text-lg font-medium mt-4">Viewer Stats</h3>
+            <h3 className="text-lg font-medium mt-4">Session Summary</h3>
             <Separator />
             
             <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
