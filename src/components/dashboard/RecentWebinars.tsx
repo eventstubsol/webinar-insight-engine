@@ -64,8 +64,8 @@ export const RecentWebinars = () => {
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <Calendar className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <CardTitle>Recent Webinars</CardTitle>
+          <div className="space-y-0.5">
+            <CardTitle className="text-base font-semibold">Recent Webinars</CardTitle>
             <CardDescription>Completed webinars from your Zoom account</CardDescription>
           </div>
         </div>
