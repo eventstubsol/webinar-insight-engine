@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { ZoomWebinar } from '../types';
 
@@ -74,6 +75,32 @@ export async function updateParticipantDataAPI(): Promise<any> {
   }
   
   console.log('[updateParticipantDataAPI] Update completed:', data);
+  return data;
+}
+
+/**
+ * Sync timing data for ended webinars
+ */
+export async function syncTimingDataAPI(): Promise<any> {
+  console.log('[syncTimingDataAPI] Starting timing data sync');
+  
+  const { data, error } = await supabase.functions.invoke('zoom-api', {
+    body: { 
+      action: 'sync-timing-data'
+    }
+  });
+  
+  if (error) {
+    console.error('[syncTimingDataAPI] Error:', error);
+    throw error;
+  }
+  
+  if (data.error) {
+    console.error('[syncTimingDataAPI] API returned error:', data.error);
+    throw new Error(data.error);
+  }
+  
+  console.log('[syncTimingDataAPI] Timing sync completed:', data);
   return data;
 }
 

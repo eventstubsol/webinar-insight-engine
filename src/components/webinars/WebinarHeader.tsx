@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { PlusCircle, ArrowLeft, Settings, LoaderCircle, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { SyncTimingDataButton } from './SyncTimingDataButton';
 
 interface WebinarHeaderProps {
   errorDetails: {
@@ -62,6 +63,15 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
     }
   };
 
+  const handleTimingSyncComplete = async () => {
+    // Refresh webinars after timing sync to show updated data
+    try {
+      await refreshWebinars(false);
+    } catch (error) {
+      console.error('Error refreshing after timing sync:', error);
+    }
+  };
+
   return (
     <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
       <div>
@@ -79,6 +89,11 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
               )}
               Create Webinar
             </Button>
+            <SyncTimingDataButton 
+              onSyncComplete={handleTimingSyncComplete}
+              variant="outline"
+              size="default"
+            />
             <Button variant="outline" onClick={onSetupZoom}>
               <Settings className="h-4 w-4 mr-2" />
               Zoom Settings

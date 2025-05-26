@@ -11,6 +11,7 @@ export {
   fetchWebinarsFromAPI,
   refreshWebinarsFromAPI,
   updateParticipantDataAPI,
+  syncTimingDataAPI,
   fetchWebinarInstancesAPI,
   fetchInstanceParticipantsAPI,
   fetchWebinarRecordingsAPI

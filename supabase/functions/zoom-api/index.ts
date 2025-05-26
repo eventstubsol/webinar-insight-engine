@@ -14,6 +14,7 @@ import { handleGetInstanceParticipants } from './handlers/getInstanceParticipant
 import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
+import { handleSyncTimingData } from './handlers/syncTimingData.ts';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -106,6 +107,10 @@ async function handleRequest(req: Request): Promise<Response> {
       case 'get-webinar-recordings':
         const recordingsCredentials = await getZoomCredentials(supabase, user.id);
         return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials, params.webinar_id);
+      
+      case 'sync-timing-data':
+        const timingCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleSyncTimingData(req, supabase, user, timingCredentials);
       
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
