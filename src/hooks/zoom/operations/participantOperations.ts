@@ -1,8 +1,8 @@
 
 import { QueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
-import { updateParticipantDataAPI } from '../services/webinarApiService';
-import { executeWithTimeout, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
+import { zoomApiClient } from '../services/zoomApiClient';
+import { operationManager, OPERATION_TIMEOUT } from '../utils/operationUtils';
 
 /**
  * Update participant data operation with improved error handling
@@ -25,8 +25,8 @@ export async function updateParticipantDataOperation(
   }
   
   try {
-    const data = await executeWithTimeout(
-      () => updateParticipantDataAPI(),
+    const data = await operationManager.executeWithTimeout(
+      () => zoomApiClient.updateParticipantData(),
       OPERATION_TIMEOUT,
       () => {
         if (!silent) {

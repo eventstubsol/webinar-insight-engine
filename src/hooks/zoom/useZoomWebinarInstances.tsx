@@ -1,7 +1,7 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { fetchWebinarInstancesFromDatabase, fetchWebinarInstancesAPI } from './services/webinarApiService';
+import { zoomDatabaseService } from './services/zoomDatabaseService';
+import { zoomApiClient } from './services/zoomApiClient';
 
 export interface WebinarInstance {
   id: string;
@@ -40,7 +40,7 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
       
       try {
         // First try to get instances from database
-        const dbInstances = await fetchWebinarInstancesFromDatabase(user.id, webinarId);
+        const dbInstances = await zoomDatabaseService.getWebinarInstances(user.id, webinarId);
         
         // If we don't have the webinarId, just return what's in the database
         if (!webinarId) {
@@ -51,9 +51,9 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
         // try to fetch instances from the API
         if (!dbInstances || dbInstances.length < 2) {
           try {
-            await fetchWebinarInstancesAPI(webinarId);
+            await zoomApiClient.getWebinarInstances(webinarId);
             // Refetch from database after API call
-            const refreshedInstances = await fetchWebinarInstancesFromDatabase(user.id, webinarId);
+            const refreshedInstances = await zoomDatabaseService.getWebinarInstances(user.id, webinarId);
             return refreshedInstances || [];
           } catch (apiError) {
             console.error('[useZoomWebinarInstances] Error fetching instances from API:', apiError);

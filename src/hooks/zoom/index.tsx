@@ -21,6 +21,7 @@ export * from './utils/timeoutUtils';
 export * from './services/webinarApiService';
 export * from './services/databaseQueries';
 export * from './services/apiOperations';
-export * from './services/syncHistoryService';
+// Note: Removed duplicate fetchSyncHistory export to avoid conflict
+export { fetchSyncHistory } from './services/syncHistoryService';
 export * from './operations';
 export * from './webinarOperations';
