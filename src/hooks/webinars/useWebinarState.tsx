@@ -1,124 +1,39 @@
 
 import { useState, useEffect } from 'react';
-import { useWebinarUIState } from './useWebinarUIState';
-import { useWebinarData } from './useWebinarData';
-import { useWebinarErrorHandling } from './useWebinarErrorHandling';
-import { useWebinarSetupActions } from './useWebinarSetupActions';
 
-export const useWebinarState = () => {
-  // UI state management
-  const {
+const ERROR_PERSIST_KEY = 'zoom-webinar-error-dismissed';
+const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes
+
+export function useWebinarState() {
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>("webinars");
+  const [showWizard, setShowWizard] = useState(false);
+  const [errorBannerDismissed, setErrorBannerDismissed] = useState<boolean>(() => {
+    const storedValue = localStorage.getItem(ERROR_PERSIST_KEY);
+    return storedValue === 'true';
+  });
+
+  const dismissErrorBanner = () => {
+    setErrorBannerDismissed(true);
+    localStorage.setItem(ERROR_PERSIST_KEY, 'true');
+    console.log('[useWebinarState] Error banner dismissed by user');
+  };
+
+  const resetErrorBanner = () => {
+    setErrorBannerDismissed(false);
+    localStorage.removeItem(ERROR_PERSIST_KEY);
+  };
+
+  return {
     isFirstLoad,
     setIsFirstLoad,
     activeTab,
     setActiveTab,
     showWizard,
     setShowWizard,
-    viewMode,
-    filterTab,
-    searchQuery,
-    setSearchQuery,
-    dateRange,
-    setDateRange,
     errorBannerDismissed,
-    dismissErrorBanner
-  } = useWebinarUIState();
-
-  // Data fetching and synchronization
-  const {
-    webinars,
-    isLoading,
-    isRefetching,
-    error,
-    errorDetails,
-    refreshWebinars,
-    lastSyncTime,
-    credentialsStatus,
-    isVerifying,
-    verified,
-    scopesError,
-    checkCredentialsStatus,
-    verificationDetails
-  } = useWebinarData();
-
-  // Error handling logic
-  const {
-    errorMessage
-  } = useWebinarErrorHandling(
-    error,
-    errorDetails,
-    errorBannerDismissed,
-    isFirstLoad,
-    activeTab,
-    setActiveTab
-  );
-
-  // Setup and wizard actions
-  const {
-    handleSetupZoom,
-    handleWizardComplete
-  } = useWebinarSetupActions(
-    setShowWizard,
-    checkCredentialsStatus,
-    refreshWebinars,
-    setActiveTab,
-    (dismissed: boolean) => {
-      if (dismissed) {
-        dismissErrorBanner();
-      } else {
-        localStorage.removeItem('zoom-webinar-error-dismissed');
-      }
-    }
-  );
-
-  // Track if data has been loaded at least once
-  useEffect(() => {
-    if (!isLoading && isFirstLoad) {
-      console.log('[useWebinarState] First load complete');
-      setIsFirstLoad(false);
-    }
-  }, [isLoading, isFirstLoad, setIsFirstLoad]);
-
-  // Check if this is the first login and open wizard if needed
-  useEffect(() => {
-    if (!isLoading && credentialsStatus !== undefined) {
-      // If user is logged in and we've checked their credentials status
-      if (!credentialsStatus?.hasCredentials) {
-        console.log('[useWebinarState] No credentials found, showing wizard');
-        // If they don't have credentials, show the wizard
-        setShowWizard(true);
-      }
-    }
-  }, [credentialsStatus, isLoading, setShowWizard]);
-  
-  return {
-    webinars,
-    isLoading,
-    isRefetching,
-    error,
-    errorDetails,
-    refreshWebinars,
-    lastSyncTime,
-    credentialsStatus,
-    isVerifying,
-    verified,
-    scopesError: Boolean(scopesError), // Ensure scopesError is returned as boolean
-    verificationDetails,
-    isFirstLoad,
-    activeTab,
-    setActiveTab,
-    showWizard,
-    setShowWizard,
-    viewMode,
-    filterTab,
-    searchQuery,
-    setSearchQuery,
-    dateRange,
-    setDateRange,
-    handleSetupZoom,
-    handleWizardComplete,
-    errorMessage,
     dismissErrorBanner,
-    errorBannerDismissed
+    resetErrorBanner,
+    AUTO_REFRESH_INTERVAL
   };
-};
+}

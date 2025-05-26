@@ -1,19 +1,16 @@
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { parseErrorDetails } from '@/hooks/zoom/utils/errorHandling';
 
 export function useWebinarErrorHandling(
   error: Error | null,
-  errorDetails: {
-    isMissingCredentials: boolean;
-    isCapabilitiesError: boolean;
-    isScopesError: boolean;
-    missingSecrets: string[];
-  },
   errorBannerDismissed: boolean,
   isFirstLoad: boolean,
   activeTab: string,
   setActiveTab: (tab: string) => void
 ) {
+  const errorDetails = parseErrorDetails(error);
+
   // Reset error dismissal state when there's a new error
   useEffect(() => {
     if (error) {
@@ -21,12 +18,8 @@ export function useWebinarErrorHandling(
     }
   }, [error]);
 
-  // Error message preparation
-  const errorMessage: string | null = error?.message || null;
-
-  // Initial load tracking and tab selection logic
+  // Auto-switch to setup tab for critical errors
   useEffect(() => {
-    // Only automatically switch to setup tab for critical configuration errors
     if (error && 
         !isFirstLoad && 
         (errorDetails.isMissingCredentials || errorDetails.isScopesError) && 
@@ -38,6 +31,7 @@ export function useWebinarErrorHandling(
   }, [error, errorDetails, activeTab, isFirstLoad, errorBannerDismissed, setActiveTab]);
 
   return {
-    errorMessage
+    errorMessage: error?.message || null,
+    errorDetails
   };
 }
