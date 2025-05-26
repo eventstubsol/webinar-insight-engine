@@ -1,3 +1,4 @@
+
 // Functions for syncing webinar data to database with enhanced host information
 export async function syncWebinarMetadata(
   supabase: any, 
@@ -9,17 +10,6 @@ export async function syncWebinarMetadata(
   hostFirstName?: string | null,
   hostLastName?: string | null
 ) {
-  // Extract actual timing data from webinar response
-  const actualStartTime = webinarData.actual_start_time || 
-                          webinarData.start_time_actual || 
-                          webinarData.actualStartTime || 
-                          null;
-                          
-  const actualDuration = webinarData.actual_duration || 
-                         webinarData.duration_actual || 
-                         webinarData.actualDuration || 
-                         null;
-
   // Ensure host information is preserved in raw_data
   const enhancedRawData = {
     ...webinarData,
@@ -41,8 +31,6 @@ export async function syncWebinarMetadata(
       topic: webinarData.topic,
       start_time: webinarData.start_time,
       duration: webinarData.duration,
-      actual_start_time: actualStartTime,
-      actual_duration: actualDuration,
       timezone: webinarData.timezone,
       agenda: webinarData.agenda || '',
       host_email: hostEmail || null,

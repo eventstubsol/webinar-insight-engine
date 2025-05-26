@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -101,7 +102,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
     setIsSubmitting(true);
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('zoom-api', {
+      const { data, error } = await supabase.functions.invoke('zoom-api', {
         body: { 
           action: 'save-credentials',
           account_id: credentials.account_id,
@@ -110,12 +111,11 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
         }
       });
 
-      if (invokeError) {
-        console.error('Invoke error:', invokeError);
-        throw new Error(invokeError.message || 'Failed to connect to Zoom API');
+      if (error) {
+        throw new Error(error.message);
       }
 
-      if (data && data.success) {
+      if (data.success) {
         setVerificationDetails(data);
         setCurrentStep(WizardStep.Success);
         toast({
@@ -123,46 +123,32 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
           description: `Connected as ${data.user_email || 'Zoom User'}`
         });
       } else {
-        // Handle error response from the function
-        const errorMessage = data?.error || 'Verification failed';
-        
         // Check if it's a scopes error
-        if (data?.code === 'missing_scopes' || 
-            errorMessage.toLowerCase().includes('scopes') || 
-            errorMessage.toLowerCase().includes('scope') || 
-            data?.details?.code === 4711) {
+        if (data.code === 'missing_scopes' || 
+            data.error?.toLowerCase().includes('scopes') || 
+            data.details?.code === 4711) {
           setScopesError(true);
           setCurrentStep(WizardStep.ConfigureScopes);
-          setError('Missing required OAuth scopes. Please add the required scopes to your Zoom app.');
-        } else {
-          setError(errorMessage);
         }
         
-        toast({
-          title: 'Verification Failed',
-          description: errorMessage,
-          variant: 'destructive'
-        });
+        throw new Error(data.error || 'Verification failed');
       }
     } catch (err: any) {
       console.error('Verification error:', err);
       
-      let errorMessage = err.message || 'Failed to verify Zoom credentials';
-      
       // Check for scopes error in the message
-      if (errorMessage.toLowerCase().includes('scopes') || 
-          errorMessage.toLowerCase().includes('scope') || 
-          errorMessage.toLowerCase().includes('4711')) {
+      if (err.message?.toLowerCase().includes('scopes') || 
+          err.message?.toLowerCase().includes('scope') || 
+          err.message?.toLowerCase().includes('4711')) {
         setScopesError(true);
         setCurrentStep(WizardStep.ConfigureScopes);
-        errorMessage = 'Missing required OAuth scopes. Please add the required scopes to your Zoom app.';
       }
       
-      setError(errorMessage);
+      setError(err.message || 'Failed to verify Zoom credentials');
       
       toast({
         title: 'Verification Failed',
-        description: errorMessage,
+        description: err.message || 'Could not verify Zoom API credentials',
         variant: 'destructive'
       });
     } finally {

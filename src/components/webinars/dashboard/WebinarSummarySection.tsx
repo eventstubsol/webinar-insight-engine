@@ -1,14 +1,8 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Separator } from '@/components/ui/separator';
-import { ActualTimingButton } from './ActualTimingButton';
-import { 
-  getScheduledStartTimeDisplay, 
-  getActualStartTimeDisplay,
-  getScheduledDurationDisplay,
-  getActualDurationDisplay
-} from './utils/timeDisplayUtils';
+import { getStartTimeDisplay, getDurationDisplay } from './utils/timeDisplayUtils';
 import {
   Clock,
   Activity,
@@ -28,8 +22,6 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
   webinar,
   participants
 }) => {
-  const [refreshKey, setRefreshKey] = useState(0);
-  
   // Calculate registration stats
   const totalRegistered = participants.registrants.length;
   const totalCancelled = participants.registrants.filter(r => r.status === 'cancelled').length;
@@ -43,27 +35,12 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
   // Get webinar timezone, fallback to UTC if not available
   const webinarTimezone = webinar.timezone || 'UTC';
   
-  // Get time and duration display info (force refresh by using refreshKey)
-  const scheduledStartTimeInfo = getScheduledStartTimeDisplay(webinar, webinarTimezone);
-  const actualStartTimeInfo = getActualStartTimeDisplay(webinar, webinarTimezone);
-  const scheduledDurationInfo = getScheduledDurationDisplay(webinar);
-  const actualDurationInfo = getActualDurationDisplay(webinar);
+  // Get time and duration display info
+  const startTimeInfo = getStartTimeDisplay(webinar, webinarTimezone);
+  const durationInfo = getDurationDisplay(webinar);
   
   // Max concurrent views
   const maxConcurrentViews = webinar.max_concurrent_views || 'Not available';
-  
-  // Check if this is a completed webinar
-  const isCompleted = webinar.status === 'ended' || webinar.status === 'aborted';
-  const hasActualData = webinar.actual_start_time || webinar.actual_duration;
-
-  const handleDataFetched = () => {
-    // Force a re-render to show updated timing data
-    setRefreshKey(prev => prev + 1);
-    // Also trigger a page refresh after a short delay to ensure data is updated
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
-  };
 
   return (
     <div className="space-y-3">
@@ -92,51 +69,19 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         </div>
       </div>
       
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Session Summary</h3>
-        {isCompleted && !hasActualData && (
-          <ActualTimingButton 
-            webinar={webinar} 
-            onDataFetched={handleDataFetched}
-          />
-        )}
-      </div>
+      <h3 className="text-lg font-medium mt-4">Session Summary</h3>
       <Separator />
       
       <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
         <Clock className="h-4 w-4 text-muted-foreground mt-1" />
         <div>
-          <span className="font-medium">{scheduledStartTimeInfo.label}</span> {scheduledStartTimeInfo.time}
+          <span className="font-medium">{startTimeInfo.label}</span> {startTimeInfo.time}
         </div>
         
-        {actualStartTimeInfo && (
-          <>
-            <Clock className="h-4 w-4 text-green-600 mt-1" />
-            <div>
-              <span className="font-medium">{actualStartTimeInfo.label}</span> {actualStartTimeInfo.time}
-            </div>
-          </>
-        )}
-        
-        <Activity className="h-4 w-4 text-muted-foreground mt-1" />
+        <Clock className="h-4 w-4 text-muted-foreground mt-1" />
         <div>
-          <span className="font-medium">{scheduledDurationInfo.label}</span> {scheduledDurationInfo.duration}
+          <span className="font-medium">{durationInfo.label}</span> {durationInfo.duration}
         </div>
-        
-        {actualDurationInfo && (
-          <>
-            <Activity className="h-4 w-4 text-green-600 mt-1" />
-            <div>
-              <span className="font-medium">{actualDurationInfo.label}</span> {actualDurationInfo.duration}
-            </div>
-          </>
-        )}
-        
-        {isCompleted && !hasActualData && (
-          <div className="col-span-2 text-sm text-muted-foreground italic">
-            Actual timing data not available. Click "Get Timing" to fetch it.
-          </div>
-        )}
         
         <Eye className="h-4 w-4 text-muted-foreground mt-1" />
         <div>
