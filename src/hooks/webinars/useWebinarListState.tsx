@@ -44,10 +44,24 @@ export const useWebinarListState = ({
     // Apply search filter if query exists
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(webinar => 
-        (webinar.topic?.toLowerCase().includes(query)) || 
-        (webinar.host_email?.toLowerCase().includes(query))
-      );
+      // Remove spaces from query for webinar ID matching
+      const cleanQuery = query.replace(/\s/g, '');
+      
+      filtered = filtered.filter(webinar => {
+        // Search in topic
+        const topicMatch = webinar.topic?.toLowerCase().includes(query);
+        
+        // Search in host email
+        const hostMatch = webinar.host_email?.toLowerCase().includes(query);
+        
+        // Search in webinar ID (both with and without spaces)
+        const webinarIdMatch = webinar.id?.toLowerCase().includes(cleanQuery) ||
+                              webinar.id?.toLowerCase().includes(query) ||
+                              webinar.webinar_id?.toString().toLowerCase().includes(cleanQuery) ||
+                              webinar.webinar_id?.toString().toLowerCase().includes(query);
+        
+        return topicMatch || hostMatch || webinarIdMatch;
+      });
     }
     
     // Apply date range filter if dates are selected
