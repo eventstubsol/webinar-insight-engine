@@ -6,7 +6,7 @@ import { updateParticipantDataOperation } from './participantOperations';
 import { executeWithTimeout, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
 
 /**
- * Refresh webinars operation with non-destructive sync and improved error handling
+ * ENHANCED refresh webinars operation with improved error handling, timeout protection, and better user feedback
  */
 export async function refreshWebinarsOperation(
   userId: string | undefined,
@@ -25,19 +25,24 @@ export async function refreshWebinarsOperation(
   let isCompleted = false;
   let timeoutTriggered = false;
   let participantsUpdated = 0;
+  let enhancementFailed = false;
   
   try {
-    console.log(`[refreshWebinarsOperation] Starting non-destructive refresh with force=${force} for user ${userId}`);
+    console.log(`[refreshWebinarsOperation] Starting ENHANCED non-destructive refresh with force=${force} for user ${userId}`);
     
-    // Make the API call to fetch fresh data from Zoom with timeout protection
+    // ENHANCED timeout handling with better user feedback
+    const ENHANCED_TIMEOUT = 45000; // 45 seconds for the entire operation
+    
+    // Make the API call to fetch fresh data from Zoom with ENHANCED timeout protection
     const refreshData = await executeWithTimeout(
       () => refreshWebinarsFromAPI(userId, force),
-      OPERATION_TIMEOUT,
+      ENHANCED_TIMEOUT,
       () => {
         timeoutTriggered = true;
+        console.log('[refreshWebinarsOperation] Timeout triggered, showing user notification');
         toast({
-          title: 'Sync taking longer than expected',
-          description: 'The operation is still running in the background. Historical data will be preserved.',
+          title: 'Sync in progress',
+          description: 'Large dataset detected. The sync is continuing in the background. Historical data is preserved.',
           variant: 'default'
         });
       }
@@ -45,37 +50,59 @@ export async function refreshWebinarsOperation(
     
     isCompleted = true;
 
-    // Also update participant data for completed webinars (silently)
+    // ENHANCED participant data update with error isolation
     try {
+      console.log('[refreshWebinarsOperation] Starting participant data update (isolated)');
       const participantData = await updateParticipantDataOperation(userId, queryClient, true);
       participantsUpdated = participantData?.updated || 0;
+      console.log(`[refreshWebinarsOperation] ✅ Participant data updated for ${participantsUpdated} webinars`);
     } catch (err) {
-      console.error('[refreshWebinarsOperation] Error updating participant data:', err);
+      console.error('[refreshWebinarsOperation] Error updating participant data (isolated):', err);
       // Don't throw here, as we want the main sync to succeed even if participant data fails
     }
 
     // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
     
-    // Show enhanced notification with non-destructive sync results
+    // ENHANCED notification with detailed sync results and timing data information
     if (refreshData.syncResults) {
       const { 
         newWebinars = 0, 
         updatedWebinars = 0, 
         preservedWebinars = 0, 
         totalWebinars = 0,
-        dataRange 
+        dataRange,
+        actualTimingCount = 0,
+        enhancementStats
       } = refreshData.syncResults;
       
       const syncMessage = `${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`;
       const totalMessage = `Total: ${totalWebinars} webinars${dataRange?.oldest ? ` (from ${new Date(dataRange.oldest).toLocaleDateString()})` : ''}`;
       const participantMessage = participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : '';
       
+      // CRITICAL: Include actual timing data information in the success message
+      const timingMessage = actualTimingCount > 0 ? ` 🎯 ${actualTimingCount} webinars with actual timing data.` : '';
+      
+      // Check if enhancement had issues
+      if (enhancementStats?.errors && enhancementStats.errors.length > 0) {
+        enhancementFailed = true;
+        console.warn('[refreshWebinarsOperation] Enhancement had errors:', enhancementStats.errors);
+      }
+      
+      const finalMessage = `${syncMessage}. ${totalMessage}${participantMessage}.${timingMessage}`;
+      
       toast({
-        title: 'Non-destructive sync completed',
-        description: `${syncMessage}. ${totalMessage}${participantMessage}`,
-        variant: 'default'
+        title: enhancementFailed ? 'Sync completed with some limitations' : 'Enhanced sync completed',
+        description: finalMessage,
+        variant: enhancementFailed ? 'default' : 'default'
       });
+      
+      // Log comprehensive results for debugging
+      console.log(`[refreshWebinarsOperation] ✅ ENHANCED sync completed: ${finalMessage}`);
+      if (actualTimingCount > 0) {
+        console.log(`[refreshWebinarsOperation] 🎯 CRITICAL SUCCESS: ${actualTimingCount} webinars have actual timing data`);
+      }
+      
     } else {
       // Fallback for backward compatibility
       toast({
@@ -87,51 +114,54 @@ export async function refreshWebinarsOperation(
   } catch (err: any) {
     isCompleted = true;
     
-    console.error('[refreshWebinarsOperation] Error during refresh:', err);
+    console.error('[refreshWebinarsOperation] Error during ENHANCED refresh:', err);
     
-    // Different error handling based on error type
+    // ENHANCED error handling based on error type with better categorization
     if (timeoutTriggered) {
       toast({
         title: 'Sync may be incomplete',
-        description: 'The operation took too long. Historical data has been preserved.',
-        variant: 'warning'
+        description: 'The operation took longer than expected. Historical data has been preserved. Try again in a moment.',
+        variant: 'default'
       });
     } else {
-      // Enhanced error handling
+      // Enhanced error handling with specific error type detection
       let errorMessage = 'An unexpected error occurred';
+      let errorTitle = 'Sync failed';
       
       if (err?.message) {
         errorMessage = err.message;
+        
+        // Categorize specific error types for better user experience
+        if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+          errorTitle = 'Sync timeout';
+          errorMessage = 'The sync operation timed out due to a large dataset. Please try again.';
+        } else if (errorMessage.includes('scopes') || errorMessage.includes('Scopes')) {
+          errorTitle = 'Missing OAuth Scopes';
+          errorMessage = 'Please check your Zoom app configuration and add the required scopes';
+        } else if (errorMessage.includes('credentials') || errorMessage.includes('Authentication')) {
+          errorTitle = 'Authentication Error';
+          errorMessage = 'Please check your Zoom credentials';
+        } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+          errorTitle = 'Rate limit exceeded';
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
+        } else if (errorMessage.includes('Enhancement')) {
+          errorTitle = 'Sync completed with limitations';
+          errorMessage = 'Basic data was synced, but some enhancements failed. Data is preserved.';
+        }
       } else if (typeof err === 'string') {
         errorMessage = err;
       }
       
-      // Handle specific error types
-      if (errorMessage.includes('scopes')) {
-        toast({
-          title: 'Missing OAuth Scopes',
-          description: 'Please check your Zoom app configuration and add the required scopes',
-          variant: 'destructive'
-        });
-      } else if (errorMessage.includes('credentials')) {
-        toast({
-          title: 'Authentication Error',
-          description: 'Please check your Zoom credentials',
-          variant: 'destructive'
-        });
-      } else {
-        toast({
-          title: 'Non-destructive sync failed',
-          description: errorMessage,
-          variant: 'destructive'
-        });
-      }
+      toast({
+        title: errorTitle,
+        description: errorMessage,
+        variant: 'destructive'
+      });
     }
     
     throw err;
   } finally {
-    // Ensure that even if there's an uncaught exception, we set isCompleted
-    // This flag can be used by the calling code to reset UI states
-    console.log(`[refreshWebinarsOperation] Non-destructive operation completed: ${isCompleted}`);
+    // Enhanced final logging with operation summary
+    console.log(`[refreshWebinarsOperation] ENHANCED operation completed: ${isCompleted}, timeout: ${timeoutTriggered}, participants: ${participantsUpdated}, enhancement issues: ${enhancementFailed}`);
   }
 }

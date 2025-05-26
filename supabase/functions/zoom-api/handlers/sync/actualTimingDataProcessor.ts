@@ -1,7 +1,6 @@
 
 /**
- * Enhanced fetcher for actual timing data from past_webinars endpoint
- * with comprehensive error handling, improved UUID processing, and robust status detection
+ * ENHANCED timing data processor with robust UUID handling, smaller batches, and comprehensive error recovery
  */
 export async function enhanceWebinarsWithActualTimingData(webinars: any[], token: string): Promise<any[]> {
   console.log(`[zoom-api][actual-timing-processor] 🚀 Starting ENHANCED timing data enhancement for ${webinars.length} webinars`);
@@ -11,7 +10,7 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
     return webinars;
   }
   
-  // Enhanced filter for webinars that need actual timing data
+  // ENHANCED filtering with comprehensive status and time-based detection
   const webinarsNeedingTimingData = webinars.filter(webinar => {
     const status = webinar.status?.toLowerCase();
     const hasActualData = webinar.actual_start_time || webinar.actual_duration;
@@ -91,13 +90,16 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
   // Create a map for efficient lookup
   const webinarMap = new Map(webinars.map(w => [w.id || w.webinar_id, w]));
   
-  // Process in smaller batches with enhanced error handling
-  const BATCH_SIZE = 2; // Smaller batches for better reliability
-  const API_TIMEOUT = 6000; // Shorter timeout per API call
+  // ENHANCED batch processing with smaller, more manageable batches
+  const BATCH_SIZE = 1; // Process one at a time for maximum reliability
+  const API_TIMEOUT = 8000; // 8 seconds per API call
+  const BATCH_DELAY = 800; // 800ms delay between API calls to avoid rate limiting
   
   let processedCount = 0;
   let successCount = 0;
   let errorCount = 0;
+  
+  console.log(`[zoom-api][actual-timing-processor] 🔄 Starting sequential processing of ${webinarsNeedingTimingData.length} webinars`);
   
   for (let i = 0; i < webinarsNeedingTimingData.length; i += BATCH_SIZE) {
     const batch = webinarsNeedingTimingData.slice(i, i + BATCH_SIZE);
@@ -106,37 +108,35 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
     
     console.log(`[zoom-api][actual-timing-processor] 🔄 Processing batch ${batchNumber}/${totalBatches} (${batch.length} webinars)`);
     
-    // Process batch with concurrency limit and enhanced error handling
-    const batchPromises = batch.map(webinar => 
-      processWebinarTimingDataEnhanced(webinar, token, API_TIMEOUT)
-    );
-    
-    // Use allSettled to continue even if some fail
-    const results = await Promise.allSettled(batchPromises);
-    
-    // Apply results to the webinar map with detailed logging
-    results.forEach((result, index) => {
-      const webinar = batch[index];
-      const webinarId = webinar.id || webinar.webinar_id;
-      processedCount++;
-      
-      if (result.status === 'fulfilled' && result.value) {
-        const updatedWebinar = webinarMap.get(webinarId);
-        if (updatedWebinar) {
-          Object.assign(updatedWebinar, result.value);
-          successCount++;
-          console.log(`[zoom-api][actual-timing-processor] ✅ Enhanced webinar ${webinarId} with timing data: start=${result.value.actual_start_time}, duration=${result.value.actual_duration}min`);
+    // Process each webinar individually with enhanced error handling
+    for (const webinar of batch) {
+      try {
+        const result = await processWebinarTimingDataEnhanced(webinar, token, API_TIMEOUT);
+        const webinarId = webinar.id || webinar.webinar_id;
+        processedCount++;
+        
+        if (result) {
+          const updatedWebinar = webinarMap.get(webinarId);
+          if (updatedWebinar) {
+            Object.assign(updatedWebinar, result);
+            successCount++;
+            console.log(`[zoom-api][actual-timing-processor] ✅ Enhanced webinar ${webinarId} with timing data: start=${result.actual_start_time}, duration=${result.actual_duration}min`);
+          }
+        } else {
+          errorCount++;
+          console.warn(`[zoom-api][actual-timing-processor] ❌ Failed to get timing data for webinar ${webinarId}: No result returned`);
         }
-      } else {
+        
+        // Rate limiting delay
+        if (i + 1 < webinarsNeedingTimingData.length) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+        }
+        
+      } catch (error) {
         errorCount++;
-        const errorReason = result.status === 'rejected' ? result.reason?.message || result.reason : 'Unknown error';
-        console.warn(`[zoom-api][actual-timing-processor] ❌ Failed to get timing data for webinar ${webinarId}: ${errorReason}`);
+        const webinarId = webinar.id || webinar.webinar_id;
+        console.error(`[zoom-api][actual-timing-processor] ❌ Exception processing webinar ${webinarId}:`, error.message);
       }
-    });
-    
-    // Small delay between batches to avoid rate limiting
-    if (i + BATCH_SIZE < webinarsNeedingTimingData.length) {
-      await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
   
@@ -146,24 +146,28 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
   console.log(`[zoom-api][actual-timing-processor] - Failed: ${errorCount} webinars`);
   console.log(`[zoom-api][actual-timing-processor] - Success rate: ${processedCount > 0 ? Math.round((successCount / processedCount) * 100) : 0}%`);
   
-  // Return the updated webinars array
-  return Array.from(webinarMap.values());
+  // Final validation
+  const finalWebinars = Array.from(webinarMap.values());
+  const finalTimingCount = finalWebinars.filter(w => w.actual_start_time || w.actual_duration).length;
+  console.log(`[zoom-api][actual-timing-processor] 🎯 FINAL RESULT: ${finalTimingCount} total webinars now have actual timing data`);
+  
+  return finalWebinars;
 }
 
 /**
- * Enhanced individual webinar timing data processor with comprehensive UUID handling
+ * ENHANCED individual webinar timing data processor with comprehensive UUID handling and encoding strategies
  */
 async function processWebinarTimingDataEnhanced(webinar: any, token: string, timeout: number): Promise<any | null> {
   const webinarId = webinar.id || webinar.webinar_id;
   
   console.log(`[timing-processor] 🔍 Processing webinar ${webinarId} for timing data`);
   
-  // ENHANCED UUID extraction and validation
+  // ENHANCED UUID extraction and validation with priority ordering
   const uuidCandidates = [
-    { field: 'uuid', value: webinar.uuid },
-    { field: 'webinar_uuid', value: webinar.webinar_uuid },
-    { field: 'id', value: webinar.id?.toString() },
-    { field: 'webinar_id', value: webinar.webinar_id?.toString() }
+    { field: 'uuid', value: webinar.uuid, priority: 1 },
+    { field: 'webinar_uuid', value: webinar.webinar_uuid, priority: 2 },
+    { field: 'id', value: webinar.id?.toString(), priority: 3 },
+    { field: 'webinar_id', value: webinar.webinar_id?.toString(), priority: 4 }
   ].filter(candidate => {
     if (!candidate.value || typeof candidate.value !== 'string' || candidate.value.length < 10) return false;
     
@@ -172,25 +176,29 @@ async function processWebinarTimingDataEnhanced(webinar: any, token: string, tim
                            candidate.value.includes('/') || candidate.value.includes('+');
     const isLongEnough = candidate.value.length > 15;
     const notJustNumbers = !/^\d+$/.test(candidate.value);
-    const looksLikeBase64 = /^[A-Za-z0-9+/=]+$/.test(candidate.value);
+    const looksLikeBase64 = /^[A-Za-z0-9+/=\-_]+$/.test(candidate.value);
     
     return (hasSpecialChars || isLongEnough) && notJustNumbers && looksLikeBase64;
-  });
+  }).sort((a, b) => a.priority - b.priority); // Process in priority order
   
   if (uuidCandidates.length === 0) {
     console.log(`[timing-processor] ❌ No valid UUID found for webinar ${webinarId}. Available fields: [${Object.keys(webinar).join(', ')}]`);
     return null;
   }
   
-  // Try each valid UUID candidate with multiple encoding strategies
+  // Try each valid UUID candidate with comprehensive encoding strategies
   for (const [candidateIndex, candidate] of uuidCandidates.entries()) {
     console.log(`[timing-processor] 🔄 Trying UUID candidate ${candidateIndex + 1}/${uuidCandidates.length}: ${candidate.field} = ${candidate.value}`);
     
+    // ENHANCED encoding variants with additional strategies
     const uuidVariants = [
       candidate.value, // Original UUID
-      encodeURIComponent(candidate.value), // URL encoded
+      encodeURIComponent(candidate.value), // Standard URL encoding
       candidate.value.replace(/\+/g, '%2B').replace(/\//g, '%2F').replace(/=/g, '%3D'), // Manual encoding
-      candidate.value.replace(/\//g, '_').replace(/\+/g, '-') // Alternative encoding for some APIs
+      candidate.value.replace(/\//g, '_').replace(/\+/g, '-'), // URL-safe base64
+      candidate.value.replace(/\//g, '%2F'), // Only encode forward slashes
+      candidate.value.replace(/=/g, '%3D'), // Only encode equals signs
+      candidate.value.replace(/\+/g, '%2B') // Only encode plus signs
     ];
     
     for (const [variantIndex, uuidVariant] of uuidVariants.entries()) {
@@ -202,7 +210,7 @@ async function processWebinarTimingDataEnhanced(webinar: any, token: string, tim
           setTimeout(() => reject(new Error('API call timeout')), timeout);
         });
         
-        // Create API call promise
+        // Create API call promise with enhanced error handling
         const apiUrl = `https://api.zoom.us/v2/past_webinars/${uuidVariant}`;
         const apiPromise = fetch(apiUrl, {
           headers: {
@@ -218,17 +226,21 @@ async function processWebinarTimingDataEnhanced(webinar: any, token: string, tim
           if (response.status === 404) {
             console.log(`[timing-processor] ⚠️ 404 for webinar ${webinarId} with UUID variant ${variantIndex + 1} (${candidate.field})`);
             continue; // Try next variant
+          } else if (response.status === 429) {
+            console.log(`[timing-processor] ⚠️ Rate limit (429) for webinar ${webinarId}, will retry with delay`);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay for rate limit
+            continue; // Try again
           } else {
-            const errorText = await response.text();
+            const errorText = await response.text().catch(() => 'Unable to read error response');
             console.error(`[timing-processor] ❌ API error ${response.status} for ${webinarId}: ${errorText}`);
-            throw new Error(`API call failed with status ${response.status}: ${errorText}`);
+            continue; // Try next variant instead of throwing
           }
         }
         
         const pastWebinarData = await response.json();
         console.log(`[timing-processor] ✅ SUCCESS! Retrieved timing data for ${webinarId} using ${candidate.field} variant ${variantIndex + 1}`);
         
-        // Extract and validate timing data with enhanced processing
+        // Enhanced timing data extraction and validation
         const actualStartTime = pastWebinarData.start_time;
         const actualEndTime = pastWebinarData.end_time;
         let actualDuration = pastWebinarData.duration;
@@ -244,6 +256,12 @@ async function processWebinarTimingDataEnhanced(webinar: any, token: string, tim
           const endMs = new Date(actualEndTime).getTime();
           actualDuration = Math.round((endMs - startMs) / (1000 * 60)); // Duration in minutes
           console.log(`[timing-processor] ⚡ Calculated duration for ${webinarId}: ${actualDuration} minutes`);
+        }
+        
+        // Validate the extracted data
+        if (!actualStartTime && !actualDuration) {
+          console.warn(`[timing-processor] ⚠️ No valid timing data found for ${webinarId}, trying next variant`);
+          continue;
         }
         
         const result = {
@@ -268,6 +286,12 @@ async function processWebinarTimingDataEnhanced(webinar: any, token: string, tim
         
       } catch (error) {
         console.error(`[timing-processor] ❌ Error with UUID variant ${variantIndex + 1} for ${webinarId}:`, error.message);
+        
+        // Check if this is a timeout or network error
+        if (error.message.includes('timeout') || error.message.includes('fetch')) {
+          console.log(`[timing-processor] 🔄 Network/timeout error for ${webinarId}, will try next variant`);
+        }
+        
         if (variantIndex < uuidVariants.length - 1) {
           continue; // Try next variant
         }
