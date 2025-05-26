@@ -53,11 +53,21 @@ export function getScheduledStartTimeDisplay(webinar: any, timezone: string): St
 }
 
 /**
- * Get formatted actual start time display
+ * Get formatted actual start time display - checks both direct field and raw_data
  */
 export function getActualStartTimeDisplay(webinar: any, timezone: string): StartTimeInfo | null {
-  if (webinar.actual_start_time) {
-    const actualStart = formatInTimeZone(parseISO(webinar.actual_start_time), timezone, 'h:mm a');
+  // Check direct field first
+  let actualStartTime = webinar.actual_start_time;
+  
+  // If not found, check in raw_data
+  if (!actualStartTime && webinar.raw_data) {
+    actualStartTime = webinar.raw_data.actual_start_time || 
+                     webinar.raw_data.start_time_actual ||
+                     webinar.raw_data.actualStartTime;
+  }
+  
+  if (actualStartTime) {
+    const actualStart = formatInTimeZone(parseISO(actualStartTime), timezone, 'h:mm a');
     return { label: 'Actual Start:', time: actualStart };
   }
   return null;
@@ -75,11 +85,21 @@ export function getScheduledDurationDisplay(webinar: any): DurationInfo {
 }
 
 /**
- * Get formatted actual duration display
+ * Get formatted actual duration display - checks both direct field and raw_data
  */
 export function getActualDurationDisplay(webinar: any): DurationInfo | null {
-  if (webinar.actual_duration) {
-    return { label: 'Actual Duration:', duration: `${webinar.actual_duration} minutes` };
+  // Check direct field first
+  let actualDuration = webinar.actual_duration;
+  
+  // If not found, check in raw_data
+  if (!actualDuration && webinar.raw_data) {
+    actualDuration = webinar.raw_data.actual_duration || 
+                    webinar.raw_data.duration_actual ||
+                    webinar.raw_data.actualDuration;
+  }
+  
+  if (actualDuration) {
+    return { label: 'Actual Duration:', duration: `${actualDuration} minutes` };
   }
   return null;
 }
