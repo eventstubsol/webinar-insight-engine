@@ -61,8 +61,8 @@ export const UpcomingWebinars = () => {
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <Calendar className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <CardTitle>Upcoming Webinars</CardTitle>
+          <div className="space-y-0.5">
+            <CardTitle className="text-base font-semibold">Upcoming Webinars</CardTitle>
             <CardDescription>Your scheduled upcoming webinars</CardDescription>
           </div>
         </div>
