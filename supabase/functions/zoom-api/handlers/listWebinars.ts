@@ -6,6 +6,9 @@ import { enhanceWebinarsWithAllData } from './sync/webinarEnhancementOrchestrato
 import { calculateSyncStats, recordSyncHistory } from './sync/syncStatsCalculator.ts';
 import { checkDatabaseCache } from './sync/databaseCache.ts';
 import { formatListWebinarsResponse, logWebinarStatistics, SyncResults, StatsResult } from './sync/responseFormatter.ts';
+import { fetchUserInfo } from './sync/userInfoFetcher.ts';
+import { handleEmptySync } from './sync/emptySyncHandler.ts';
+import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
 // Handle listing webinars with non-destructive upsert-based sync
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
@@ -99,87 +102,4 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     throw error; // Let the main error handler format the response
   }
-}
-
-/**
- * Fetches user information from Zoom API
- */
-async function fetchUserInfo(token: string) {
-  const meResponse = await fetch('https://api.zoom.us/v2/users/me', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  if (!meResponse.ok) {
-    const meData = await meResponse.json();
-    console.error('[zoom-api][list-webinars] Failed to get user info:', meData);
-    
-    // Handle missing OAuth scopes error specifically
-    if (meData.code === 4711 || meData.message?.includes('scopes')) {
-      throw new Error('Missing required OAuth scopes in your Zoom App. Please add these scopes to your Zoom Server-to-Server OAuth app: user:read:user:admin, user:read:user:master, webinar:read:webinar:admin, webinar:write:webinar:admin');
-    }
-    
-    // Handle other API error codes
-    if (meData.code === 124) {
-      throw new Error('Invalid Zoom access token. Please check your credentials.');
-    } else if (meData.code === 1001) {
-      throw new Error('User not found or does not exist in this account.');
-    } else {
-      throw new Error(`Failed to get user info: ${meData.message || 'Unknown error'}`);
-    }
-  }
-  
-  return await meResponse.json();
-}
-
-/**
- * Handles the case when no webinars are found in the API
- */
-async function handleEmptySync(supabase: any, userId: string, syncResults: SyncResults, statsResult: StatsResult) {
-  const { data: finalWebinars } = await supabase
-    .from('zoom_webinars')
-    .select('*')
-    .eq('user_id', userId);
-  
-  statsResult.totalWebinarsInDB = finalWebinars?.length || 0;
-  syncResults.preservedWebinars = statsResult.totalWebinarsInDB;
-  
-  await recordSyncHistory(
-    supabase,
-    userId,
-    'webinars',
-    'success',
-    0,
-    `No webinars found in API, preserved ${syncResults.preservedWebinars} existing webinars in database`
-  );
-    
-  console.log(`[zoom-api][list-webinars] No webinars found in API, but preserved ${syncResults.preservedWebinars} existing webinars`);
-}
-
-/**
- * Gets the final list of webinars to return to the client
- */
-async function getFinalWebinarsList(supabase: any, userId: string) {
-  const { data: allDbWebinars, error: allDbError } = await supabase
-    .from('zoom_webinars')
-    .select('*')
-    .eq('user_id', userId)
-    .order('start_time', { ascending: false });
-  
-  return allDbWebinars?.map(w => ({
-    id: w.webinar_id,
-    uuid: w.webinar_uuid,
-    topic: w.topic,
-    start_time: w.start_time,
-    duration: w.duration,
-    timezone: w.timezone,
-    agenda: w.agenda || '',
-    host_email: w.host_email,
-    host_id: w.host_id,
-    status: w.status,
-    type: w.type,
-    ...w.raw_data
-  })) || [];
 }
