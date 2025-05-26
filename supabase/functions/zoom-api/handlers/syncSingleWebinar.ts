@@ -16,202 +16,27 @@ import {
 } from './sync/syncResultsManager.ts';
 import { enhanceWebinarsWithActualTimingData } from './sync/actualTimingDataProcessor.ts';
 
-// Enhanced function to fetch actual timing data with improved UUID handling and error recovery
-async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
-  const webinarId = webinarData.id;
-  const apiStatus = webinarData.status?.toLowerCase();
-  
-  console.log(`[TIMING-DEBUG] === ENHANCED TIMING FETCH START ===`);
-  console.log(`[TIMING-DEBUG] Webinar ID: ${webinarId}`);
-  console.log(`[TIMING-DEBUG] API Status: ${apiStatus} (type: ${typeof apiStatus})`);
-  
-  // ENHANCED: Better UUID field detection with validation and sanitization
-  const possibleUuidFields = [
-    { field: 'uuid', value: webinarData.uuid },
-    { field: 'webinar_uuid', value: webinarData.webinar_uuid },
-    { field: 'id', value: webinarData.id?.toString() },
-    { field: 'webinar_id', value: webinarData.webinar_id?.toString() }
-  ];
-  
-  console.log(`[TIMING-DEBUG] Available UUID fields:`, possibleUuidFields);
-  
-  // Find the first valid UUID with proper validation
-  const validUuidField = possibleUuidFields.find(({ value }) => {
-    if (!value || typeof value !== 'string' || value.length < 10) return false;
-    // Additional validation: UUID should not be just numbers (that's likely an ID, not UUID)
-    return value.includes('=') || value.includes('-') || value.includes('/') || value.includes('+') || value.length > 20;
-  });
-  
-  if (!validUuidField) {
-    console.log(`[TIMING-DEBUG] ❌ SKIPPING: No valid UUID found in any field`);
-    console.log(`[TIMING-DEBUG] === TIMING FETCH END (NO VALID UUID) ===`);
-    return null;
-  }
-  
-  let webinarUuid = validUuidField.value;
-  console.log(`[TIMING-DEBUG] ✅ Using UUID from field '${validUuidField.field}': ${webinarUuid}`);
-  
-  // IMPROVED: Enhanced status detection logic with time-based fallback
-  let shouldFetchTiming = false;
-  const now = new Date();
-  
-  // Check if explicitly ended or aborted
-  if (apiStatus === 'ended' || apiStatus === 'aborted') {
-    shouldFetchTiming = true;
-    console.log(`[TIMING-DEBUG] ✅ Webinar explicitly marked as '${apiStatus}'`);
-  }
-  // Check if status is undefined/null but webinar should be ended based on time
-  else if (!apiStatus || apiStatus === 'undefined' || apiStatus === 'null') {
-    console.log(`[TIMING-DEBUG] ⚠️ Status is '${apiStatus}', checking time-based logic`);
-    
-    if (webinarData.start_time && webinarData.duration) {
-      const startTime = new Date(webinarData.start_time);
-      const endTime = new Date(startTime.getTime() + (webinarData.duration * 60 * 1000));
-      
-      console.log(`[TIMING-DEBUG] Scheduled start: ${startTime.toISOString()}`);
-      console.log(`[TIMING-DEBUG] Scheduled end: ${endTime.toISOString()}`);
-      console.log(`[TIMING-DEBUG] Current time: ${now.toISOString()}`);
-      
-      if (now > endTime) {
-        shouldFetchTiming = true;
-        console.log(`[TIMING-DEBUG] ✅ Current time is past scheduled end time - treating as ended`);
-      } else {
-        console.log(`[TIMING-DEBUG] ❌ Webinar is still scheduled or ongoing`);
-      }
-    } else {
-      console.log(`[TIMING-DEBUG] ❌ Missing start_time or duration for time-based check`);
-    }
-  }
-  // For other statuses, try anyway and let the API response determine availability
-  else {
-    console.log(`[TIMING-DEBUG] ⚠️ Status '${apiStatus}' - will attempt fetch and let API respond`);
-    shouldFetchTiming = true;
-  }
-  
-  if (!shouldFetchTiming) {
-    console.log(`[TIMING-DEBUG] ❌ SKIPPING: Conditions not met for timing data fetch`);
-    console.log(`[TIMING-DEBUG] === TIMING FETCH END (CONDITIONS NOT MET) ===`);
-    return null;
-  }
-  
-  // Try multiple UUID formats and encoding strategies
-  const uuidVariants = [
-    webinarUuid, // Original UUID
-    encodeURIComponent(webinarUuid), // URL encoded
-    webinarUuid.replace(/\+/g, '%2B').replace(/\//g, '%2F').replace(/=/g, '%3D'), // Manual encoding of common base64 chars
-  ];
-  
-  for (const [index, uuidVariant] of uuidVariants.entries()) {
-    try {
-      const apiUrl = `https://api.zoom.us/v2/past_webinars/${uuidVariant}`;
-      console.log(`[TIMING-DEBUG] 🚀 Attempt ${index + 1}: Making API call to: ${apiUrl}`);
-      
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log(`[TIMING-DEBUG] API Response status: ${response.status} ${response.statusText}`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log(`[TIMING-DEBUG] ❌ API Error response: ${errorText}`);
-        
-        if (response.status === 404) {
-          console.log(`[TIMING-DEBUG] 404 - Past webinar data not found with UUID variant ${index + 1}`);
-          if (index < uuidVariants.length - 1) {
-            console.log(`[TIMING-DEBUG] Trying next UUID variant...`);
-            continue; // Try next UUID variant
-          } else {
-            console.log(`[TIMING-DEBUG] All UUID variants exhausted, webinar may not have been started or completed yet`);
-            console.log(`[TIMING-DEBUG] === TIMING FETCH END (404 - ALL VARIANTS TRIED) ===`);
-            return null;
-          }
-        } else {
-          console.error(`[TIMING-DEBUG] API call failed with status ${response.status}: ${errorText}`);
-          // For non-404 errors, don't try other variants
-          console.log(`[TIMING-DEBUG] === TIMING FETCH END (API ERROR) ===`);
-          return null;
-        }
-      }
-      
-      const pastWebinarData = await response.json();
-      console.log(`[TIMING-DEBUG] ✅ SUCCESS! Retrieved past webinar data with UUID variant ${index + 1}`);
-      console.log(`[TIMING-DEBUG] Raw API response keys:`, Object.keys(pastWebinarData));
-      
-      // Extract actual timing data with detailed logging
-      const actualStartTime = pastWebinarData.start_time;
-      const actualEndTime = pastWebinarData.end_time;
-      let actualDuration = pastWebinarData.duration;
-      
-      console.log(`[TIMING-DEBUG] Raw timing data extracted:`);
-      console.log(`[TIMING-DEBUG] - start_time: ${actualStartTime} (type: ${typeof actualStartTime})`);
-      console.log(`[TIMING-DEBUG] - end_time: ${actualEndTime} (type: ${typeof actualEndTime})`);
-      console.log(`[TIMING-DEBUG] - duration: ${actualDuration} (type: ${typeof actualDuration})`);
-      
-      // Calculate duration if we have start and end times but no duration
-      if (actualStartTime && actualEndTime && !actualDuration) {
-        const startMs = new Date(actualStartTime).getTime();
-        const endMs = new Date(actualEndTime).getTime();
-        actualDuration = Math.round((endMs - startMs) / (1000 * 60)); // Duration in minutes
-        console.log(`[TIMING-DEBUG] ⚡ Calculated duration: ${actualDuration} minutes`);
-      }
-      
-      const result = {
-        actual_start_time: actualStartTime,
-        actual_duration: actualDuration,
-        actual_end_time: actualEndTime,
-        participants_count: pastWebinarData.participants_count || webinarData.participants_count || 0
-      };
-      
-      console.log(`[TIMING-DEBUG] 🎯 Final timing result:`, result);
-      console.log(`[TIMING-DEBUG] === TIMING FETCH END (SUCCESS) ===`);
-      
-      return result;
-      
-    } catch (error) {
-      console.error(`[TIMING-DEBUG] ❌ EXCEPTION with UUID variant ${index + 1}:`, error);
-      console.error(`[TIMING-DEBUG] Error name: ${error.name}`);
-      console.error(`[TIMING-DEBUG] Error message: ${error.message}`);
-      
-      if (index < uuidVariants.length - 1) {
-        console.log(`[TIMING-DEBUG] Trying next UUID variant...`);
-        continue; // Try next UUID variant
-      } else {
-        console.log(`[TIMING-DEBUG] === TIMING FETCH END (EXCEPTION - ALL VARIANTS TRIED) ===`);
-        return null;
-      }
-    }
-  }
-  
-  return null;
-}
-
-// Handle syncing a single webinar's complete data with enhanced logging and timing enhancement
+// Enhanced single webinar sync with comprehensive data collection
 export async function handleSyncSingleWebinar(req: Request, supabase: any, user: any, credentials: any, webinarId: string) {
-  console.log(`[SYNC-DEBUG] 🚀 === SINGLE WEBINAR SYNC START ===`);
-  console.log(`[SYNC-DEBUG] Function entry confirmed - handleSyncSingleWebinar is running`);
-  console.log(`[SYNC-DEBUG] Parameters received:`);
-  console.log(`[SYNC-DEBUG] - webinarId: ${webinarId}`);
-  console.log(`[SYNC-DEBUG] - user.id: ${user?.id}`);
-  console.log(`[SYNC-DEBUG] - timestamp: ${new Date().toISOString()}`);
+  console.log(`[SINGLE-SYNC] 🚀 === ENHANCED SINGLE WEBINAR SYNC START ===`);
+  console.log(`[SINGLE-SYNC] Target webinar: ${webinarId}`);
+  console.log(`[SINGLE-SYNC] User: ${user?.id}`);
+  console.log(`[SINGLE-SYNC] Timestamp: ${new Date().toISOString()}`);
   
   if (!webinarId) {
-    console.error(`[SYNC-DEBUG] ❌ No webinar ID provided`);
+    console.error(`[SINGLE-SYNC] ❌ No webinar ID provided`);
     throw new Error('Webinar ID is required');
   }
   
   const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
-  console.log(`[SYNC-DEBUG] ✅ Zoom token obtained successfully`);
+  console.log(`[SINGLE-SYNC] ✅ Zoom token obtained successfully`);
   
   let totalItemsSynced = 0;
   const syncResults = createInitialSyncResults();
   
   try {
-    // 1. Sync webinar metadata with enhanced host and panelist resolution
-    console.log(`[SYNC-DEBUG] 📋 Step 1: Fetching webinar metadata for: ${webinarId}`);
+    // Step 1: Sync webinar metadata with enhanced host and panelist resolution
+    console.log(`[SINGLE-SYNC] 📋 Step 1: Fetching comprehensive webinar metadata for: ${webinarId}`);
     const webinarRes = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -219,27 +44,27 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       }
     });
     
-    console.log(`[SYNC-DEBUG] Webinar metadata API response: ${webinarRes.status} ${webinarRes.statusText}`);
+    console.log(`[SINGLE-SYNC] Webinar metadata API response: ${webinarRes.status} ${webinarRes.statusText}`);
     
     if (webinarRes.ok) {
       const webinarData = await webinarRes.json();
-      console.log(`[SYNC-DEBUG] ✅ Retrieved webinar metadata`);
-      console.log(`[SYNC-DEBUG] Webinar status: ${webinarData.status}`);
-      console.log(`[SYNC-DEBUG] Webinar topic: ${webinarData.topic}`);
-      console.log(`[SYNC-DEBUG] Available UUID fields in webinarData:`, {
+      console.log(`[SINGLE-SYNC] ✅ Retrieved webinar metadata successfully`);
+      console.log(`[SINGLE-SYNC] - Status: ${webinarData.status}`);
+      console.log(`[SINGLE-SYNC] - Topic: ${webinarData.topic}`);
+      console.log(`[SINGLE-SYNC] - UUID fields available:`, {
         uuid: webinarData.uuid,
         webinar_uuid: webinarData.webinar_uuid,
         id: webinarData.id
       });
       
-      // Enhanced host information resolution with complete name data
+      // Enhanced host information resolution
       const { hostEmail, hostId, hostName, hostFirstName, hostLastName } = await getHostInfo(token, webinarData);
       
       if (hostEmail) {
         syncResults.host_info_resolved = true;
-        console.log(`[SYNC-DEBUG] ✅ Host info resolved: ${hostEmail}`);
+        console.log(`[SINGLE-SYNC] ✅ Host info resolved: ${hostEmail} (${hostName || 'No name'})`);
       } else {
-        console.warn(`[SYNC-DEBUG] ⚠️ Could not resolve host email`);
+        console.warn(`[SINGLE-SYNC] ⚠️ Could not resolve host email`);
       }
       
       // Enhanced panelist information resolution
@@ -247,67 +72,62 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       if (panelistData.length > 0) {
         syncResults.panelist_info_resolved = true;
         syncResults.panelists_count = panelistData.length;
-        console.log(`[SYNC-DEBUG] ✅ Panelist info resolved: ${panelistData.length} panelists`);
+        console.log(`[SINGLE-SYNC] ✅ Panelist info resolved: ${panelistData.length} panelists found`);
         
         // Add panelist data to webinar raw_data
         webinarData.panelists = panelistData;
         webinarData.panelists_count = panelistData.length;
       } else {
-        console.log(`[SYNC-DEBUG] ℹ️ No panelists found`);
+        console.log(`[SINGLE-SYNC] ℹ️ No panelists found for this webinar`);
       }
       
-      // ENHANCED: Fetch actual timing data using the batch enhancement processor
-      console.log(`[SYNC-DEBUG] ⏰ Step 1.5: Starting BATCH ACTUAL TIMING DATA enhancement process`);
+      // CRITICAL FIX: Use the enhanced timing data processor for comprehensive timing collection
+      console.log(`[SINGLE-SYNC] ⏰ Step 1.5: ENHANCED TIMING DATA COLLECTION using comprehensive processor`);
       try {
+        console.log(`[SINGLE-SYNC] 🔄 Calling enhanced timing processor for single webinar...`);
         const webinarsWithTiming = await enhanceWebinarsWithActualTimingData([webinarData], token);
         
         if (webinarsWithTiming && webinarsWithTiming.length > 0) {
           const enhancedWebinar = webinarsWithTiming[0];
           if (enhancedWebinar.actual_start_time || enhancedWebinar.actual_duration) {
-            console.log(`[SYNC-DEBUG] 🎯 BATCH TIMING DATA RETRIEVED! Merging into webinar:`, {
+            console.log(`[SINGLE-SYNC] 🎯 ✅ ENHANCED TIMING DATA SUCCESSFULLY RETRIEVED!`);
+            console.log(`[SINGLE-SYNC] Enhanced timing details:`, {
               actual_start_time: enhancedWebinar.actual_start_time,
               actual_duration: enhancedWebinar.actual_duration,
-              actual_end_time: enhancedWebinar.actual_end_time
+              actual_end_time: enhancedWebinar.actual_end_time,
+              participants_count: enhancedWebinar.participants_count
             });
             
-            // Merge the timing data
+            // Merge the enhanced timing data into the webinar
             Object.assign(webinarData, {
               actual_start_time: enhancedWebinar.actual_start_time,
               actual_duration: enhancedWebinar.actual_duration,
-              actual_end_time: enhancedWebinar.actual_end_time
+              actual_end_time: enhancedWebinar.actual_end_time,
+              participants_count: enhancedWebinar.participants_count || webinarData.participants_count
             });
             
             syncResults.actual_timing_resolved = true;
-            console.log(`[SYNC-DEBUG] ✅ SUCCESS: Batch actual timing data resolved and merged`);
+            console.log(`[SINGLE-SYNC] ✅ SUCCESS: Enhanced timing data merged into webinar metadata`);
           } else {
-            console.log(`[SYNC-DEBUG] ❌ Batch enhancement returned webinar without timing data`);
+            console.log(`[SINGLE-SYNC] ℹ️ Enhanced processor returned webinar but no timing data available`);
           }
         } else {
-          console.log(`[SYNC-DEBUG] ❌ Batch enhancement returned empty or invalid result`);
+          console.log(`[SINGLE-SYNC] ⚠️ Enhanced processor returned empty or invalid result`);
         }
-      } catch (batchError) {
-        console.warn(`[SYNC-DEBUG] ⚠️ Batch timing enhancement failed, trying individual approach:`, batchError.message);
-        
-        // Fallback to individual timing fetch
-        const actualTimingData = await fetchSingleWebinarActualTiming(token, webinarData);
-        
-        if (actualTimingData) {
-          console.log(`[SYNC-DEBUG] 🎯 INDIVIDUAL TIMING DATA RETRIEVED! Merging into webinar:`, actualTimingData);
-          Object.assign(webinarData, actualTimingData);
-          syncResults.actual_timing_resolved = true;
-          console.log(`[SYNC-DEBUG] ✅ SUCCESS: Individual actual timing data resolved and merged`);
-        } else {
-          console.log(`[SYNC-DEBUG] ❌ No actual timing data retrieved from either method`);
-        }
+      } catch (timingError) {
+        console.warn(`[SINGLE-SYNC] ⚠️ Enhanced timing collection failed:`, timingError.message);
+        console.log(`[SINGLE-SYNC] Continuing sync without timing data...`);
+        // Continue the sync even if timing data fails
       }
       
-      // Log what we're about to send to the database
-      console.log(`[SYNC-DEBUG] 💾 About to sync to database with timing data:`);
-      console.log(`[SYNC-DEBUG] - actual_start_time: ${webinarData.actual_start_time}`);
-      console.log(`[SYNC-DEBUG] - actual_duration: ${webinarData.actual_duration}`);
-      console.log(`[SYNC-DEBUG] - actual_end_time: ${webinarData.actual_end_time}`);
+      // Log final data state before database sync
+      console.log(`[SINGLE-SYNC] 💾 Final webinar data before database sync:`);
+      console.log(`[SINGLE-SYNC] - actual_start_time: ${webinarData.actual_start_time}`);
+      console.log(`[SINGLE-SYNC] - actual_duration: ${webinarData.actual_duration}`);
+      console.log(`[SINGLE-SYNC] - host_email: ${webinarData.host_email || hostEmail}`);
+      console.log(`[SINGLE-SYNC] - panelists_count: ${webinarData.panelists_count || 0}`);
       
-      // Update webinar in database with enhanced host, panelist, and timing information
+      // Update webinar in database with all enhanced information
       const { error: webinarError } = await syncWebinarMetadata(
         supabase, 
         user, 
@@ -320,86 +140,87 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       );
       
       if (webinarError) {
-        console.error(`[SYNC-DEBUG] ❌ Error updating webinar:`, webinarError);
+        console.error(`[SINGLE-SYNC] ❌ Error updating webinar metadata:`, webinarError);
         syncResults.error_details.push(`Webinar metadata: ${webinarError.message}`);
       } else {
         syncResults.webinar_updated = true;
         totalItemsSynced += 1;
-        console.log(`[SYNC-DEBUG] ✅ Updated webinar metadata successfully`);
-        
-        // Enhanced verification of the database update
-        console.log(`[SYNC-DEBUG] 🔍 Verifying database update...`);
-        const { data: verifyData, error: verifyError } = await supabase
-          .from('zoom_webinars')
-          .select('actual_start_time, actual_duration, last_synced_at')
-          .eq('user_id', user.id)
-          .eq('webinar_id', webinarId)
-          .single();
-          
-        if (verifyError) {
-          console.error(`[SYNC-DEBUG] ❌ Error verifying database update:`, verifyError);
-        } else {
-          console.log(`[SYNC-DEBUG] 🔍 Database verification result:`, verifyData);
-          console.log(`[SYNC-DEBUG] - DB actual_start_time: ${verifyData.actual_start_time}`);
-          console.log(`[SYNC-DEBUG] - DB actual_duration: ${verifyData.actual_duration}`);
-          console.log(`[SYNC-DEBUG] - DB last_synced_at: ${verifyData.last_synced_at}`);
-        }
+        console.log(`[SINGLE-SYNC] ✅ Webinar metadata updated successfully in database`);
       }
     } else {
       const errorText = await webinarRes.text();
-      console.error(`[SYNC-DEBUG] ❌ Failed to fetch webinar metadata:`, errorText);
+      console.error(`[SINGLE-SYNC] ❌ Failed to fetch webinar metadata:`, errorText);
       syncResults.error_details.push(`Webinar metadata: ${errorText}`);
     }
     
-    // 2. Sync registrants
-    console.log(`[SYNC-DEBUG] 👥 Step 2: Syncing registrants`);
-    const registrantsResult = await syncRegistrants(supabase, user, token, webinarId);
-    if (registrantsResult.error) {
-      syncResults.error_details.push(`Registrants: ${registrantsResult.error.message}`);
-    } else {
-      syncResults.registrants_synced = registrantsResult.count;
-      totalItemsSynced += registrantsResult.count;
-      console.log(`[SYNC-DEBUG] ✅ Synced ${registrantsResult.count} registrants`);
+    // Step 2: Sync registrants with enhanced error handling
+    console.log(`[SINGLE-SYNC] 👥 Step 2: Syncing registrants for comprehensive data collection`);
+    try {
+      const registrantsResult = await syncRegistrants(supabase, user, token, webinarId);
+      if (registrantsResult.error) {
+        syncResults.error_details.push(`Registrants: ${registrantsResult.error.message}`);
+      } else {
+        syncResults.registrants_synced = registrantsResult.count;
+        totalItemsSynced += registrantsResult.count;
+        console.log(`[SINGLE-SYNC] ✅ Synced ${registrantsResult.count} registrants successfully`);
+      }
+    } catch (error) {
+      console.error(`[SINGLE-SYNC] ❌ Registrants sync failed:`, error);
+      syncResults.error_details.push(`Registrants: ${error.message}`);
     }
     
-    // 3. Sync attendees (for completed webinars)
-    console.log(`[SYNC-DEBUG] 🎯 Step 3: Syncing attendees`);
-    const attendeesResult = await syncAttendees(supabase, user, token, webinarId);
-    if (attendeesResult.error) {
-      syncResults.error_details.push(`Attendees: ${attendeesResult.error.message}`);
-    } else {
-      syncResults.attendees_synced = attendeesResult.count;
-      totalItemsSynced += attendeesResult.count;
-      console.log(`[SYNC-DEBUG] ✅ Synced ${attendeesResult.count} attendees`);
+    // Step 3: Sync attendees with enhanced error handling
+    console.log(`[SINGLE-SYNC] 🎯 Step 3: Syncing attendees for comprehensive participation data`);
+    try {
+      const attendeesResult = await syncAttendees(supabase, user, token, webinarId);
+      if (attendeesResult.error) {
+        syncResults.error_details.push(`Attendees: ${attendeesResult.error.message}`);
+      } else {
+        syncResults.attendees_synced = attendeesResult.count;
+        totalItemsSynced += attendeesResult.count;
+        console.log(`[SINGLE-SYNC] ✅ Synced ${attendeesResult.count} attendees successfully`);
+      }
+    } catch (error) {
+      console.error(`[SINGLE-SYNC] ❌ Attendees sync failed:`, error);
+      syncResults.error_details.push(`Attendees: ${error.message}`);
     }
     
-    // 4. Sync webinar instances (for recurring webinars)
-    console.log(`[SYNC-DEBUG] 🔄 Step 4: Syncing instances`);
-    const instancesResult = await syncWebinarInstances(supabase, user, token, webinarId);
-    if (instancesResult.errors.length > 0) {
-      syncResults.error_details.push(...instancesResult.errors);
+    // Step 4: Sync webinar instances with enhanced error handling
+    console.log(`[SINGLE-SYNC] 🔄 Step 4: Syncing instances for recurring webinar data`);
+    try {
+      const instancesResult = await syncWebinarInstances(supabase, user, token, webinarId);
+      if (instancesResult.errors.length > 0) {
+        syncResults.error_details.push(...instancesResult.errors);
+      }
+      syncResults.instances_synced = instancesResult.count;
+      totalItemsSynced += instancesResult.count;
+      console.log(`[SINGLE-SYNC] ✅ Synced ${instancesResult.count} instances successfully`);
+    } catch (error) {
+      console.error(`[SINGLE-SYNC] ❌ Instances sync failed:`, error);
+      syncResults.error_details.push(`Instances: ${error.message}`);
     }
-    syncResults.instances_synced = instancesResult.count;
-    totalItemsSynced += instancesResult.count;
-    console.log(`[SYNC-DEBUG] ✅ Synced ${instancesResult.count} instances`);
     
-    // Record sync in history with enhanced results
+    // Record comprehensive sync results in history
+    const syncStatus = syncResults.error_details.length > 0 ? 'partial_success' : 'success';
     await recordSyncHistory(
       supabase,
       user,
       webinarId,
       totalItemsSynced,
       syncResults,
-      syncResults.error_details.length > 0 ? 'partial_success' : 'success'
+      syncStatus
     );
     
-    console.log(`[SYNC-DEBUG] 🎉 === SYNC COMPLETED SUCCESSFULLY ===`);
-    console.log(`[SYNC-DEBUG] Final results:`);
-    console.log(`[SYNC-DEBUG] - Total items: ${totalItemsSynced}`);
-    console.log(`[SYNC-DEBUG] - Host resolved: ${syncResults.host_info_resolved}`);
-    console.log(`[SYNC-DEBUG] - Panelists: ${syncResults.panelists_count}`);
-    console.log(`[SYNC-DEBUG] - Actual timing resolved: ${syncResults.actual_timing_resolved}`);
-    console.log(`[SYNC-DEBUG] - Errors: ${syncResults.error_details.length}`);
+    console.log(`[SINGLE-SYNC] 🎉 === ENHANCED SINGLE WEBINAR SYNC COMPLETED ===`);
+    console.log(`[SINGLE-SYNC] Final comprehensive results:`);
+    console.log(`[SINGLE-SYNC] - Total items synced: ${totalItemsSynced}`);
+    console.log(`[SINGLE-SYNC] - Host info resolved: ${syncResults.host_info_resolved}`);
+    console.log(`[SINGLE-SYNC] - Panelists found: ${syncResults.panelists_count}`);
+    console.log(`[SINGLE-SYNC] - Actual timing resolved: ${syncResults.actual_timing_resolved}`);
+    console.log(`[SINGLE-SYNC] - Registrants synced: ${syncResults.registrants_synced}`);
+    console.log(`[SINGLE-SYNC] - Attendees synced: ${syncResults.attendees_synced}`);
+    console.log(`[SINGLE-SYNC] - Instances synced: ${syncResults.instances_synced}`);
+    console.log(`[SINGLE-SYNC] - Errors encountered: ${syncResults.error_details.length}`);
     
     return new Response(JSON.stringify({
       success: true,
@@ -411,12 +232,14 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
     });
     
   } catch (error) {
-    console.error(`[SYNC-DEBUG] ❌ FATAL ERROR in sync:`, error);
-    console.error(`[SYNC-DEBUG] Error name: ${error.name}`);
-    console.error(`[SYNC-DEBUG] Error message: ${error.message}`);
-    console.error(`[SYNC-DEBUG] Error stack:`, error.stack);
+    console.error(`[SINGLE-SYNC] ❌ CRITICAL ERROR in enhanced single webinar sync:`, error);
+    console.error(`[SINGLE-SYNC] Error details:`, {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     
-    // Record failed sync in history
+    // Record failed sync in history with comprehensive error details
     await recordSyncHistory(
       supabase,
       user,
@@ -424,7 +247,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
       totalItemsSynced,
       syncResults,
       'error',
-      `Failed to sync webinar ${webinarId}: ${error.message}`
+      `Enhanced single webinar sync failed for ${webinarId}: ${error.message}`
     );
     
     throw error;
