@@ -95,15 +95,15 @@ export async function performNonDestructiveUpsert(
   const currentTimestamp = new Date().toISOString();
   
   for (const webinar of webinars) {
-    // Extract actual timing data from webinar response
+    // Extract actual timing data from enhanced webinar (now includes instance data)
     const actualStartTime = webinar.actual_start_time || 
-                            webinar.start_time_actual || 
-                            webinar.actualStartTime || 
+                            webinar.instance_actual_start_time || 
+                            webinar.first_instance_start || 
                             null;
                             
     const actualDuration = webinar.actual_duration || 
-                           webinar.duration_actual || 
-                           webinar.actualDuration || 
+                           webinar.instance_actual_duration || 
+                           webinar.first_instance_duration || 
                            null;
 
     const webinarData = {
@@ -140,6 +140,7 @@ export async function performNonDestructiveUpsert(
       const existingWebinar = existingWebinars?.find(w => w.webinar_id === webinar.id.toString());
       if (!existingWebinar) {
         newWebinars++;
+        console.log(`[zoom-api][performNonDestructiveUpsert] New webinar inserted: ${webinar.id} with actual timing: ${actualStartTime ? 'YES' : 'NO'}`);
       } else {
         // Check if data actually changed to count as an update
         const hasChanges = 
@@ -154,6 +155,7 @@ export async function performNonDestructiveUpsert(
         
         if (hasChanges) {
           updatedWebinars++;
+          console.log(`[zoom-api][performNonDestructiveUpsert] Webinar updated: ${webinar.id} with actual timing: ${actualStartTime ? 'YES' : 'NO'}`);
         }
       }
     }
