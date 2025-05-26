@@ -10,29 +10,46 @@ import { fetchUserInfo } from './sync/userInfoFetcher.ts';
 import { handleEmptySync } from './sync/emptySyncHandler.ts';
 import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
-// Handle listing webinars with non-destructive upsert-based sync
+// Enhanced timeout handling
+const OPERATION_TIMEOUT = 50000; // 50 seconds (Edge Function limit is 60s)
+const ENHANCEMENT_TIMEOUT = 30000; // 30 seconds for enhancement phase
+
+// Handle listing webinars with non-destructive upsert-based sync and improved timeout handling
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
   console.log(`[zoom-api][list-webinars] Starting non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
   console.log(`[zoom-api][list-webinars] Current timestamp: ${new Date().toISOString()}`);
+  
+  const startTime = Date.now();
   
   try {
     // Check database cache first if not forcing sync
     const cacheResult = await checkDatabaseCache(supabase, user.id, force_sync);
     if (cacheResult.shouldUseCachedData) {
+      console.log(`[zoom-api][list-webinars] Using cached data, operation completed in ${Date.now() - startTime}ms`);
       return new Response(JSON.stringify(cacheResult.cacheResponse), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
     
-    // Get token and fetch user info
-    const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
+    // Get token and fetch user info with timeout
+    const tokenPromise = getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
+    const token = await Promise.race([
+      tokenPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Token generation timeout')), 10000))
+    ]);
+    
     console.log('[zoom-api][list-webinars] Got Zoom token, fetching user info and webinars');
     
     const meData = await fetchUserInfo(token);
     console.log(`[zoom-api][list-webinars] Got user info for: ${meData.email}, ID: ${meData.id}`);
 
-    // Fetch webinars from Zoom API
-    const allWebinars = await fetchWebinarsFromZoomAPI(token, meData.id);
+    // Fetch webinars from Zoom API with timeout protection
+    console.log(`[zoom-api][list-webinars] Fetching webinars from API (${Date.now() - startTime}ms elapsed)`);
+    const webinarsPromise = fetchWebinarsFromZoomAPI(token, meData.id);
+    const allWebinars = await Promise.race([
+      webinarsPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Webinars fetch timeout')), 20000))
+    ]);
     
     // Log detailed statistics about the fetched data
     logWebinarStatistics(allWebinars);
@@ -57,26 +74,45 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     // Process webinars if any exist
     if (allWebinars && allWebinars.length > 0) {
-      // Enhance webinars with all additional data (host, panelist, participant, and recording info)
-      // Pass supabase client and user ID for recording data storage
-      const enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
+      const enhancementStartTime = Date.now();
+      console.log(`[zoom-api][list-webinars] Starting enhancement phase (${enhancementStartTime - startTime}ms elapsed)`);
+      
+      // Enhance webinars with timeout protection
+      let enhancedWebinars;
+      try {
+        const enhancementPromise = enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
+        enhancedWebinars = await Promise.race([
+          enhancementPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Enhancement timeout')), ENHANCEMENT_TIMEOUT))
+        ]);
+        console.log(`[zoom-api][list-webinars] Enhancement completed in ${Date.now() - enhancementStartTime}ms`);
+      } catch (error) {
+        console.warn(`[zoom-api][list-webinars] Enhancement timed out or failed, using basic webinar data:`, error.message);
+        enhancedWebinars = allWebinars; // Use basic data if enhancement fails
+      }
       
       // Perform non-destructive upsert
+      console.log(`[zoom-api][list-webinars] Starting database upsert (${Date.now() - startTime}ms elapsed)`);
       syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
       
       // Calculate comprehensive statistics
       statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
       
       // Record sync in history with enhanced statistics including recording data
+      const actualTimingCount = enhancedWebinars.filter(w => w.actual_start_time || w.actual_duration).length;
       const recordingStats = enhancedWebinars.filter(w => w.has_recordings).length;
+      const totalTime = Date.now() - startTime;
+      
       await recordSyncHistory(
         supabase,
         user.id,
         'webinars',
         'success',
         syncResults.newWebinars + syncResults.updatedWebinars,
-        `Non-destructive sync with full data resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+        `Enhanced non-destructive sync completed in ${totalTime}ms: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${actualTimingCount} with actual timing data, ${recordingStats} with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
       );
+      
+      console.log(`[zoom-api][list-webinars] Sync completed successfully in ${totalTime}ms`);
     } else {
       // Handle empty sync result
       await handleEmptySync(supabase, user.id, syncResults, statsResult);
@@ -85,19 +121,36 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     // Get final webinar list to return
     const finalWebinarsList = await getFinalWebinarsList(supabase, user.id);
     
+    const totalOperationTime = Date.now() - startTime;
+    console.log(`[zoom-api][list-webinars] Total operation completed in ${totalOperationTime}ms`);
+    
     return formatListWebinarsResponse(finalWebinarsList, allWebinars, syncResults, statsResult);
     
   } catch (error) {
-    console.error('[zoom-api][list-webinars] Error in action:', error);
+    const operationTime = Date.now() - startTime;
+    console.error(`[zoom-api][list-webinars] Error in action after ${operationTime}ms:`, error);
     
-    // Record failed sync in history
+    // Enhanced error categorization
+    let errorCategory = 'unknown';
+    let errorMessage = error.message || 'Unknown error';
+    
+    if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+      errorCategory = 'timeout';
+      errorMessage = `Operation timed out after ${operationTime}ms. This may be due to processing too much data. Try again or contact support if the issue persists.`;
+    } else if (errorMessage.includes('credentials') || errorMessage.includes('token')) {
+      errorCategory = 'authentication';
+    } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+      errorCategory = 'rate_limit';
+    }
+    
+    // Record failed sync in history with better error details
     await recordSyncHistory(
       supabase,
       user.id,
       'webinars',
       'error',
       0,
-      error.message || 'Unknown error'
+      `${errorCategory}: ${errorMessage} (after ${operationTime}ms)`
     );
     
     throw error; // Let the main error handler format the response

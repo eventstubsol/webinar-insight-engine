@@ -6,7 +6,8 @@ import {
   getScheduledTimeDisplay, 
   getActualTimeDisplay, 
   getScheduledDurationDisplay, 
-  getActualDurationDisplay 
+  getActualDurationDisplay,
+  getTimingDataStatus
 } from './utils/timeDisplayUtils';
 import {
   Clock,
@@ -16,7 +17,8 @@ import {
   UserPlus,
   Eye,
   Users,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 
 interface WebinarSummarySectionProps {
@@ -46,6 +48,9 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
   const actualTimeInfo = getActualTimeDisplay(webinar, webinarTimezone);
   const scheduledDurationInfo = getScheduledDurationDisplay(webinar);
   const actualDurationInfo = getActualDurationDisplay(webinar);
+  
+  // Get timing data status for better UI feedback
+  const timingStatus = getTimingDataStatus(webinar);
   
   // Max concurrent views
   const maxConcurrentViews = webinar.max_concurrent_views || 'Not available';
@@ -93,11 +98,21 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         {actualTimeInfo && (
           <>
             {actualTimeInfo.isDataMissing ? (
-              <AlertTriangle className="h-4 w-4 text-amber-500 mt-1" />
+              timingStatus === 'no_uuid' ? (
+                <AlertTriangle className="h-4 w-4 text-red-500 mt-1" />
+              ) : (
+                <RefreshCw className="h-4 w-4 text-amber-500 mt-1" />
+              )
             ) : (
-              <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+              <Clock className="h-4 w-4 text-green-600 mt-1" />
             )}
-            <div className={actualTimeInfo.isDataMissing ? "text-amber-600" : ""}>
+            <div className={
+              actualTimeInfo.isDataMissing 
+                ? timingStatus === 'no_uuid' 
+                  ? "text-red-600" 
+                  : "text-amber-600"
+                : "text-green-600"
+            }>
               <span className="font-medium">{actualTimeInfo.label}</span> {actualTimeInfo.time}
             </div>
           </>
@@ -115,11 +130,21 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
         {actualDurationInfo && (
           <>
             {actualDurationInfo.isDataMissing ? (
-              <AlertTriangle className="h-4 w-4 text-amber-500 mt-1" />
+              timingStatus === 'no_uuid' ? (
+                <AlertTriangle className="h-4 w-4 text-red-500 mt-1" />
+              ) : (
+                <RefreshCw className="h-4 w-4 text-amber-500 mt-1" />
+              )
             ) : (
-              <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+              <Clock className="h-4 w-4 text-green-600 mt-1" />
             )}
-            <div className={actualDurationInfo.isDataMissing ? "text-amber-600" : ""}>
+            <div className={
+              actualDurationInfo.isDataMissing 
+                ? timingStatus === 'no_uuid' 
+                  ? "text-red-600" 
+                  : "text-amber-600"
+                : "text-green-600"
+            }>
               <span className="font-medium">{actualDurationInfo.label}</span> {actualDurationInfo.duration}
             </div>
           </>
@@ -140,6 +165,31 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
           <span className="font-medium">Max Concurrent Views:</span> {maxConcurrentViews}
         </div>
       </div>
+      
+      {/* Show timing data status hint */}
+      {timingStatus === 'missing' && (
+        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+          <div className="flex items-center gap-2 text-amber-700">
+            <RefreshCw className="h-4 w-4" />
+            <span className="text-sm font-medium">Actual timing data is being processed or unavailable</span>
+          </div>
+          <p className="text-sm text-amber-600 mt-1">
+            This webinar has ended but actual start/duration data is not yet available. Try syncing the webinar to fetch this data.
+          </p>
+        </div>
+      )}
+      
+      {timingStatus === 'no_uuid' && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="text-sm font-medium">Actual timing data unavailable</span>
+          </div>
+          <p className="text-sm text-red-600 mt-1">
+            This webinar is missing required identifier data and cannot retrieve actual timing information.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

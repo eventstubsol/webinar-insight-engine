@@ -47,7 +47,7 @@ export function getScheduledTimeDisplay(webinar: any, timezone: string): StartTi
 }
 
 /**
- * Get formatted actual start time display
+ * Get formatted actual start time display with improved status detection
  */
 export function getActualTimeDisplay(webinar: any, timezone: string): StartTimeInfo | null {
   if (webinar.actual_start_time) {
@@ -57,12 +57,22 @@ export function getActualTimeDisplay(webinar: any, timezone: string): StartTimeI
   
   // Check if this is an ended webinar that should have actual timing data but doesn't
   const isEndedWebinar = webinar.status === 'ended' || webinar.status === 'aborted';
+  const hasWebinarUuid = Boolean(webinar.webinar_uuid);
+  
   if (isEndedWebinar) {
-    return { 
-      label: 'Actual Start:', 
-      time: 'Data unavailable (try syncing)', 
-      isDataMissing: true 
-    };
+    if (!hasWebinarUuid) {
+      return { 
+        label: 'Actual Start:', 
+        time: 'Data unavailable (no UUID)', 
+        isDataMissing: true 
+      };
+    } else {
+      return { 
+        label: 'Actual Start:', 
+        time: 'Data unavailable (try syncing)', 
+        isDataMissing: true 
+      };
+    }
   }
   
   return null;
@@ -99,7 +109,7 @@ export function getScheduledDurationDisplay(webinar: any): DurationInfo | null {
 }
 
 /**
- * Get formatted actual duration display
+ * Get formatted actual duration display with improved status detection
  */
 export function getActualDurationDisplay(webinar: any): DurationInfo | null {
   if (webinar.actual_duration) {
@@ -108,12 +118,22 @@ export function getActualDurationDisplay(webinar: any): DurationInfo | null {
   
   // Check if this is an ended webinar that should have actual timing data but doesn't
   const isEndedWebinar = webinar.status === 'ended' || webinar.status === 'aborted';
+  const hasWebinarUuid = Boolean(webinar.webinar_uuid);
+  
   if (isEndedWebinar) {
-    return { 
-      label: 'Actual Duration:', 
-      duration: 'Data unavailable (try syncing)', 
-      isDataMissing: true 
-    };
+    if (!hasWebinarUuid) {
+      return { 
+        label: 'Actual Duration:', 
+        duration: 'Data unavailable (no UUID)', 
+        isDataMissing: true 
+      };
+    } else {
+      return { 
+        label: 'Actual Duration:', 
+        duration: 'Data unavailable (try syncing)', 
+        isDataMissing: true 
+      };
+    }
   }
   
   return null;
@@ -125,4 +145,38 @@ export function getActualDurationDisplay(webinar: any): DurationInfo | null {
 export function formatWebinarDate(startTime: string | null, timezone: string): string {
   if (!startTime) return 'Date not set';
   return formatInTimeZone(parseISO(startTime), timezone, 'EEEE, MMMM d, yyyy • h:mm a');
+}
+
+/**
+ * Check if a webinar should have actual timing data but is missing it
+ */
+export function shouldHaveActualTimingData(webinar: any): boolean {
+  const isEndedWebinar = webinar.status === 'ended' || webinar.status === 'aborted';
+  const hasWebinarUuid = Boolean(webinar.webinar_uuid);
+  const hasActualData = Boolean(webinar.actual_start_time || webinar.actual_duration);
+  
+  return isEndedWebinar && hasWebinarUuid && !hasActualData;
+}
+
+/**
+ * Get timing data availability status for UI feedback
+ */
+export function getTimingDataStatus(webinar: any): 'available' | 'missing' | 'not_applicable' | 'no_uuid' {
+  const isEndedWebinar = webinar.status === 'ended' || webinar.status === 'aborted';
+  const hasWebinarUuid = Boolean(webinar.webinar_uuid);
+  const hasActualData = Boolean(webinar.actual_start_time || webinar.actual_duration);
+  
+  if (!isEndedWebinar) {
+    return 'not_applicable';
+  }
+  
+  if (!hasWebinarUuid) {
+    return 'no_uuid';
+  }
+  
+  if (hasActualData) {
+    return 'available';
+  }
+  
+  return 'missing';
 }
