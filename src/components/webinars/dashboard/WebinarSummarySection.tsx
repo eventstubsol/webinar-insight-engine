@@ -2,7 +2,12 @@
 import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Separator } from '@/components/ui/separator';
-import { getStartTimeDisplay, getDurationDisplay } from './utils/timeDisplayUtils';
+import { 
+  getScheduledTimeDisplay, 
+  getActualTimeDisplay, 
+  getScheduledDurationDisplay, 
+  getActualDurationDisplay 
+} from './utils/timeDisplayUtils';
 import {
   Clock,
   Activity,
@@ -36,8 +41,10 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
   const webinarTimezone = webinar.timezone || 'UTC';
   
   // Get time and duration display info
-  const startTimeInfo = getStartTimeDisplay(webinar, webinarTimezone);
-  const durationInfo = getDurationDisplay(webinar);
+  const scheduledTimeInfo = getScheduledTimeDisplay(webinar, webinarTimezone);
+  const actualTimeInfo = getActualTimeDisplay(webinar, webinarTimezone);
+  const scheduledDurationInfo = getScheduledDurationDisplay(webinar);
+  const actualDurationInfo = getActualDurationDisplay(webinar);
   
   // Max concurrent views
   const maxConcurrentViews = webinar.max_concurrent_views || 'Not available';
@@ -73,15 +80,41 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
       <Separator />
       
       <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
-        <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-        <div>
-          <span className="font-medium">{startTimeInfo.label}</span> {startTimeInfo.time}
-        </div>
+        {scheduledTimeInfo && (
+          <>
+            <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+            <div>
+              <span className="font-medium">{scheduledTimeInfo.label}</span> {scheduledTimeInfo.time}
+            </div>
+          </>
+        )}
         
-        <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-        <div>
-          <span className="font-medium">{durationInfo.label}</span> {durationInfo.duration}
-        </div>
+        {actualTimeInfo && (
+          <>
+            <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+            <div>
+              <span className="font-medium">{actualTimeInfo.label}</span> {actualTimeInfo.time}
+            </div>
+          </>
+        )}
+        
+        {scheduledDurationInfo && (
+          <>
+            <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+            <div>
+              <span className="font-medium">{scheduledDurationInfo.label}</span> {scheduledDurationInfo.duration}
+            </div>
+          </>
+        )}
+        
+        {actualDurationInfo && (
+          <>
+            <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+            <div>
+              <span className="font-medium">{actualDurationInfo.label}</span> {actualDurationInfo.duration}
+            </div>
+          </>
+        )}
         
         <Eye className="h-4 w-4 text-muted-foreground mt-1" />
         <div>
