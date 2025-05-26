@@ -7,57 +7,121 @@ export interface HostInfo {
 }
 
 /**
- * Extracts host information from webinar raw data with enhanced name resolution
+ * Enhanced name formatting for organizational emails
+ */
+function formatOrganizationalName(emailPrefix: string): string {
+  // Handle common organizational patterns
+  const organizationalPatterns: Record<string, string> = {
+    'coeinfo': 'Center of Excellence Info',
+    'info': 'Information',
+    'admin': 'Administrator',
+    'support': 'Support Team',
+    'marketing': 'Marketing Team',
+    'sales': 'Sales Team',
+    'webinar': 'Webinar Team',
+    'events': 'Events Team',
+    'training': 'Training Team',
+    'education': 'Education Team',
+    'hr': 'Human Resources',
+    'it': 'IT Department',
+    'finance': 'Finance Department'
+  };
+
+  // Check if it matches a known organizational pattern
+  const lowerPrefix = emailPrefix.toLowerCase();
+  if (organizationalPatterns[lowerPrefix]) {
+    return organizationalPatterns[lowerPrefix];
+  }
+
+  // Handle patterns like "johnsmith" or "john.smith" or "john_smith"
+  const parts = emailPrefix.split(/[._-]/);
+  
+  // If it's a single word, check if it might be a concatenated name
+  if (parts.length === 1 && emailPrefix.length > 3) {
+    // Try to split on capital letters (camelCase)
+    const camelCaseParts = emailPrefix.split(/(?=[A-Z])/);
+    if (camelCaseParts.length > 1) {
+      return camelCaseParts
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+    }
+  }
+
+  // Standard formatting for multiple parts
+  return parts
+    .filter(part => part.length > 0)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/**
+ * Enhanced function to extract host information from webinar data
  */
 export function extractHostInfo(webinar: any): HostInfo {
   const hostEmail = webinar.host_email;
   
   console.log('[extractHostInfo] Processing webinar data:', {
     host_email: hostEmail,
+    host_id: webinar.host_id,
     raw_data_keys: Object.keys(webinar.raw_data || {}),
-    panelists_count: webinar.panelists?.length || 0
+    panelists_count: webinar.panelists?.length || 0,
+    contact_name: webinar.raw_data?.settings?.contact_name,
+    host_name: webinar.raw_data?.host_name
   });
   
-  // Try multiple sources for host name
   const rawData = webinar.raw_data || {};
   let hostName = null;
   
-  // 1. Check direct host name fields in raw_data
-  hostName = rawData.host_name || rawData.host?.name;
+  // 1. Check direct host name fields in raw_data and webinar object
+  hostName = rawData.host_name || 
+             rawData.host?.name || 
+             webinar.host_name ||
+             rawData.settings?.contact_name ||
+             webinar.contact_name;
   
   // 2. Check if host is listed in panelists array
-  if (!hostName && Array.isArray(webinar.panelists)) {
+  if (!hostName && Array.isArray(webinar.panelists) && webinar.panelists.length > 0) {
     const hostPanelist = webinar.panelists.find((p: any) => 
-      p.email === hostEmail || p.user_email === hostEmail
+      p.email === hostEmail || 
+      p.user_email === hostEmail ||
+      p.id === webinar.host_id
     );
     if (hostPanelist) {
-      hostName = hostPanelist.name;
+      hostName = hostPanelist.name || hostPanelist.first_name || hostPanelist.display_name;
       console.log('[extractHostInfo] Found host name in panelists:', hostName);
     }
   }
   
-  // 3. Check contact information
-  if (!hostName && rawData.settings?.contact_name) {
-    hostName = rawData.settings.contact_name;
+  // 3. Check alternative host information
+  if (!hostName && rawData.alternative_host) {
+    // Check if alternative_host contains name information
+    if (typeof rawData.alternative_host === 'string' && rawData.alternative_host.includes('<')) {
+      const nameMatch = rawData.alternative_host.match(/^(.+)\s*<.+>$/);
+      if (nameMatch) {
+        hostName = nameMatch[1].trim();
+        console.log('[extractHostInfo] Found host name in alternative_host:', hostName);
+      }
+    }
   }
   
-  // 4. Check alternative host information
-  if (!hostName && rawData.alternative_host_ids) {
-    // This might contain host info, but we'd need to fetch it separately
-    console.log('[extractHostInfo] Alternative host IDs found, but name resolution not implemented');
+  // 4. Check settings and other nested objects for any name information
+  if (!hostName && rawData.settings) {
+    hostName = rawData.settings.host_name || 
+               rawData.settings.contact_name ||
+               rawData.settings.alternative_host_name;
   }
   
-  // 5. Try to extract name from email prefix as last resort
+  // 5. Check webinar level contact information
+  if (!hostName && (webinar.contact_name || rawData.contact_name)) {
+    hostName = webinar.contact_name || rawData.contact_name;
+  }
+  
+  // 6. Enhanced email prefix formatting as last resort
   if (!hostName && hostEmail) {
     const emailPrefix = hostEmail.split('@')[0];
-    // Only use email prefix if it looks like a name (contains letters and possibly dots/underscores)
-    if (emailPrefix && /^[a-zA-Z][\w.]*$/.test(emailPrefix)) {
-      // Convert email prefix to a more readable format (e.g., "john.doe" -> "John Doe")
-      hostName = emailPrefix
-        .split(/[._]/)
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-        .join(' ');
-      console.log('[extractHostInfo] Using formatted email prefix as name:', hostName);
+    if (emailPrefix && /^[a-zA-Z][\w._-]*$/.test(emailPrefix)) {
+      hostName = formatOrganizationalName(emailPrefix);
+      console.log('[extractHostInfo] Using enhanced formatted email prefix as name:', hostName);
     }
   }
   
@@ -70,54 +134,96 @@ export function extractHostInfo(webinar: any): HostInfo {
 }
 
 /**
- * Extracts presenter information from webinar data with enhanced name resolution
+ * Enhanced function to extract presenter information from webinar data
  */
 export function extractPresenterInfo(webinar: any): HostInfo {
-  // Start with alternative_host or fall back to host_email
-  const presenter = webinar.alternative_host || webinar.host_email;
+  console.log('[extractPresenterInfo] Processing webinar data:', {
+    alternative_host: webinar.alternative_host,
+    host_email: webinar.host_email,
+    panelists_count: webinar.panelists?.length || 0
+  });
   
-  console.log('[extractPresenterInfo] Processing presenter:', presenter);
-  
-  // Check if presenter field contains both name and email in format "Name <email@domain.com>"
-  const emailMatch = presenter.match(/<(.+)>$/);
-  if (emailMatch) {
-    const email = emailMatch[1];
-    const name = presenter.replace(/<.+>$/, '').trim();
-    console.log('[extractPresenterInfo] Extracted from formatted string:', { name, email });
-    return { name, email };
-  }
-  
-  // Try to find presenter in panelists or other data
   const rawData = webinar.raw_data || {};
   let presenterName = null;
-  let presenterEmail = presenter;
+  let presenterEmail = null;
   
-  // Check if presenter is in panelists array
-  if (Array.isArray(webinar.panelists)) {
-    const presenterPanelist = webinar.panelists.find((p: any) => 
-      p.email === presenter || p.name === presenter || p.user_email === presenter
-    );
+  // 1. Check alternative_host field first
+  const alternativeHost = webinar.alternative_host || rawData.alternative_host;
+  
+  if (alternativeHost) {
+    // Check if alternative_host contains both name and email in format "Name <email@domain.com>"
+    const emailMatch = alternativeHost.match(/^(.+)\s*<(.+)>$/);
+    if (emailMatch) {
+      presenterName = emailMatch[1].trim();
+      presenterEmail = emailMatch[2].trim();
+      console.log('[extractPresenterInfo] Extracted from formatted alternative_host:', { name: presenterName, email: presenterEmail });
+      return { name: presenterName, email: presenterEmail };
+    }
+    
+    // If alternative_host is just an email, use it as email
+    if (alternativeHost.includes('@')) {
+      presenterEmail = alternativeHost;
+    } else {
+      // If it's not an email, it might be a name or ID, try to find in panelists
+      presenterName = alternativeHost;
+    }
+  }
+  
+  // 2. Try to find presenter in panelists array
+  if (Array.isArray(webinar.panelists) && webinar.panelists.length > 0) {
+    let presenterPanelist = null;
+    
+    // First try to match by email if we have one
+    if (presenterEmail) {
+      presenterPanelist = webinar.panelists.find((p: any) => 
+        p.email === presenterEmail || p.user_email === presenterEmail
+      );
+    }
+    
+    // If no email match and we have a name, try to match by name
+    if (!presenterPanelist && presenterName) {
+      presenterPanelist = webinar.panelists.find((p: any) => 
+        p.name === presenterName || 
+        p.display_name === presenterName ||
+        p.first_name === presenterName
+      );
+    }
+    
+    // If still no match, use the first panelist as likely presenter
+    if (!presenterPanelist && webinar.panelists.length > 0) {
+      presenterPanelist = webinar.panelists[0];
+      console.log('[extractPresenterInfo] Using first panelist as presenter');
+    }
+    
     if (presenterPanelist) {
-      presenterName = presenterPanelist.name;
-      presenterEmail = presenterPanelist.email || presenterPanelist.user_email || presenter;
+      presenterName = presenterPanelist.name || 
+                     presenterPanelist.display_name || 
+                     presenterPanelist.first_name ||
+                     presenterName;
+      presenterEmail = presenterPanelist.email || 
+                      presenterPanelist.user_email || 
+                      presenterEmail;
       console.log('[extractPresenterInfo] Found presenter in panelists:', { name: presenterName, email: presenterEmail });
     }
   }
   
-  // If no name found and presenter looks like an email, try to format the email prefix
-  if (!presenterName && presenter && presenter.includes('@')) {
-    const emailPrefix = presenter.split('@')[0];
-    if (emailPrefix && /^[a-zA-Z][\w.]*$/.test(emailPrefix)) {
-      presenterName = emailPrefix
-        .split(/[._]/)
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-        .join(' ');
+  // 3. Fallback to host information if no presenter found
+  if (!presenterName && !presenterEmail) {
+    console.log('[extractPresenterInfo] No presenter found, falling back to host');
+    return extractHostInfo(webinar);
+  }
+  
+  // 4. If we have email but no name, try to format the email prefix
+  if (!presenterName && presenterEmail && presenterEmail.includes('@')) {
+    const emailPrefix = presenterEmail.split('@')[0];
+    if (emailPrefix && /^[a-zA-Z][\w._-]*$/.test(emailPrefix)) {
+      presenterName = formatOrganizationalName(emailPrefix);
       console.log('[extractPresenterInfo] Using formatted email prefix as name:', presenterName);
     }
   }
   
-  // If presenter is not an email and we don't have a separate email, use host_email as fallback
-  if (!presenter.includes('@')) {
+  // 5. Final fallback to host email if no presenter email
+  if (!presenterEmail) {
     presenterEmail = webinar.host_email;
   }
   
@@ -125,12 +231,12 @@ export function extractPresenterInfo(webinar: any): HostInfo {
   
   return {
     name: presenterName,
-    email: presenterEmail
+    email: presenterEmail || webinar.host_email
   };
 }
 
 /**
- * Formats display text for host/presenter info
+ * Formats display text for host/presenter info with enhanced name display
  */
 export function formatHostDisplay(hostInfo: HostInfo): string {
   if (hostInfo.name && hostInfo.name.trim()) {
