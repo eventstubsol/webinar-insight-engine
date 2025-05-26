@@ -2,7 +2,12 @@
 import React from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { Separator } from '@/components/ui/separator';
-import { getStartTimeDisplay, getDurationDisplay } from './utils/timeDisplayUtils';
+import { 
+  getScheduledStartTimeDisplay, 
+  getActualStartTimeDisplay,
+  getScheduledDurationDisplay,
+  getActualDurationDisplay
+} from './utils/timeDisplayUtils';
 import {
   Clock,
   Activity,
@@ -36,8 +41,10 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
   const webinarTimezone = webinar.timezone || 'UTC';
   
   // Get time and duration display info
-  const startTimeInfo = getStartTimeDisplay(webinar, webinarTimezone);
-  const durationInfo = getDurationDisplay(webinar);
+  const scheduledStartTimeInfo = getScheduledStartTimeDisplay(webinar, webinarTimezone);
+  const actualStartTimeInfo = getActualStartTimeDisplay(webinar, webinarTimezone);
+  const scheduledDurationInfo = getScheduledDurationDisplay(webinar);
+  const actualDurationInfo = getActualDurationDisplay(webinar);
   
   // Max concurrent views
   const maxConcurrentViews = webinar.max_concurrent_views || 'Not available';
@@ -75,13 +82,31 @@ export const WebinarSummarySection: React.FC<WebinarSummarySectionProps> = ({
       <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
         <Clock className="h-4 w-4 text-muted-foreground mt-1" />
         <div>
-          <span className="font-medium">{startTimeInfo.label}</span> {startTimeInfo.time}
+          <span className="font-medium">{scheduledStartTimeInfo.label}</span> {scheduledStartTimeInfo.time}
         </div>
         
-        <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+        {actualStartTimeInfo && (
+          <>
+            <Clock className="h-4 w-4 text-green-600 mt-1" />
+            <div>
+              <span className="font-medium">{actualStartTimeInfo.label}</span> {actualStartTimeInfo.time}
+            </div>
+          </>
+        )}
+        
+        <Activity className="h-4 w-4 text-muted-foreground mt-1" />
         <div>
-          <span className="font-medium">{durationInfo.label}</span> {durationInfo.duration}
+          <span className="font-medium">{scheduledDurationInfo.label}</span> {scheduledDurationInfo.duration}
         </div>
+        
+        {actualDurationInfo && (
+          <>
+            <Activity className="h-4 w-4 text-green-600 mt-1" />
+            <div>
+              <span className="font-medium">{actualDurationInfo.label}</span> {actualDurationInfo.duration}
+            </div>
+          </>
+        )}
         
         <Eye className="h-4 w-4 text-muted-foreground mt-1" />
         <div>
