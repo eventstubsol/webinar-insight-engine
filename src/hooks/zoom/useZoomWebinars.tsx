@@ -3,11 +3,15 @@ import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useZoomCredentials } from './useZoomCredentials';
-import { zoomDatabaseService } from './services/zoomDatabaseService';
-import { zoomApiClient } from './services/zoomApiClient';
-import { fetchSyncHistory } from './services/syncHistoryService';
-import { WebinarSyncOperation } from './operations/webinarSyncOperation';
-import { updateParticipantDataOperation } from './operations/participantOperations';
+import { 
+  fetchWebinarsFromDatabase, 
+  fetchWebinarsFromAPI,
+  fetchSyncHistory 
+} from './services/webinarApiService';
+import { 
+  refreshWebinarsOperation, 
+  updateParticipantDataOperation 
+} from './webinarOperations';
 import { parseErrorDetails } from './utils/errorUtils';
 import { enhanceErrorMessage } from './utils/errorUtils';
 import { toast } from '@/hooks/use-toast';
@@ -32,7 +36,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
         console.log('[useZoomWebinars] Fetching webinars from database or API');
         
         // Try to get webinars from database first
-        const dbWebinars = await zoomDatabaseService.getWebinars(user.id);
+        const dbWebinars = await fetchWebinarsFromDatabase(user.id);
         
         // If we have webinars in the database, return them immediately
         if (dbWebinars && dbWebinars.length > 0) {
@@ -42,7 +46,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
         
         // If not in database or database fetch failed, try API
         console.log('[useZoomWebinars] No webinars in database, fetching from API');
-        return await zoomApiClient.listWebinars();
+        return await fetchWebinarsFromAPI();
       } catch (err: any) {
         console.error('[useZoomWebinars] Error fetching webinars:', err);
         
@@ -67,12 +71,11 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     gcTime: 10 * 60 * 1000 // 10 minutes
   });
 
-  // Refresh webinars function - uses the sync operation
+  // Refresh webinars function - just wraps the operation function
   const refreshWebinars = async (force: boolean = false): Promise<void> => {
     setIsRefetching(true);
     try {
-      const syncOperation = new WebinarSyncOperation(user?.id || '', queryClient);
-      await syncOperation.execute(force);
+      await refreshWebinarsOperation(user?.id, queryClient, force);
       await refetch();
     } finally {
       setIsRefetching(false);

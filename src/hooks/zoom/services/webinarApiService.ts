@@ -1,23 +1,21 @@
 
-// Re-export the new centralized API client
-export { zoomApiClient as default } from './zoomApiClient';
+import { toast } from '@/hooks/use-toast';
 
-// Maintain backward compatibility
+// Re-export all functions for backward compatibility
 export {
-  zoomDatabaseService as fetchWebinarsFromDatabase,
-  zoomDatabaseService as fetchWebinarInstancesFromDatabase
-} from './zoomDatabaseService';
-
-export {
-  zoomApiClient as fetchWebinarsFromAPI,
-  zoomApiClient as refreshWebinarsFromAPI,
-  zoomApiClient as updateParticipantDataAPI,
-  zoomApiClient as syncTimingDataAPI,
-  zoomApiClient as fetchWebinarInstancesAPI,
-  zoomApiClient as fetchInstanceParticipantsAPI,
-  zoomApiClient as fetchWebinarRecordingsAPI
-} from './zoomApiClient';
+  fetchWebinarsFromDatabase,
+  fetchWebinarInstancesFromDatabase
+} from './databaseQueries';
 
 export {
-  zoomDatabaseService as fetchSyncHistory
-} from './zoomDatabaseService';
+  fetchWebinarsFromAPI,
+  refreshWebinarsFromAPI,
+  updateParticipantDataAPI,
+  fetchWebinarInstancesAPI,
+  fetchInstanceParticipantsAPI,
+  fetchWebinarRecordingsAPI
+} from './apiOperations';
+
+export {
+  fetchSyncHistory
+} from './syncHistoryService';

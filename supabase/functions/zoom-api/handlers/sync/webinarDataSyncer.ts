@@ -10,17 +10,6 @@ export async function syncWebinarMetadata(
   hostFirstName?: string | null,
   hostLastName?: string | null
 ) {
-  // Extract actual timing data from webinar response
-  const actualStartTime = webinarData.actual_start_time || 
-                          webinarData.start_time_actual || 
-                          webinarData.actualStartTime || 
-                          null;
-                          
-  const actualDuration = webinarData.actual_duration || 
-                         webinarData.duration_actual || 
-                         webinarData.actualDuration || 
-                         null;
-
   // Ensure host information is preserved in raw_data
   const enhancedRawData = {
     ...webinarData,
@@ -42,8 +31,6 @@ export async function syncWebinarMetadata(
       topic: webinarData.topic,
       start_time: webinarData.start_time,
       duration: webinarData.duration,
-      actual_start_time: actualStartTime,
-      actual_duration: actualDuration,
       timezone: webinarData.timezone,
       agenda: webinarData.agenda || '',
       host_email: hostEmail || null,
@@ -181,56 +168,55 @@ export async function syncAttendees(supabase: any, user: any, token: string, web
 }
 
 export async function syncWebinarInstances(supabase: any, user: any, token: string, webinarId: string) {
-  console.log(`[zoom-api][data-syncer] Fetching past webinar details for: ${webinarId}`);
+  console.log(`[zoom-api][data-syncer] Fetching instances for: ${webinarId}`);
   
-  // Use the past webinar endpoint to get actual timing details
-  const pastWebinarRes = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}`, {
+  const instancesRes = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}/instances`, {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     }
   });
   
-  if (!pastWebinarRes.ok) {
-    const errorText = await pastWebinarRes.text();
-    console.log(`[zoom-api][data-syncer] No past webinar details found or error:`, errorText);
+  if (!instancesRes.ok) {
+    const errorText = await instancesRes.text();
+    console.log(`[zoom-api][data-syncer] No instances found or error:`, errorText);
     return { count: 0, errors: [] };
   }
 
-  const pastWebinarData = await pastWebinarRes.json();
+  const instancesData = await instancesRes.json();
   
-  if (!pastWebinarData || !pastWebinarData.uuid) {
-    console.log(`[zoom-api][data-syncer] Invalid past webinar data for: ${webinarId}`);
+  if (!instancesData.webinars || instancesData.webinars.length === 0) {
     return { count: 0, errors: [] };
   }
 
-  // Create instance record with actual timing data
-  const instanceData = {
-    user_id: user.id,
-    webinar_id: webinarId,
-    webinar_uuid: pastWebinarData.uuid,
-    instance_id: pastWebinarData.uuid,
-    topic: pastWebinarData.topic,
-    start_time: pastWebinarData.start_time,
-    end_time: pastWebinarData.end_time,
-    duration: pastWebinarData.duration,
-    status: 'ended',
-    participants_count: pastWebinarData.total_minutes || 0,
-    registrants_count: 0, // Will be updated by other sync functions
-    raw_data: pastWebinarData
-  };
+  let syncedCount = 0;
+  const errors: string[] = [];
 
-  const { error: instanceError } = await supabase
-    .from('zoom_webinar_instances')
-    .upsert(instanceData, {
-      onConflict: 'user_id,webinar_id,instance_id'
-    });
-  
-  if (instanceError) {
-    console.error(`[zoom-api][data-syncer] Error inserting instance:`, instanceError);
-    return { count: 0, errors: [instanceError.message] };
-  } else {
-    console.log(`[zoom-api][data-syncer] Synced past webinar instance for: ${webinarId} with actual timing`);
-    return { count: 1, errors: [] };
+  // Process each instance
+  for (const instance of instancesData.webinars) {
+    const { error: instanceError } = await supabase
+      .from('zoom_webinar_instances')
+      .upsert({
+        user_id: user.id,
+        webinar_id: webinarId,
+        webinar_uuid: instance.uuid,
+        instance_id: instance.uuid,
+        topic: instance.topic,
+        start_time: instance.start_time,
+        duration: instance.duration,
+        raw_data: instance
+      }, {
+        onConflict: 'user_id,webinar_id,instance_id'
+      });
+    
+    if (instanceError) {
+      console.error(`[zoom-api][data-syncer] Error inserting instance:`, instanceError);
+      errors.push(`Instance ${instance.uuid}: ${instanceError.message}`);
+    } else {
+      syncedCount += 1;
+    }
   }
+  
+  console.log(`[zoom-api][data-syncer] Synced ${syncedCount} instances for: ${webinarId}`);
+  return { count: syncedCount, errors };
 }

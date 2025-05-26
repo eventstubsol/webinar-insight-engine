@@ -14,7 +14,6 @@ import { handleGetInstanceParticipants } from './handlers/getInstanceParticipant
 import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
-import { handleSyncTimingData } from './handlers/syncTimingData.ts';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -22,9 +21,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Apply extended timeout to all operations (90 seconds instead of 30)
+  // Apply 30-second timeout to all operations
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Operation timed out after 90000ms')), 90000);
+    setTimeout(() => reject(new Error('Operation timed out after 30000ms')), 30000);
   });
 
   try {
@@ -90,7 +89,7 @@ async function handleRequest(req: Request): Promise<Response> {
       
       case 'get-webinar-instances':
         const getInstancesCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleGetWebinarInstances(req, supabase, user, getInstancesCredentials, params.webinar_id);
+        return await handleGetWebinarInstances(req, supabase, user, getInstancesCredentials);
       
       case 'get-instance-participants':
         const getInstanceParticipantsCredentials = await getZoomCredentials(supabase, user.id);
@@ -107,10 +106,6 @@ async function handleRequest(req: Request): Promise<Response> {
       case 'get-webinar-recordings':
         const recordingsCredentials = await getZoomCredentials(supabase, user.id);
         return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials, params.webinar_id);
-      
-      case 'sync-timing-data':
-        const timingCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleSyncTimingData(req, supabase, user, timingCredentials);
       
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {

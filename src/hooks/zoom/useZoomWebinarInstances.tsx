@@ -1,8 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { zoomDatabaseService } from './services/zoomDatabaseService';
-import { zoomApiClient } from './services/zoomApiClient';
+import { fetchWebinarInstancesFromDatabase, fetchWebinarInstancesAPI } from './services/webinarApiService';
 
 export interface WebinarInstance {
   id: string;
@@ -41,42 +40,29 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
       
       try {
         // First try to get instances from database
-        const dbInstances = await zoomDatabaseService.getWebinarInstances(user.id, webinarId);
-        
-        // Transform the data to match our interface
-        const transformedInstances = dbInstances?.map(instance => ({
-          ...instance,
-          raw_data: typeof instance.raw_data === 'string' 
-            ? JSON.parse(instance.raw_data) 
-            : (instance.raw_data as Record<string, any>) || {}
-        })) || [];
+        const dbInstances = await fetchWebinarInstancesFromDatabase(user.id, webinarId);
         
         // If we don't have the webinarId, just return what's in the database
         if (!webinarId) {
-          return transformedInstances;
+          return dbInstances || [];
         }
         
         // If we have a webinarId but no instances in DB or we have < 2 instances,
         // try to fetch instances from the API
-        if (!transformedInstances || transformedInstances.length < 2) {
+        if (!dbInstances || dbInstances.length < 2) {
           try {
-            await zoomApiClient.getWebinarInstances(webinarId);
+            await fetchWebinarInstancesAPI(webinarId);
             // Refetch from database after API call
-            const refreshedInstances = await zoomDatabaseService.getWebinarInstances(user.id, webinarId);
-            return refreshedInstances?.map(instance => ({
-              ...instance,
-              raw_data: typeof instance.raw_data === 'string' 
-                ? JSON.parse(instance.raw_data) 
-                : (instance.raw_data as Record<string, any>) || {}
-            })) || [];
+            const refreshedInstances = await fetchWebinarInstancesFromDatabase(user.id, webinarId);
+            return refreshedInstances || [];
           } catch (apiError) {
             console.error('[useZoomWebinarInstances] Error fetching instances from API:', apiError);
             // Return database instances even if API call fails
-            return transformedInstances;
+            return dbInstances || [];
           }
         }
         
-        return transformedInstances;
+        return dbInstances || [];
       } catch (err) {
         console.error('[useZoomWebinarInstances] Error:', err);
         throw err;

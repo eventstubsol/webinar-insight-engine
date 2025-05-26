@@ -1,34 +1,43 @@
 
 import { useState, useEffect } from 'react';
-import { parseErrorDetails } from '@/hooks/zoom/utils/errorHandling';
 
 export function useWebinarErrorHandling(
   error: Error | null,
-  errorDetails: any
+  errorDetails: {
+    isMissingCredentials: boolean;
+    isCapabilitiesError: boolean;
+    isScopesError: boolean;
+    missingSecrets: string[];
+  },
+  errorBannerDismissed: boolean,
+  isFirstLoad: boolean,
+  activeTab: string,
+  setActiveTab: (tab: string) => void
 ) {
-  const [errorBannerDismissed, setErrorBannerDismissed] = useState(false);
-
   // Reset error dismissal state when there's a new error
   useEffect(() => {
     if (error) {
       console.log('[useWebinarErrorHandling] Error state updated:', error.message);
-      setErrorBannerDismissed(false); // Reset dismissal on new error
     }
   }, [error]);
 
-  const dismissErrorBanner = () => {
-    setErrorBannerDismissed(true);
-  };
+  // Error message preparation
+  const errorMessage: string | null = error?.message || null;
 
-  const resetErrorBanner = () => {
-    setErrorBannerDismissed(false);
-  };
+  // Initial load tracking and tab selection logic
+  useEffect(() => {
+    // Only automatically switch to setup tab for critical configuration errors
+    if (error && 
+        !isFirstLoad && 
+        (errorDetails.isMissingCredentials || errorDetails.isScopesError) && 
+        activeTab !== "setup" && 
+        !errorBannerDismissed) {
+      console.log('[useWebinarErrorHandling] Critical configuration error detected, switching to setup tab');
+      setActiveTab("setup");
+    }
+  }, [error, errorDetails, activeTab, isFirstLoad, errorBannerDismissed, setActiveTab]);
 
   return {
-    errorMessage: error?.message || null,
-    errorDetails,
-    dismissErrorBanner,
-    errorBannerDismissed,
-    resetErrorBanner
+    errorMessage
   };
 }

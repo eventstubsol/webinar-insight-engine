@@ -1,16 +1,30 @@
 
-import { useState, useCallback } from 'react';
-import { useWebinarData } from './useWebinarData';
+import { useState, useEffect } from 'react';
 import { useWebinarUIState } from './useWebinarUIState';
+import { useWebinarData } from './useWebinarData';
 import { useWebinarErrorHandling } from './useWebinarErrorHandling';
-import { useWebinarActions } from './useWebinarActions';
+import { useWebinarSetupActions } from './useWebinarSetupActions';
 
-export function useWebinarState() {
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-  const [activeTab, setActiveTab] = useState("webinars");
-  const [showWizard, setShowWizard] = useState(false);
-  
-  // Get webinar data
+export const useWebinarState = () => {
+  // UI state management
+  const {
+    isFirstLoad,
+    setIsFirstLoad,
+    activeTab,
+    setActiveTab,
+    showWizard,
+    setShowWizard,
+    viewMode,
+    filterTab,
+    searchQuery,
+    setSearchQuery,
+    dateRange,
+    setDateRange,
+    errorBannerDismissed,
+    dismissErrorBanner
+  } = useWebinarUIState();
+
+  // Data fetching and synchronization
   const {
     webinars,
     isLoading,
@@ -26,68 +40,71 @@ export function useWebinarState() {
     checkCredentialsStatus,
     verificationDetails
   } = useWebinarData();
-  
-  // Get UI state
+
+  // Error handling logic
   const {
-    viewMode,
-    filterTab,
-    searchQuery,
-    setSearchQuery,
-    dateRange,
-    setDateRange
-  } = useWebinarUIState();
-  
-  // Get error handling with all required functions
-  const {
-    errorMessage,
-    dismissErrorBanner,
+    errorMessage
+  } = useWebinarErrorHandling(
+    error,
+    errorDetails,
     errorBannerDismissed,
-    resetErrorBanner
-  } = useWebinarErrorHandling(error, errorDetails);
-  
-  // Get actions
+    isFirstLoad,
+    activeTab,
+    setActiveTab
+  );
+
+  // Setup and wizard actions
   const {
     handleSetupZoom,
-    handleWizardComplete,
-    handleRefresh
-  } = useWebinarActions(
+    handleWizardComplete
+  } = useWebinarSetupActions(
     setShowWizard,
     checkCredentialsStatus,
+    refreshWebinars,
     setActiveTab,
-    resetErrorBanner
+    (dismissed: boolean) => {
+      if (dismissed) {
+        dismissErrorBanner();
+      } else {
+        localStorage.removeItem('zoom-webinar-error-dismissed');
+      }
+    }
   );
-  
-  // Auto refresh interval
-  const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
-  
-  // Update first load state
-  const updateFirstLoad = useCallback(() => {
-    if (isFirstLoad && (!isLoading || webinars.length > 0)) {
+
+  // Track if data has been loaded at least once
+  useEffect(() => {
+    if (!isLoading && isFirstLoad) {
+      console.log('[useWebinarState] First load complete');
       setIsFirstLoad(false);
     }
-  }, [isFirstLoad, isLoading, webinars.length]);
-  
-  // Call update on each render
-  updateFirstLoad();
+  }, [isLoading, isFirstLoad, setIsFirstLoad]);
+
+  // Check if this is the first login and open wizard if needed
+  useEffect(() => {
+    if (!isLoading && credentialsStatus !== undefined) {
+      // If user is logged in and we've checked their credentials status
+      if (!credentialsStatus?.hasCredentials) {
+        console.log('[useWebinarState] No credentials found, showing wizard');
+        // If they don't have credentials, show the wizard
+        setShowWizard(true);
+      }
+    }
+  }, [credentialsStatus, isLoading, setShowWizard]);
   
   return {
-    // Data
     webinars,
     isLoading,
     isRefetching,
     error,
     errorDetails,
-    refreshWebinars: handleRefresh,
+    refreshWebinars,
     lastSyncTime,
     credentialsStatus,
     isVerifying,
     verified,
-    scopesError,
+    scopesError: Boolean(scopesError), // Ensure scopesError is returned as boolean
     verificationDetails,
-    
-    // UI State
     isFirstLoad,
-    setIsFirstLoad,
     activeTab,
     setActiveTab,
     showWizard,
@@ -98,19 +115,10 @@ export function useWebinarState() {
     setSearchQuery,
     dateRange,
     setDateRange,
-    
-    // Actions
     handleSetupZoom,
     handleWizardComplete,
-    checkCredentialsStatus,
-    
-    // Error handling
     errorMessage,
     dismissErrorBanner,
-    errorBannerDismissed,
-    resetErrorBanner,
-    
-    // Config
-    AUTO_REFRESH_INTERVAL
+    errorBannerDismissed
   };
-}
+};

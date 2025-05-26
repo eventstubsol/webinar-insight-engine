@@ -2,9 +2,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { PlusCircle, ArrowLeft, Settings, LoaderCircle } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Settings, LoaderCircle, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { SyncTimingDataButton } from './SyncTimingDataButton';
 
 interface WebinarHeaderProps {
   errorDetails: {
@@ -42,11 +41,24 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
     setTimeout(() => setIsCreateLoading(false), 1000);
   };
 
-  const handleTimingSyncComplete = async () => {
+  const handleForceSync = async () => {
+    // Toast to indicate sync is starting
+    const syncToast = toast({
+      title: "Syncing webinars",
+      description: "Retrieving data from Zoom...",
+    });
+
     try {
-      await refreshWebinars(false);
+      // Pass true to force a full sync from the Zoom API
+      await refreshWebinars(true);
+      
+      // Success toast will be shown by the operation itself
+      // We don't need to show another toast here
     } catch (error) {
-      console.error('Error refreshing after timing sync:', error);
+      // Error handling is done in the operation itself
+    } finally {
+      // Dismiss the syncing toast
+      syncToast.dismiss();
     }
   };
 
@@ -67,11 +79,6 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
               )}
               Create Webinar
             </Button>
-            <SyncTimingDataButton 
-              onSyncComplete={handleTimingSyncComplete}
-              variant="outline"
-              size="default"
-            />
             <Button variant="outline" onClick={onSetupZoom}>
               <Settings className="h-4 w-4 mr-2" />
               Zoom Settings

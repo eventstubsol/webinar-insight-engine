@@ -95,15 +95,6 @@ export async function performNonDestructiveUpsert(
   const currentTimestamp = new Date().toISOString();
   
   for (const webinar of webinars) {
-    // Extract actual timing data from enhanced webinar with proper field mapping
-    const actualStartTime = webinar.actual_start_time || 
-                            webinar.past_webinar_data?.start_time ||
-                            null;
-                            
-    const actualDuration = webinar.actual_duration || 
-                           webinar.past_webinar_data?.duration ||
-                           null;
-
     const webinarData = {
       user_id: userId,
       webinar_id: webinar.id,
@@ -111,8 +102,6 @@ export async function performNonDestructiveUpsert(
       topic: webinar.topic,
       start_time: webinar.start_time,
       duration: webinar.duration,
-      actual_start_time: actualStartTime,
-      actual_duration: actualDuration,
       timezone: webinar.timezone,
       agenda: webinar.agenda || '',
       host_email: webinar.host_email,
@@ -138,22 +127,18 @@ export async function performNonDestructiveUpsert(
       const existingWebinar = existingWebinars?.find(w => w.webinar_id === webinar.id.toString());
       if (!existingWebinar) {
         newWebinars++;
-        console.log(`[zoom-api][performNonDestructiveUpsert] New webinar inserted: ${webinar.id} with actual timing: ${actualStartTime ? 'YES' : 'NO'}`);
       } else {
         // Check if data actually changed to count as an update
         const hasChanges = 
           existingWebinar.topic !== webinar.topic ||
           existingWebinar.start_time !== webinar.start_time ||
           existingWebinar.duration !== webinar.duration ||
-          existingWebinar.actual_start_time !== actualStartTime ||
-          existingWebinar.actual_duration !== actualDuration ||
           existingWebinar.agenda !== webinar.agenda ||
           existingWebinar.status !== webinar.status ||
           JSON.stringify(existingWebinar.raw_data) !== JSON.stringify(webinar);
         
         if (hasChanges) {
           updatedWebinars++;
-          console.log(`[zoom-api][performNonDestructiveUpsert] Webinar updated: ${webinar.id} with actual timing: ${actualStartTime ? 'YES' : 'NO'}`);
         }
       }
     }

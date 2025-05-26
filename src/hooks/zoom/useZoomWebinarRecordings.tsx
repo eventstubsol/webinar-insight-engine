@@ -1,7 +1,8 @@
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { zoomApiClient } from './services/zoomApiClient';
+import { fetchWebinarRecordingsAPI } from './services/webinarApiService';
 
 export interface ZoomRecording {
   id: string;
@@ -59,7 +60,7 @@ export function useZoomWebinarRecordings(webinarId: string | null) {
     
     try {
       console.log(`[useZoomWebinarRecordings] Refreshing recordings from API for webinar: ${webinarId}`);
-      await zoomApiClient.getWebinarRecordings(webinarId);
+      await fetchWebinarRecordingsAPI(webinarId);
       
       // Invalidate and refetch the query to get updated data
       await queryClient.invalidateQueries({ 

@@ -10,9 +10,9 @@ import { fetchUserInfo } from './sync/userInfoFetcher.ts';
 import { handleEmptySync } from './sync/emptySyncHandler.ts';
 import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
-// Handle listing webinars with optimized processing for large datasets
+// Handle listing webinars with non-destructive upsert-based sync
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
-  console.log(`[zoom-api][list-webinars] Starting optimized sync for user: ${user.id}, force_sync: ${force_sync}`);
+  console.log(`[zoom-api][list-webinars] Starting non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
   console.log(`[zoom-api][list-webinars] Current timestamp: ${new Date().toISOString()}`);
   
   try {
@@ -57,16 +57,9 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     // Process webinars if any exist
     if (allWebinars && allWebinars.length > 0) {
-      // For force sync with large datasets, use optimized enhancement
-      let enhancedWebinars;
-      if (force_sync && allWebinars.length > 20) {
-        console.log('[zoom-api][list-webinars] Large dataset detected, using optimized enhancement');
-        // Skip heavy operations like recordings and detailed participant data for force sync
-        enhancedWebinars = await enhanceWebinarsWithOptimizedData(allWebinars, token, supabase, user.id);
-      } else {
-        // Use full enhancement for smaller datasets or regular sync
-        enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
-      }
+      // Enhance webinars with all additional data (host, panelist, participant, and recording info)
+      // Pass supabase client and user ID for recording data storage
+      const enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
       
       // Perform non-destructive upsert
       syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
@@ -74,7 +67,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       // Calculate comprehensive statistics
       statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
       
-      // Record sync in history with enhanced statistics
+      // Record sync in history with enhanced statistics including recording data
       const recordingStats = enhancedWebinars.filter(w => w.has_recordings).length;
       await recordSyncHistory(
         supabase,
@@ -82,7 +75,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         'webinars',
         'success',
         syncResults.newWebinars + syncResults.updatedWebinars,
-        `Optimized sync completed: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+        `Non-destructive sync with full data resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
       );
     } else {
       // Handle empty sync result
@@ -108,33 +101,5 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     );
     
     throw error; // Let the main error handler format the response
-  }
-}
-
-// Optimized enhancement for large datasets
-async function enhanceWebinarsWithOptimizedData(webinars: any[], token: string, supabase?: any, userId?: string) {
-  console.log(`[zoom-api][optimized-enhancement] Processing ${webinars.length} webinars with optimized enhancement`);
-  
-  // Import the individual processors
-  const { enhanceWebinarsWithHostInfo } = await import('./sync/hostInfoProcessor.ts');
-  const { enhanceWebinarsWithPanelistData } = await import('./sync/panellistDataProcessor.ts');
-  
-  try {
-    // Step 1: Essential data only - host and panelist info
-    console.log(`[zoom-api][optimized-enhancement] Step 1: Adding essential host and panelist data`);
-    const webinarsWithHostInfo = await enhanceWebinarsWithHostInfo(webinars, token);
-    const webinarsWithPanelistInfo = await enhanceWebinarsWithPanelistData(webinarsWithHostInfo, token);
-    
-    // Skip heavy operations for force sync optimization:
-    // - Participant data enhancement (can be done separately)
-    // - Recording data enhancement (available via separate API)
-    // - Instance data enhancement (only needed for specific use cases)
-    
-    console.log(`[zoom-api][optimized-enhancement] Optimized enhancement completed for ${webinarsWithPanelistInfo.length} webinars`);
-    return webinarsWithPanelistInfo;
-    
-  } catch (error) {
-    console.error(`[zoom-api][optimized-enhancement] Error during optimized enhancement:`, error);
-    throw error;
   }
 }
