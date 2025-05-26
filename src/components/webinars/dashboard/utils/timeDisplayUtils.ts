@@ -21,7 +21,7 @@ export function getStartTimeDisplay(webinar: any, timezone: string): StartTimeIn
     return { label: 'Actual Start:', time: actualStart };
   } else if (webinar.start_time) {
     const scheduledStart = formatInTimeZone(parseISO(webinar.start_time), timezone, 'h:mm a');
-    return { label: 'Scheduled Start:', time: scheduledStart };
+    return { label: 'Actual Start Time:', time: scheduledStart };
   } else {
     return { label: 'Start Time:', time: 'Not available' };
   }
@@ -34,7 +34,7 @@ export function getDurationDisplay(webinar: any): DurationInfo {
   if (webinar.actual_duration) {
     return { label: 'Actual Duration:', duration: `${webinar.actual_duration} minutes` };
   } else if (webinar.duration) {
-    return { label: 'Scheduled Duration:', duration: `${webinar.duration} minutes` };
+    return { label: 'Actual Duration:', duration: `${webinar.duration} minutes` };
   } else {
     return { label: 'Duration:', duration: 'Not specified' };
   }
