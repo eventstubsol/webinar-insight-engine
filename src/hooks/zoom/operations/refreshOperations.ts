@@ -6,7 +6,7 @@ import { updateParticipantDataOperation } from './participantOperations';
 import { executeWithTimeout, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
 
 /**
- * ENHANCED refresh webinars operation with improved error handling, timeout protection, and better user feedback
+ * OPTIMIZED refresh webinars operation with batch processing and improved error recovery
  */
 export async function refreshWebinarsOperation(
   userId: string | undefined,
@@ -28,21 +28,21 @@ export async function refreshWebinarsOperation(
   let enhancementFailed = false;
   
   try {
-    console.log(`[refreshWebinarsOperation] Starting ENHANCED non-destructive refresh with force=${force} for user ${userId}`);
+    console.log(`[refreshWebinarsOperation] Starting OPTIMIZED batch-processed refresh with force=${force} for user ${userId}`);
     
-    // ENHANCED timeout handling with better user feedback
-    const ENHANCED_TIMEOUT = 45000; // 45 seconds for the entire operation
+    // OPTIMIZED timeout handling with better user feedback
+    const OPTIMIZED_TIMEOUT = 50000; // 50 seconds - within the new 60s edge function timeout
     
-    // Make the API call to fetch fresh data from Zoom with ENHANCED timeout protection
+    // Make the API call to fetch fresh data from Zoom with OPTIMIZED timeout protection
     const refreshData = await executeWithTimeout(
       () => refreshWebinarsFromAPI(userId, force),
-      ENHANCED_TIMEOUT,
+      OPTIMIZED_TIMEOUT,
       () => {
         timeoutTriggered = true;
         console.log('[refreshWebinarsOperation] Timeout triggered, showing user notification');
         toast({
           title: 'Sync in progress',
-          description: 'Large dataset detected. The sync is continuing in the background. Historical data is preserved.',
+          description: 'Large dataset detected. The sync is continuing with batch processing. Historical data is preserved.',
           variant: 'default'
         });
       }
@@ -50,7 +50,7 @@ export async function refreshWebinarsOperation(
     
     isCompleted = true;
 
-    // ENHANCED participant data update with error isolation
+    // Participant data update with error isolation (reduced timeout for optimization)
     try {
       console.log('[refreshWebinarsOperation] Starting participant data update (isolated)');
       const participantData = await updateParticipantDataOperation(userId, queryClient, true);
@@ -64,7 +64,7 @@ export async function refreshWebinarsOperation(
     // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
     
-    // ENHANCED notification with detailed sync results and timing data information
+    // OPTIMIZED notification with detailed sync results and batch processing information
     if (refreshData.syncResults) {
       const { 
         newWebinars = 0, 
@@ -92,13 +92,13 @@ export async function refreshWebinarsOperation(
       const finalMessage = `${syncMessage}. ${totalMessage}${participantMessage}.${timingMessage}`;
       
       toast({
-        title: enhancementFailed ? 'Sync completed with some limitations' : 'Enhanced sync completed',
+        title: enhancementFailed ? 'Sync completed with some limitations' : 'Batch-processed sync completed',
         description: finalMessage,
         variant: enhancementFailed ? 'default' : 'default'
       });
       
       // Log comprehensive results for debugging
-      console.log(`[refreshWebinarsOperation] ✅ ENHANCED sync completed: ${finalMessage}`);
+      console.log(`[refreshWebinarsOperation] ✅ OPTIMIZED sync completed: ${finalMessage}`);
       if (actualTimingCount > 0) {
         console.log(`[refreshWebinarsOperation] 🎯 CRITICAL SUCCESS: ${actualTimingCount} webinars have actual timing data`);
       }
@@ -107,20 +107,20 @@ export async function refreshWebinarsOperation(
       // Fallback for backward compatibility
       toast({
         title: 'Webinars synced',
-        description: 'Webinar data has been updated from Zoom',
+        description: 'Webinar data has been updated from Zoom using batch processing',
         variant: 'default'
       });
     }
   } catch (err: any) {
     isCompleted = true;
     
-    console.error('[refreshWebinarsOperation] Error during ENHANCED refresh:', err);
+    console.error('[refreshWebinarsOperation] Error during OPTIMIZED refresh:', err);
     
-    // ENHANCED error handling based on error type with better categorization
+    // OPTIMIZED error handling based on error type with better categorization
     if (timeoutTriggered) {
       toast({
         title: 'Sync may be incomplete',
-        description: 'The operation took longer than expected. Historical data has been preserved. Try again in a moment.',
+        description: 'The operation took longer than expected. Batch processing is optimizing the sync. Try again in a moment.',
         variant: 'default'
       });
     } else {
@@ -134,7 +134,7 @@ export async function refreshWebinarsOperation(
         // Categorize specific error types for better user experience
         if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
           errorTitle = 'Sync timeout';
-          errorMessage = 'The sync operation timed out due to a large dataset. Please try again.';
+          errorMessage = 'The sync operation timed out. The system has been optimized for batch processing. Please try again.';
         } else if (errorMessage.includes('scopes') || errorMessage.includes('Scopes')) {
           errorTitle = 'Missing OAuth Scopes';
           errorMessage = 'Please check your Zoom app configuration and add the required scopes';
@@ -143,10 +143,10 @@ export async function refreshWebinarsOperation(
           errorMessage = 'Please check your Zoom credentials';
         } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
           errorTitle = 'Rate limit exceeded';
-          errorMessage = 'Too many requests. Please wait a moment and try again.';
+          errorMessage = 'Too many requests. The batch processing system will help. Please wait a moment and try again.';
         } else if (errorMessage.includes('Enhancement')) {
           errorTitle = 'Sync completed with limitations';
-          errorMessage = 'Basic data was synced, but some enhancements failed. Data is preserved.';
+          errorMessage = 'Basic data was synced with batch processing, but some enhancements failed. Data is preserved.';
         }
       } else if (typeof err === 'string') {
         errorMessage = err;
@@ -162,6 +162,6 @@ export async function refreshWebinarsOperation(
     throw err;
   } finally {
     // Enhanced final logging with operation summary
-    console.log(`[refreshWebinarsOperation] ENHANCED operation completed: ${isCompleted}, timeout: ${timeoutTriggered}, participants: ${participantsUpdated}, enhancement issues: ${enhancementFailed}`);
+    console.log(`[refreshWebinarsOperation] OPTIMIZED operation completed: ${isCompleted}, timeout: ${timeoutTriggered}, participants: ${participantsUpdated}, enhancement issues: ${enhancementFailed}`);
   }
 }

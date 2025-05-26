@@ -21,9 +21,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Apply 30-second timeout to all operations
+  // CRITICAL FIX: Increase timeout to 60 seconds to accommodate enhancement processing
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Operation timed out after 30000ms')), 30000);
+    setTimeout(() => reject(new Error('Operation timed out after 60000ms')), 60000);
   });
 
   try {
@@ -34,8 +34,17 @@ serve(async (req) => {
     return result as Response;
   } catch (error) {
     console.error('[zoom-api] Error in index:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    
+    // Enhanced error response with timeout detection
+    const isTimeout = error.message && error.message.includes('timed out');
+    const errorResponse = {
+      error: isTimeout ? 'Request timed out. Please try again with a smaller dataset.' : error.message,
+      category: isTimeout ? 'timeout' : 'server_error',
+      timestamp: new Date().toISOString()
+    };
+    
+    return new Response(JSON.stringify(errorResponse), {
+      status: isTimeout ? 408 : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }

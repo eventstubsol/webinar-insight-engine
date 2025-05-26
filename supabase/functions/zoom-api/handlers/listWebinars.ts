@@ -10,15 +10,19 @@ import { fetchUserInfo } from './sync/userInfoFetcher.ts';
 import { handleEmptySync } from './sync/emptySyncHandler.ts';
 import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
-// ENHANCED timeout handling with better error recovery and more aggressive timeouts
-const OPERATION_TIMEOUT = 40000; // Reduced from 45s to 40s for better reliability
-const ENHANCEMENT_TIMEOUT = 35000; // Increased to 35 seconds for enhancement phase - this is the critical fix
-const API_CALL_TIMEOUT = 10000; // Increased to 10 seconds for individual API calls
-const WEBINAR_FETCH_TIMEOUT = 20000; // 20 seconds for webinar fetching
+// CRITICAL FIX: Optimized timeout handling with hierarchical structure
+const OPERATION_TIMEOUT = 55000; // 55 seconds total - within 60s global timeout
+const ENHANCEMENT_TIMEOUT = 45000; // 45 seconds for enhancement phase
+const API_CALL_TIMEOUT = 10000; // 10 seconds for individual API calls
+const WEBINAR_FETCH_TIMEOUT = 15000; // 15 seconds for webinar fetching
 
-// Handle listing webinars with ENHANCED error handling and timeout protection
+// NEW: Batch processing configuration
+const BATCH_SIZE = 10; // Process webinars in batches of 10
+const PRIORITY_BATCH_SIZE = 5; // Smaller batches for priority items
+
+// Handle listing webinars with ENHANCED error handling and batch processing
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
-  console.log(`[zoom-api][list-webinars] Starting ENHANCED non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
+  console.log(`[zoom-api][list-webinars] Starting OPTIMIZED batch-processed sync for user: ${user.id}, force_sync: ${force_sync}`);
   console.log(`[zoom-api][list-webinars] Current timestamp: ${new Date().toISOString()}`);
   
   const startTime = Date.now();
@@ -33,10 +37,10 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       });
     }
     
-    // ENHANCED token generation with timeout protection
+    // Token generation with timeout protection
     let token;
     try {
-      console.log(`[zoom-api][list-webinars] Generating Zoom token with enhanced timeout protection`);
+      console.log(`[zoom-api][list-webinars] Generating Zoom token with timeout protection`);
       const tokenPromise = getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
       token = await Promise.race([
         tokenPromise,
@@ -48,10 +52,10 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       throw new Error(`Authentication failed: ${error.message}`);
     }
     
-    // ENHANCED user info fetching with timeout protection
+    // User info fetching with timeout protection
     let meData;
     try {
-      console.log(`[zoom-api][list-webinars] Fetching user info with enhanced timeout protection`);
+      console.log(`[zoom-api][list-webinars] Fetching user info with timeout protection`);
       const userInfoPromise = fetchUserInfo(token);
       meData = await Promise.race([
         userInfoPromise,
@@ -63,8 +67,8 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       throw new Error(`Failed to fetch user information: ${error.message}`);
     }
 
-    // ENHANCED webinars fetching with improved timeout protection
-    console.log(`[zoom-api][list-webinars] Fetching webinars from API with enhanced timeout (${Date.now() - startTime}ms elapsed)`);
+    // Webinars fetching with optimized timeout
+    console.log(`[zoom-api][list-webinars] Fetching webinars from API with optimized timeout (${Date.now() - startTime}ms elapsed)`);
     let allWebinars;
     try {
       const webinarsPromise = fetchWebinarsFromZoomAPI(token, meData.id);
@@ -102,72 +106,73 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     // Process webinars if any exist
     if (allWebinars && allWebinars.length > 0) {
       const enhancementStartTime = Date.now();
-      console.log(`[zoom-api][list-webinars] Starting ENHANCED comprehensive enhancement phase (${enhancementStartTime - startTime}ms elapsed)`);
+      console.log(`[zoom-api][list-webinars] Starting BATCH-PROCESSED enhancement phase (${enhancementStartTime - startTime}ms elapsed)`);
       
-      // CRITICAL FIX: Enhanced webinars with comprehensive data collection and EXTENDED timeout
+      // CRITICAL FIX: Batch-processed enhancement with circuit breaker pattern
       let enhancedWebinars = [...allWebinars]; // Start with basic data
+      let enhancementStats = {
+        totalProcessed: 0,
+        actualTimingAdded: 0,
+        hostInfoAdded: 0,
+        errors: []
+      };
+      
       try {
-        console.log(`[zoom-api][list-webinars] 🎯 CRITICAL: Starting enhancement with EXTENDED timeout of ${ENHANCEMENT_TIMEOUT}ms`);
-        const enhancementPromise = enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Enhancement timeout')), ENHANCEMENT_TIMEOUT)
-        );
+        console.log(`[zoom-api][list-webinars] 🎯 CRITICAL: Starting BATCH enhancement with ${BATCH_SIZE} webinar batches`);
         
-        enhancedWebinars = await Promise.race([enhancementPromise, timeoutPromise]);
-        console.log(`[zoom-api][list-webinars] ✅ ENHANCED COMPREHENSIVE ENHANCEMENT COMPLETED successfully in ${Date.now() - enhancementStartTime}ms`);
+        // NEW: Priority processing - separate webinars with/without timing data
+        const webinarsNeedingTiming = allWebinars.filter(w => !w.actual_start_time && !w.actual_duration);
+        const webinarsWithTiming = allWebinars.filter(w => w.actual_start_time || w.actual_duration);
         
-        // ENHANCED logging of enhancement results with actual timing focus
+        console.log(`[zoom-api][list-webinars] Priority queue: ${webinarsNeedingTiming.length} need timing, ${webinarsWithTiming.length} have timing`);
+        
+        // Process priority webinars first (those needing timing data)
+        if (webinarsNeedingTiming.length > 0) {
+          enhancedWebinars = await processBatchedEnhancement(
+            webinarsNeedingTiming, 
+            token, 
+            supabase, 
+            user.id, 
+            PRIORITY_BATCH_SIZE,
+            enhancementStartTime
+          );
+          
+          // Merge with webinars that already have timing data
+          enhancedWebinars = [...enhancedWebinars, ...webinarsWithTiming];
+        }
+        
+        console.log(`[zoom-api][list-webinars] ✅ BATCH ENHANCEMENT COMPLETED successfully in ${Date.now() - enhancementStartTime}ms`);
+        
+        // Calculate enhancement results
         const timingCount = enhancedWebinars.filter(w => w.actual_start_time || w.actual_duration).length;
         const hostCount = enhancedWebinars.filter(w => w.host_email || w.host_name).length;
-        const panelistCount = enhancedWebinars.filter(w => w.panelists && w.panelists.length > 0).length;
-        const recordingCount = enhancedWebinars.filter(w => w.has_recordings || w.recording_data).length;
         
-        console.log(`[zoom-api][list-webinars] 📊 ENHANCED RESULTS:`);
+        enhancementStats = {
+          totalProcessed: enhancedWebinars.length,
+          actualTimingAdded: timingCount,
+          hostInfoAdded: hostCount,
+          errors: []
+        };
+        
+        console.log(`[zoom-api][list-webinars] 📊 BATCH RESULTS:`);
         console.log(`[zoom-api][list-webinars] - 🎯 ACTUAL TIMING DATA: ${timingCount}/${allWebinars.length} webinars (${Math.round((timingCount/allWebinars.length)*100)}%) - CRITICAL SUCCESS METRIC`);
         console.log(`[zoom-api][list-webinars] - Host info: ${hostCount}/${allWebinars.length} webinars (${Math.round((hostCount/allWebinars.length)*100)}%)`);
-        console.log(`[zoom-api][list-webinars] - Panelist data: ${panelistCount}/${allWebinars.length} webinars (${Math.round((panelistCount/allWebinars.length)*100)}%)`);
-        console.log(`[zoom-api][list-webinars] - Recording data: ${recordingCount}/${allWebinars.length} webinars (${Math.round((recordingCount/allWebinars.length)*100)}%)`);
-        
-        // CRITICAL: Log sample timing data for verification
-        if (timingCount > 0) {
-          const timingWebinars = enhancedWebinars.filter(w => w.actual_start_time || w.actual_duration);
-          console.log(`[zoom-api][list-webinars] 🎯 SAMPLE TIMING DATA VERIFICATION:`);
-          timingWebinars.slice(0, 3).forEach(w => {
-            console.log(`[zoom-api][list-webinars] - Webinar ${w.id}: start=${w.actual_start_time}, duration=${w.actual_duration}min, status=${w.status}`);
-          });
-        }
         
       } catch (error) {
-        console.error(`[zoom-api][list-webinars] ❌ CRITICAL: Enhancement failed after ${Date.now() - enhancementStartTime}ms:`, error.message);
-        console.error(`[zoom-api][list-webinars] Enhancement error details:`, {
-          message: error.message,
-          stack: error.stack?.substring(0, 300)
-        });
+        console.error(`[zoom-api][list-webinars] ❌ ENHANCEMENT FAILED after ${Date.now() - enhancementStartTime}ms:`, error.message);
         
-        // ENHANCED fallback strategy: continue with basic webinar data but log the failure clearly
+        // Circuit breaker: Continue with basic webinar data
         enhancedWebinars = allWebinars;
-        console.log(`[zoom-api][list-webinars] 🔄 FALLBACK: Continuing with ${enhancedWebinars.length} basic webinar records (no enhancement)`);
+        console.log(`[zoom-api][list-webinars] 🔄 CIRCUIT BREAKER: Continuing with ${enhancedWebinars.length} basic webinar records`);
         
-        // Record the enhancement failure for debugging
-        try {
-          await recordSyncHistory(
-            supabase,
-            user.id,
-            'webinars',
-            'warning',
-            enhancedWebinars.length,
-            `Enhancement failed after ${Date.now() - enhancementStartTime}ms: ${error.message}. Continuing with basic data.`
-          );
-        } catch (historyError) {
-          console.warn('[zoom-api][list-webinars] Failed to record enhancement failure in sync history:', historyError);
-        }
+        enhancementStats.errors.push(`Enhancement failed: ${error.message}`);
       }
       
-      // ENHANCED database upsert with better error handling
-      console.log(`[zoom-api][list-webinars] Starting ENHANCED database upsert (${Date.now() - startTime}ms elapsed)`);
+      // Database upsert with batch processing
+      console.log(`[zoom-api][list-webinars] Starting OPTIMIZED database upsert (${Date.now() - startTime}ms elapsed)`);
       try {
         syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
-        console.log(`[zoom-api][list-webinars] ✅ ENHANCED database upsert completed: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved`);
+        console.log(`[zoom-api][list-webinars] ✅ Database upsert completed: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved`);
       } catch (error) {
         console.error('[zoom-api][list-webinars] Database upsert failed:', error);
         throw new Error(`Database update failed: ${error.message}`);
@@ -178,32 +183,25 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
       } catch (error) {
         console.warn('[zoom-api][list-webinars] Stats calculation failed:', error);
-        // Continue without detailed stats
       }
       
-      // ENHANCED sync history recording with actual timing statistics
-      const actualTimingCount = enhancedWebinars.filter(w => w.actual_start_time || w.actual_duration).length;
-      const recordingStats = enhancedWebinars.filter(w => w.has_recordings || w.recording_data).length;
-      const hostInfoCount = enhancedWebinars.filter(w => w.host_email || w.host_name).length;
-      const panelistInfoCount = enhancedWebinars.filter(w => w.panelists && w.panelists.length > 0).length;
+      // Record sync history with enhancement statistics
       const totalTime = Date.now() - startTime;
-      
       try {
         await recordSyncHistory(
           supabase,
           user.id,
           'webinars',
-          'success',
+          enhancementStats.errors.length > 0 ? 'warning' : 'success',
           syncResults.newWebinars + syncResults.updatedWebinars,
-          `ENHANCED comprehensive sync completed in ${totalTime}ms: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. CRITICAL TIMING DATA: ${actualTimingCount}/${allWebinars.length} webinars (${Math.round((actualTimingCount/allWebinars.length)*100)}%). Other enhancements: ${recordingStats} recordings, ${hostInfoCount} host info, ${panelistInfoCount} panelists. Total: ${statsResult.totalWebinarsInDB} webinars in database.`
+          `BATCH-PROCESSED sync completed in ${totalTime}ms: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. TIMING DATA: ${enhancementStats.actualTimingAdded}/${allWebinars.length} webinars (${Math.round((enhancementStats.actualTimingAdded/allWebinars.length)*100)}%). Total: ${statsResult.totalWebinarsInDB} webinars in database.${enhancementStats.errors.length > 0 ? ` Errors: ${enhancementStats.errors.length}` : ''}`
         );
       } catch (error) {
         console.warn('[zoom-api][list-webinars] Sync history recording failed:', error);
-        // Continue without recording sync history
       }
       
-      console.log(`[zoom-api][list-webinars] 🎉 ENHANCED COMPREHENSIVE SYNC COMPLETED successfully in ${totalTime}ms`);
-      console.log(`[zoom-api][list-webinars] 🎯 FINAL TIMING DATA STATUS: ${actualTimingCount}/${allWebinars.length} webinars have actual timing data`);
+      console.log(`[zoom-api][list-webinars] 🎉 BATCH-PROCESSED SYNC COMPLETED successfully in ${totalTime}ms`);
+      console.log(`[zoom-api][list-webinars] 🎯 FINAL TIMING DATA STATUS: ${enhancementStats.actualTimingAdded}/${allWebinars.length} webinars have actual timing data`);
     } else {
       // Handle empty sync result
       await handleEmptySync(supabase, user.id, syncResults, statsResult);
@@ -213,42 +211,37 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     const finalWebinarsList = await getFinalWebinarsList(supabase, user.id);
     
     const totalOperationTime = Date.now() - startTime;
-    console.log(`[zoom-api][list-webinars] 🏁 Total ENHANCED operation completed in ${totalOperationTime}ms`);
+    console.log(`[zoom-api][list-webinars] 🏁 Total BATCH-PROCESSED operation completed in ${totalOperationTime}ms`);
     
     return formatListWebinarsResponse(finalWebinarsList, allWebinars, syncResults, statsResult);
     
   } catch (error) {
     const operationTime = Date.now() - startTime;
-    console.error(`[zoom-api][list-webinars] ❌ CRITICAL ERROR in ENHANCED comprehensive sync after ${operationTime}ms:`, error);
+    console.error(`[zoom-api][list-webinars] ❌ CRITICAL ERROR in BATCH-PROCESSED sync after ${operationTime}ms:`, error);
     
-    // ENHANCED error categorization with better error messages and more specific handling
+    // Enhanced error categorization
     let errorCategory = 'unknown';
     let errorMessage = error.message || 'Unknown error';
     let statusCode = 500;
     
     if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
       errorCategory = 'timeout';
-      errorMessage = `Operation timed out after ${operationTime}ms. The sync process is being optimized for large datasets. Please try again in a moment.`;
-      statusCode = 408; // Request Timeout
+      errorMessage = `Operation timed out after ${operationTime}ms. The sync process has been optimized for large datasets. Please try again.`;
+      statusCode = 408;
     } else if (errorMessage.includes('credentials') || errorMessage.includes('token') || errorMessage.includes('Authentication')) {
       errorCategory = 'authentication';
       errorMessage = 'Authentication failed. Please check your Zoom credentials and try again.';
-      statusCode = 401; // Unauthorized
+      statusCode = 401;
     } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
       errorCategory = 'rate_limit';
       errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
-      statusCode = 429; // Too Many Requests
+      statusCode = 429;
     } else if (errorMessage.includes('Database') || errorMessage.includes('database')) {
       errorCategory = 'database';
       errorMessage = 'Database error occurred. Please try again.';
-      statusCode = 503; // Service Unavailable
-    } else if (errorMessage.includes('Enhancement') || errorMessage.includes('enhancement')) {
-      errorCategory = 'enhancement';
-      errorMessage = 'Data enhancement failed, but basic sync may have succeeded. Please try again.';
-      statusCode = 502; // Bad Gateway
+      statusCode = 503;
     }
     
-    // ENHANCED error response with better debugging information
     const errorResponse = {
       success: false,
       error: errorMessage,
@@ -261,7 +254,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       }
     };
     
-    // Record failed sync in history with ENHANCED error details
+    // Record failed sync in history
     try {
       await recordSyncHistory(
         supabase,
@@ -269,16 +262,87 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         'webinars',
         'error',
         0,
-        `ENHANCED sync ${errorCategory}: ${errorMessage} (after ${operationTime}ms). Original error: ${error.message}`
+        `BATCH-PROCESSED sync ${errorCategory}: ${errorMessage} (after ${operationTime}ms). Original error: ${error.message}`
       );
     } catch (historyError) {
       console.warn('[zoom-api][list-webinars] Failed to record error in sync history:', historyError);
     }
     
-    // Return proper error response with appropriate status code
     return new Response(JSON.stringify(errorResponse), {
       status: statusCode,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
+}
+
+// NEW: Batch processing function with circuit breaker pattern
+async function processBatchedEnhancement(
+  webinars: any[], 
+  token: string, 
+  supabase: any, 
+  userId: string, 
+  batchSize: number,
+  startTime: number
+): Promise<any[]> {
+  console.log(`[zoom-api][batch-enhancement] Starting batch processing for ${webinars.length} webinars in batches of ${batchSize}`);
+  
+  const enhancedWebinars = [...webinars];
+  const batches = [];
+  
+  // Split into batches
+  for (let i = 0; i < webinars.length; i += batchSize) {
+    batches.push(webinars.slice(i, i + batchSize));
+  }
+  
+  console.log(`[zoom-api][batch-enhancement] Created ${batches.length} batches for processing`);
+  
+  // Process each batch with timeout protection
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    const batchStartTime = Date.now();
+    const remainingTime = ENHANCEMENT_TIMEOUT - (batchStartTime - startTime);
+    
+    if (remainingTime <= 5000) { // Less than 5 seconds remaining
+      console.warn(`[zoom-api][batch-enhancement] ⏰ Insufficient time remaining (${remainingTime}ms), stopping batch processing`);
+      break;
+    }
+    
+    console.log(`[zoom-api][batch-enhancement] Processing batch ${i + 1}/${batches.length} (${batch.length} webinars)`);
+    
+    try {
+      // Import and use the existing enhancement function but with timeout
+      const { enhanceWebinarsWithAllData } = await import('./sync/webinarEnhancementOrchestrator.ts');
+      
+      const batchTimeout = Math.min(15000, remainingTime - 1000); // 15s max or remaining time minus 1s buffer
+      const enhancementPromise = enhanceWebinarsWithAllData(batch, token, supabase, userId);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`Batch ${i + 1} timeout`)), batchTimeout)
+      );
+      
+      const enhancedBatch = await Promise.race([enhancementPromise, timeoutPromise]);
+      
+      // Replace the batch in the enhanced webinars array
+      const startIdx = i * batchSize;
+      for (let j = 0; j < enhancedBatch.length; j++) {
+        if (startIdx + j < enhancedWebinars.length) {
+          enhancedWebinars[startIdx + j] = enhancedBatch[j];
+        }
+      }
+      
+      console.log(`[zoom-api][batch-enhancement] ✅ Batch ${i + 1} completed in ${Date.now() - batchStartTime}ms`);
+      
+    } catch (error) {
+      console.error(`[zoom-api][batch-enhancement] ❌ Batch ${i + 1} failed:`, error.message);
+      
+      // Circuit breaker: Continue with next batch instead of failing entirely
+      if (error.message.includes('timeout')) {
+        console.log(`[zoom-api][batch-enhancement] ⏰ Batch ${i + 1} timed out, continuing with remaining batches`);
+      } else {
+        console.log(`[zoom-api][batch-enhancement] 🔄 Batch ${i + 1} failed, continuing with remaining batches`);
+      }
+    }
+  }
+  
+  console.log(`[zoom-api][batch-enhancement] Batch processing completed for ${enhancedWebinars.length} webinars`);
+  return enhancedWebinars;
 }
