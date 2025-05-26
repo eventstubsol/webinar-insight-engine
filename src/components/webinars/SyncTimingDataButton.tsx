@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Clock, LoaderCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { syncTimingDataAPI } from '@/hooks/zoom/services/apiOperations';
+import { zoomApiClient } from '@/hooks/zoom/services/zoomApiClient';
 
 interface SyncTimingDataButtonProps {
   onSyncComplete?: () => void;
@@ -29,7 +29,7 @@ export const SyncTimingDataButton: React.FC<SyncTimingDataButtonProps> = ({
     });
 
     try {
-      const result = await syncTimingDataAPI();
+      const result = await zoomApiClient.syncTimingData();
       
       // Dismiss loading toast
       loadingToast.dismiss();

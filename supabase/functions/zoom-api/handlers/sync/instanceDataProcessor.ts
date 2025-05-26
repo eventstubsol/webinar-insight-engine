@@ -32,8 +32,14 @@ export async function enhanceWebinarsWithInstanceData(
       try {
         console.log(`[zoom-api][instance-processor] Fetching past webinar details for ended webinar: ${webinar.id}`);
         
-        // Get past webinar details directly from Zoom API
-        const pastWebinarResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${webinar.uuid || webinar.id}`, {
+        // CRITICAL: Properly encode the UUID for URL usage
+        const webinarIdentifier = webinar.uuid || webinar.id;
+        const encodedIdentifier = encodeURIComponent(webinarIdentifier);
+        
+        console.log(`[zoom-api][instance-processor] Using identifier: ${webinarIdentifier}, encoded: ${encodedIdentifier}`);
+        
+        // Get past webinar details directly from Zoom API with properly encoded UUID
+        const pastWebinarResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${encodedIdentifier}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -79,7 +85,7 @@ export async function enhanceWebinarsWithInstanceData(
           }
         } else {
           const errorText = await pastWebinarResponse.text();
-          console.log(`[zoom-api][instance-processor] No past webinar data found for webinar ${webinar.id}: ${errorText}`);
+          console.log(`[zoom-api][instance-processor] No past webinar data found for webinar ${webinar.id}: ${pastWebinarResponse.status} - ${errorText}`);
         }
       } catch (error) {
         console.error(`[zoom-api][instance-processor] Error processing past webinar data for webinar ${webinar.id}:`, error);

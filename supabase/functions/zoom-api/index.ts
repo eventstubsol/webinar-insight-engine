@@ -90,7 +90,7 @@ async function handleRequest(req: Request): Promise<Response> {
       
       case 'get-webinar-instances':
         const getInstancesCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleGetWebinarInstances(req, supabase, user, getInstancesCredentials);
+        return await handleGetWebinarInstances(req, supabase, user, getInstancesCredentials, params.webinar_id);
       
       case 'get-instance-participants':
         const getInstanceParticipantsCredentials = await getZoomCredentials(supabase, user.id);

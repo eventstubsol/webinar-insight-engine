@@ -46,10 +46,14 @@ export async function handleSyncTimingData(req: Request, supabase: any, user: an
         console.log(`[zoom-api][sync-timing-data] Processing webinar: ${webinar.webinar_id} (${webinar.topic})`);
         
         // Use webinar_uuid if available, otherwise use webinar_id
+        // CRITICAL: Properly encode the UUID for URL usage
         const webinarIdentifier = webinar.webinar_uuid || webinar.webinar_id;
+        const encodedIdentifier = encodeURIComponent(webinarIdentifier);
         
-        // Call Zoom's past webinar API
-        const pastWebinarResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarIdentifier}`, {
+        console.log(`[zoom-api][sync-timing-data] Using identifier: ${webinarIdentifier}, encoded: ${encodedIdentifier}`);
+        
+        // Call Zoom's past webinar API with properly encoded UUID
+        const pastWebinarResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${encodedIdentifier}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -58,13 +62,17 @@ export async function handleSyncTimingData(req: Request, supabase: any, user: an
         
         if (!pastWebinarResponse.ok) {
           const errorText = await pastWebinarResponse.text();
-          console.log(`[zoom-api][sync-timing-data] No past webinar data for ${webinar.webinar_id}: ${errorText}`);
-          errors.push(`Webinar ${webinar.webinar_id}: ${errorText}`);
+          console.log(`[zoom-api][sync-timing-data] No past webinar data for ${webinar.webinar_id}: ${pastWebinarResponse.status} - ${errorText}`);
+          errors.push(`Webinar ${webinar.webinar_id}: ${pastWebinarResponse.status} - ${errorText}`);
           continue;
         }
         
         const pastWebinarData = await pastWebinarResponse.json();
-        console.log(`[zoom-api][sync-timing-data] Got past webinar data for ${webinar.webinar_id}`);
+        console.log(`[zoom-api][sync-timing-data] Got past webinar data for ${webinar.webinar_id}:`, {
+          start_time: pastWebinarData.start_time,
+          duration: pastWebinarData.duration,
+          end_time: pastWebinarData.end_time
+        });
         
         // Extract timing data
         const actualStartTime = pastWebinarData.start_time || null;
