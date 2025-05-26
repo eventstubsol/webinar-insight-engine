@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -176,7 +175,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
         <Info className="h-4 w-4 text-blue-700" />
         <AlertTitle className="text-blue-800">Setting Up Zoom Integration</AlertTitle>
         <AlertDescription className="text-blue-700">
-          <p>This wizard will guide you through connecting your Zoom account to ZoomLytics.</p>
+          <p>This wizard will guide you through connecting your Zoom account to WebinarWise.</p>
           <p className="mt-2">You'll need to create a Server-to-Server OAuth app in the Zoom Marketplace to integrate with your Zoom account.</p>
         </AlertDescription>
       </Alert>
@@ -256,7 +255,7 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
         <li>
           <div className="font-medium">Name your app</div>
           <p className="text-muted-foreground text-sm mt-1">
-            Give your app a name like "ZoomLytics Integration" and provide a short description
+            Give your app a name like "WebinarWise Integration" and provide a short description
           </p>
         </li>
       </ol>
@@ -488,11 +487,11 @@ export const ZoomIntegrationWizard: React.FC<ZoomIntegrationWizardProps> = ({
       </Alert>
       
       <p className="text-muted-foreground">
-        You can now access and manage your Zoom webinars through ZoomLytics
+        You can now access and manage your Zoom webinars through WebinarWise
       </p>
       
       <Button onClick={handleComplete} className="mt-2">
-        Start Using ZoomLytics
+        Start Using WebinarWise
       </Button>
     </div>
   );

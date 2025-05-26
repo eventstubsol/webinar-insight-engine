@@ -60,10 +60,10 @@ export const RegisterForm = () => {
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
         <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-brand-600 to-teal-500 flex items-center justify-center">
-          <span className="text-white font-bold text-2xl">Z</span>
+          <span className="text-white font-bold text-2xl">W</span>
         </div>
         <CardTitle className="text-2xl">Create an account</CardTitle>
-        <CardDescription>Sign up for ZoomLytics to get started</CardDescription>
+        <CardDescription>Sign up for WebinarWise to get started</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit}>

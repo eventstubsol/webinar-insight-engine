@@ -52,9 +52,9 @@ export function AppSidebar() {
       <SidebarHeader className="py-4">
         <div className="px-4 flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-teal-500 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">Z</span>
+            <span className="text-white font-bold text-lg">W</span>
           </div>
-          <div className="font-bold text-xl">ZoomLytics</div>
+          <div className="font-bold text-xl">WebinarWise</div>
         </div>
         <SidebarTrigger />
       </SidebarHeader>

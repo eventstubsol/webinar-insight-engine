@@ -40,9 +40,9 @@ export const LoginForm = () => {
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
         <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-brand-600 to-teal-500 flex items-center justify-center">
-          <span className="text-white font-bold text-2xl">Z</span>
+          <span className="text-white font-bold text-2xl">W</span>
         </div>
-        <CardTitle className="text-2xl">Log in to ZoomLytics</CardTitle>
+        <CardTitle className="text-2xl">Log in to WebinarWise</CardTitle>
         <CardDescription>Enter your credentials to access your account</CardDescription>
       </CardHeader>
       <CardContent>

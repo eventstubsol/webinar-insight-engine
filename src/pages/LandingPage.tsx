@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -13,9 +14,9 @@ const LandingPage = () => {
         <nav className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-teal-500 flex items-center justify-center">
-              <span className="text-white font-bold text-lg">Z</span>
+              <span className="text-white font-bold text-lg">W</span>
             </div>
-            <div className="font-bold text-xl">ZoomLytics</div>
+            <div className="font-bold text-xl">WebinarWise</div>
           </div>
           <div className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -51,7 +52,7 @@ const LandingPage = () => {
             <div className="bg-white/40 backdrop-blur-sm border border-border rounded-2xl shadow-2xl overflow-hidden">
               <img 
                 src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1470&auto=format" 
-                alt="ZoomLytics Dashboard Preview" 
+                alt="WebinarWise Dashboard Preview" 
                 className="rounded-lg shadow-sm w-full"
               />
             </div>
@@ -177,7 +178,6 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Pricing */}
       <section id="pricing" className="px-6 py-16 bg-background">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
@@ -304,7 +304,7 @@ const LandingPage = () => {
         <div className="max-w-4xl mx-auto text-center space-y-6">
           <h2 className="text-3xl font-bold">Ready to transform your webinar analytics?</h2>
           <p className="text-xl text-white/80 max-w-xl mx-auto">
-            Join thousands of businesses who are getting more from their webinar data with ZoomLytics.
+            Join thousands of businesses who are getting more from their webinar data with WebinarWise.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" variant="secondary" onClick={() => navigate('/register')}>
@@ -357,12 +357,12 @@ const LandingPage = () => {
           <div className="border-t border-border mt-12 pt-8 flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center gap-2 mb-4 md:mb-0">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-teal-500 flex items-center justify-center">
-                <span className="text-white font-bold">Z</span>
+                <span className="text-white font-bold">W</span>
               </div>
-              <span className="font-semibold">ZoomLytics</span>
+              <span className="font-semibold">WebinarWise</span>
             </div>
             <div className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} ZoomLytics Inc. All rights reserved.
+              © {new Date().getFullYear()} WebinarWise Inc. All rights reserved.
             </div>
           </div>
         </div>

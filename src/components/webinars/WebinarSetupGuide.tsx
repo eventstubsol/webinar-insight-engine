@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Settings, ExternalLink, AlertTriangle, Copy, Info, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -76,7 +75,7 @@ export const WebinarSetupGuide: React.FC<WebinarSetupGuideProps> = ({
           Zoom API Setup Instructions
         </CardTitle>
         <CardDescription>
-          Follow these steps to connect your Zoom account to ZoomLytics
+          Follow these steps to connect your Zoom account to WebinarWise
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -97,7 +96,7 @@ export const WebinarSetupGuide: React.FC<WebinarSetupGuideProps> = ({
               </a> and sign in with your Zoom account</li>
               <li>Click on "Develop" in the top-right corner, then "Build App"</li>
               <li>Select "Server-to-Server OAuth" as the app type</li>
-              <li>Give your app a name like "ZoomLytics Integration"</li>
+              <li>Give your app a name like "WebinarWise Integration"</li>
               <li>Fill out the required information for your app</li>
               <li><span className="font-bold text-amber-700">IMPORTANT:</span> Under "Scopes", add the following scopes:
                 <ul className="list-disc pl-6 mt-1">
