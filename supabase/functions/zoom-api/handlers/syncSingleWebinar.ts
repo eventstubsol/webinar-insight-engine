@@ -1,3 +1,4 @@
+
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 import { getHostInfo } from './sync/hostResolver.ts';
@@ -14,13 +15,14 @@ import {
   type SyncResults
 } from './sync/syncResultsManager.ts';
 
-// Enhanced function to fetch actual timing data with comprehensive logging and better UUID handling
+// Enhanced function to fetch actual timing data with improved status detection
 async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
   const webinarId = webinarData.id;
-  const status = webinarData.status?.toLowerCase();
+  const apiStatus = webinarData.status?.toLowerCase();
   
   console.log(`[TIMING-DEBUG] === ENHANCED TIMING FETCH START ===`);
-  console.log(`[TIMING-DEBUG] Webinar ID: ${webinarId}, Status: ${status}`);
+  console.log(`[TIMING-DEBUG] Webinar ID: ${webinarId}`);
+  console.log(`[TIMING-DEBUG] API Status: ${apiStatus} (type: ${typeof apiStatus})`);
   
   // ENHANCED: Better UUID field detection with validation
   const possibleUuidFields = [
@@ -46,10 +48,46 @@ async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
   const webinarUuid = validUuidField.value;
   console.log(`[TIMING-DEBUG] ✅ Using UUID from field '${validUuidField.field}': ${webinarUuid}`);
   
-  // Only fetch for ended or aborted webinars
-  if (status !== 'ended' && status !== 'aborted') {
-    console.log(`[TIMING-DEBUG] ❌ SKIPPING: Status '${status}' is not ended/aborted`);
-    console.log(`[TIMING-DEBUG] === TIMING FETCH END (WRONG STATUS) ===`);
+  // IMPROVED: Enhanced status detection logic
+  let shouldFetchTiming = false;
+  const now = new Date();
+  
+  // Check if explicitly ended or aborted
+  if (apiStatus === 'ended' || apiStatus === 'aborted') {
+    shouldFetchTiming = true;
+    console.log(`[TIMING-DEBUG] ✅ Webinar explicitly marked as '${apiStatus}'`);
+  }
+  // Check if status is undefined/null but webinar should be ended based on time
+  else if (!apiStatus || apiStatus === 'undefined') {
+    console.log(`[TIMING-DEBUG] ⚠️ Status is '${apiStatus}', checking time-based logic`);
+    
+    if (webinarData.start_time && webinarData.duration) {
+      const startTime = new Date(webinarData.start_time);
+      const endTime = new Date(startTime.getTime() + (webinarData.duration * 60 * 1000));
+      
+      console.log(`[TIMING-DEBUG] Scheduled start: ${startTime.toISOString()}`);
+      console.log(`[TIMING-DEBUG] Scheduled end: ${endTime.toISOString()}`);
+      console.log(`[TIMING-DEBUG] Current time: ${now.toISOString()}`);
+      
+      if (now > endTime) {
+        shouldFetchTiming = true;
+        console.log(`[TIMING-DEBUG] ✅ Current time is past scheduled end time - treating as ended`);
+      } else {
+        console.log(`[TIMING-DEBUG] ❌ Webinar is still scheduled or ongoing`);
+      }
+    } else {
+      console.log(`[TIMING-DEBUG] ❌ Missing start_time or duration for time-based check`);
+    }
+  }
+  // For other statuses, try anyway and let the API response determine availability
+  else {
+    console.log(`[TIMING-DEBUG] ⚠️ Status '${apiStatus}' - will attempt fetch and let API respond`);
+    shouldFetchTiming = true;
+  }
+  
+  if (!shouldFetchTiming) {
+    console.log(`[TIMING-DEBUG] ❌ SKIPPING: Conditions not met for timing data fetch`);
+    console.log(`[TIMING-DEBUG] === TIMING FETCH END (CONDITIONS NOT MET) ===`);
     return null;
   }
   
@@ -71,7 +109,7 @@ async function fetchSingleWebinarActualTiming(token: string, webinarData: any) {
       console.log(`[TIMING-DEBUG] ❌ API Error response: ${errorText}`);
       
       if (response.status === 404) {
-        console.log(`[TIMING-DEBUG] 404 - Past webinar data not found (webinar may not have been started)`);
+        console.log(`[TIMING-DEBUG] 404 - Past webinar data not found (webinar may not have been started or completed yet)`);
         console.log(`[TIMING-DEBUG] === TIMING FETCH END (404) ===`);
         return null;
       } else {
@@ -191,7 +229,7 @@ export async function handleSyncSingleWebinar(req: Request, supabase: any, user:
         console.log(`[SYNC-DEBUG] ℹ️ No panelists found`);
       }
       
-      // ENHANCED: Fetch actual timing data with comprehensive logging
+      // ENHANCED: Fetch actual timing data with improved logic
       console.log(`[SYNC-DEBUG] ⏰ Step 1.5: Starting ENHANCED ACTUAL TIMING DATA fetch process`);
       const actualTimingData = await fetchSingleWebinarActualTiming(token, webinarData);
       

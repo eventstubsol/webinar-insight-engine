@@ -1,7 +1,7 @@
 
 /**
  * Fetches actual timing data for ended webinars from the past_webinars endpoint
- * with improved error handling, batching, and timeout protection
+ * with improved error handling, batching, timeout protection, and enhanced status detection
  */
 export async function enhanceWebinarsWithActualTimingData(webinars: any[], token: string): Promise<any[]> {
   console.log(`[zoom-api][actual-timing-processor] Starting actual timing data enhancement for ${webinars.length} webinars`);
@@ -10,8 +10,8 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
     return webinars;
   }
   
-  // Filter for ended webinars that need actual timing data
-  const endedWebinars = webinars.filter(webinar => {
+  // Filter for webinars that need actual timing data with improved logic
+  const webinarsNeedingTimingData = webinars.filter(webinar => {
     const status = webinar.status?.toLowerCase();
     const hasActualData = webinar.actual_start_time || webinar.actual_duration;
     
@@ -27,17 +27,37 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
       uuid && typeof uuid === 'string' && uuid.length > 10
     );
     
-    console.log(`[actual-timing-processor] Webinar ${webinar.id}: status=${status}, hasActualData=${hasActualData}, hasValidUuid=${hasValidUuid}, uuids=[${possibleUuids.join(', ')}]`);
+    // IMPROVED: Enhanced status detection logic
+    let shouldFetchTiming = false;
+    const now = new Date();
     
-    return (status === 'ended' || status === 'aborted') && !hasActualData && hasValidUuid;
+    // Check if explicitly ended or aborted
+    if (status === 'ended' || status === 'aborted') {
+      shouldFetchTiming = true;
+    }
+    // Check if status is undefined/null but webinar should be ended based on time
+    else if (!status || status === 'undefined') {
+      if (webinar.start_time && webinar.duration) {
+        const startTime = new Date(webinar.start_time);
+        const endTime = new Date(startTime.getTime() + (webinar.duration * 60 * 1000));
+        
+        if (now > endTime) {
+          shouldFetchTiming = true;
+        }
+      }
+    }
+    
+    console.log(`[actual-timing-processor] Webinar ${webinar.id}: status=${status}, shouldFetchTiming=${shouldFetchTiming}, hasActualData=${hasActualData}, hasValidUuid=${hasValidUuid}, uuids=[${possibleUuids.join(', ')}]`);
+    
+    return shouldFetchTiming && !hasActualData && hasValidUuid;
   });
   
-  if (endedWebinars.length === 0) {
-    console.log(`[zoom-api][actual-timing-processor] No ended webinars requiring timing data found`);
+  if (webinarsNeedingTimingData.length === 0) {
+    console.log(`[zoom-api][actual-timing-processor] No webinars requiring timing data found`);
     return webinars;
   }
   
-  console.log(`[zoom-api][actual-timing-processor] Found ${endedWebinars.length} ended webinars requiring timing data`);
+  console.log(`[zoom-api][actual-timing-processor] Found ${webinarsNeedingTimingData.length} webinars requiring timing data`);
   
   // Create a map for efficient lookup
   const webinarMap = new Map(webinars.map(w => [w.id || w.webinar_id, w]));
@@ -49,9 +69,9 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
   let processedCount = 0;
   let successCount = 0;
   
-  for (let i = 0; i < endedWebinars.length; i += BATCH_SIZE) {
-    const batch = endedWebinars.slice(i, i + BATCH_SIZE);
-    console.log(`[zoom-api][actual-timing-processor] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(endedWebinars.length / BATCH_SIZE)}`);
+  for (let i = 0; i < webinarsNeedingTimingData.length; i += BATCH_SIZE) {
+    const batch = webinarsNeedingTimingData.slice(i, i + BATCH_SIZE);
+    console.log(`[zoom-api][actual-timing-processor] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(webinarsNeedingTimingData.length / BATCH_SIZE)}`);
     
     // Process batch with concurrency limit
     const batchPromises = batch.map(webinar => 
@@ -81,7 +101,7 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
     });
     
     // Small delay between batches to avoid rate limiting
-    if (i + BATCH_SIZE < endedWebinars.length) {
+    if (i + BATCH_SIZE < webinarsNeedingTimingData.length) {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
@@ -93,7 +113,7 @@ export async function enhanceWebinarsWithActualTimingData(webinars: any[], token
 }
 
 /**
- * Process individual webinar timing data with timeout protection and enhanced UUID detection
+ * Process individual webinar timing data with timeout protection and enhanced status detection
  */
 async function processWebinarTimingData(webinar: any, token: string, timeout: number): Promise<any | null> {
   const webinarId = webinar.id || webinar.webinar_id;
@@ -137,7 +157,7 @@ async function processWebinarTimingData(webinar: any, token: string, timeout: nu
     
     if (!response.ok) {
       if (response.status === 404) {
-        console.log(`[zoom-api][actual-timing-processor] ⚠️ Past webinar data not found for ${webinarId} (404), webinar may not have been started yet`);
+        console.log(`[zoom-api][actual-timing-processor] ⚠️ Past webinar data not found for ${webinarId} (404), webinar may not have been started or completed yet`);
         return null;
       } else {
         const errorText = await response.text();
