@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ZoomCredentialsStatus } from '@/hooks/zoom';
 
 const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
+const MAX_REFRESH_DURATION = 60000; // 60 seconds - maximum time to allow refresh state
 
 export function useWebinarData() {
   const { user } = useAuth();
@@ -21,10 +22,14 @@ export function useWebinarData() {
     credentialsStatus 
   } = useZoomWebinars();
   
+  // We no longer need useZoomCredentialsVerification since we're relying on 
+  // the data fetching process to verify credentials
   const { checkCredentialsStatus } = useZoomCredentials();
   
   const [isRefreshError, setIsRefreshError] = useState(false);
   const [isManualRefresh, setIsManualRefresh] = useState(false);
+  const refreshStartTime = useRef<number | null>(null);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Determine verified status from credentials status and errors
   const verified = credentialsStatus?.hasCredentials && 
@@ -39,9 +44,43 @@ export function useWebinarData() {
   // Reset error state on new error
   useEffect(() => {
     if (error) {
+      // Only log new errors
       console.log('[useWebinarData] Error detected:', error.message);
     }
   }, [error]);
+  
+  // Safety mechanism to reset loading state if it gets stuck
+  useEffect(() => {
+    if (isRefetching) {
+      // Record when refresh started
+      refreshStartTime.current = Date.now();
+      
+      // Set a safety timeout to reset the loading state if it gets stuck
+      refreshTimeoutRef.current = setTimeout(() => {
+        if (isRefetching) {
+          console.warn('[useWebinarData] Refresh state stuck for too long, forcing reset');
+          // This would normally be handled by the query component,
+          // but we'll provide a fallback reset mechanism
+          setIsManualRefresh(false);
+          toast({
+            title: 'Sync may still be in progress',
+            description: 'The Zoom API may still be processing your request in the background.',
+            variant: 'warning'
+          });
+        }
+      }, MAX_REFRESH_DURATION);
+      
+      return () => {
+        // Clear the timeout if component unmounts or isRefetching changes
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current);
+        }
+      };
+    } else {
+      // Reset the refresh start time when refresh completes
+      refreshStartTime.current = null;
+    }
+  }, [isRefetching, toast]);
   
   // Wrapper around refreshWebinars to add additional state management
   const handleRefresh = useCallback(async (force: boolean = false) => {
@@ -50,16 +89,26 @@ export function useWebinarData() {
       setIsRefreshError(false);
       
       try {
-        console.log('[useWebinarData] Starting ASYNC manual refresh');
+        console.log('[useWebinarData] Starting manual refresh');
         await refreshWebinars(force);
         
         // Reset any previous refresh errors
         setIsRefreshError(false);
+        
+        toast({
+          title: 'Webinars synced',
+          description: 'Webinar data has been updated from Zoom',
+          variant: 'default'
+        });
       } catch (err) {
         console.error('[useWebinarData] Manual refresh failed:', err);
         setIsRefreshError(true);
         
-        // Error toast is handled in refreshWebinarsOperation
+        toast({
+          title: 'Sync failed',
+          description: err.message || 'Could not refresh webinar data',
+          variant: 'destructive'
+        });
       } finally {
         setIsManualRefresh(false);
       }
@@ -82,20 +131,30 @@ export function useWebinarData() {
   const handleAutoRefresh = useCallback(async () => {
     if (!error && credentialsStatus?.hasCredentials) {
       try {
-        console.log('[useWebinarData] Starting ASYNC auto-refresh');
+        console.log('[useWebinarData] Starting auto-refresh');
         await refreshWebinars();
         // Reset any previous refresh errors
         setIsRefreshError(false);
         
-        // Success toast is handled in refreshWebinarsOperation
+        // Silent toast for background refreshes
+        toast({
+          title: 'Webinars synced',
+          description: 'Webinar data has been updated from Zoom',
+          variant: 'default'
+        });
       } catch (err) {
         console.error('[useWebinarData] Auto-refresh failed:', err);
         setIsRefreshError(true);
         
-        // Error toast is handled in refreshWebinarsOperation
+        // Only show error toast for auto-refresh failures if it's a new error
+        toast({
+          title: 'Sync failed',
+          description: 'Could not automatically refresh webinar data',
+          variant: 'destructive'
+        });
       }
     }
-  }, [refreshWebinars, error, credentialsStatus]);
+  }, [refreshWebinars, error, toast, credentialsStatus]);
 
   // Set up automatic refresh on mount and when dependencies change
   useEffect(() => {

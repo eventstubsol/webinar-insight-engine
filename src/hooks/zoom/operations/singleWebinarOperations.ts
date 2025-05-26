@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 /**
- * Sync a single webinar's complete data including metadata, participants, instances, and actual timing data.
+ * Sync a single webinar's complete data including metadata, participants, instances, etc.
  */
 export async function syncSingleWebinarOperation(
   webinarId: string,
@@ -43,21 +43,18 @@ export async function syncSingleWebinarOperation(
       ]);
     }
     
-    // Enhanced success message with host, panelist, and actual timing information
+    // Enhanced success message with host and panelist information
     const syncResults = data.sync_results || {};
     const hostResolved = syncResults.host_info_resolved ? 'host info resolved' : 'host info missing';
     const panelistInfo = syncResults.panelist_info_resolved ? 
       `${syncResults.panelists_count} panelists found` : 
       'no panelists assigned';
-    const actualTimingInfo = syncResults.actual_timing_resolved ? 
-      'actual timing data fetched' : 
-      'no actual timing data available';
     const itemsCount = data.items_synced || 0;
     
-    // Show success toast with detailed information including actual timing
+    // Show success toast with detailed information
     toast({
       title: 'Webinar synced successfully',
-      description: `Updated ${itemsCount} items for webinar ${webinarId}. ${hostResolved}, ${panelistInfo}, ${actualTimingInfo}.`,
+      description: `Updated ${itemsCount} items for webinar ${webinarId}. ${hostResolved}, ${panelistInfo}.`,
     });
     
     return data;

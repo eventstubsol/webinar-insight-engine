@@ -107,9 +107,6 @@ export async function performNonDestructiveUpsert(
       host_email: webinar.host_email,
       status: webinar.status,
       type: webinar.type,
-      // Include actual timing data
-      actual_start_time: webinar.actual_start_time || null,
-      actual_duration: webinar.actual_duration || null,
       raw_data: webinar,
       last_synced_at: currentTimestamp,
       updated_at: currentTimestamp
@@ -138,8 +135,6 @@ export async function performNonDestructiveUpsert(
           existingWebinar.duration !== webinar.duration ||
           existingWebinar.agenda !== webinar.agenda ||
           existingWebinar.status !== webinar.status ||
-          existingWebinar.actual_start_time !== webinar.actual_start_time ||
-          existingWebinar.actual_duration !== webinar.actual_duration ||
           JSON.stringify(existingWebinar.raw_data) !== JSON.stringify(webinar);
         
         if (hasChanges) {

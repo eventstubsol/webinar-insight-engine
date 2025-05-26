@@ -1,11 +1,12 @@
 
 import { QueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
-import { startAsyncWebinarSync, pollSyncJob } from '../services/apiOperations';
+import { refreshWebinarsFromAPI } from '../services/webinarApiService';
 import { updateParticipantDataOperation } from './participantOperations';
+import { executeWithTimeout, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
 
 /**
- * COMPREHENSIVE async refresh webinars operation with proper timing data fetching
+ * Refresh webinars operation with non-destructive sync and improved error handling
  */
 export async function refreshWebinarsOperation(
   userId: string | undefined,
@@ -21,126 +22,116 @@ export async function refreshWebinarsOperation(
     return;
   }
   
-  let progressToast: any = null;
+  let isCompleted = false;
+  let timeoutTriggered = false;
+  let participantsUpdated = 0;
   
   try {
-    console.log(`[refreshWebinarsOperation] Starting COMPREHENSIVE async sync with TIMING DATA FOCUS for user ${userId}`);
+    console.log(`[refreshWebinarsOperation] Starting non-destructive refresh with force=${force} for user ${userId}`);
     
-    // Start comprehensive async sync job with timing data priority
-    const asyncResult = await startAsyncWebinarSync(userId, force);
-    
-    if (!asyncResult.success || !asyncResult.job_id) {
-      throw new Error(asyncResult.error || 'Failed to start comprehensive sync job');
-    }
-    
-    const jobId = asyncResult.job_id;
-    console.log(`[refreshWebinarsOperation] Comprehensive async sync started with job ID: ${jobId}`);
-    
-    // Show immediate cached data if available
-    if (asyncResult.cached_data?.webinars) {
-      console.log(`[refreshWebinarsOperation] Using cached data while comprehensive sync processes timing data`);
-      await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
-    }
-    
-    // Show initial progress toast
-    progressToast = toast({
-      title: 'Starting comprehensive timing data sync...',
-      description: 'Fetching webinar metadata and actual timing data (2-5 minutes)',
-      variant: 'default',
-      duration: 60000
-    });
-    
-    // Poll for progress updates with comprehensive timing focus
-    const finalResult = await pollSyncJob(
-      jobId,
-      (progress) => {
-        console.log(`[refreshWebinarsOperation] Timing data sync progress:`, progress);
-        
-        const percentage = progress.progress || 0;
-        const currentStage = progress.metadata?.current_stage || 'processing';
-        const stages = progress.metadata?.stages || {};
-        
-        let description = `Stage: ${currentStage.replace(/_/g, ' ')} - ${percentage}%`;
-        
-        // Add timing-specific progress details
-        if (stages[currentStage]) {
-          const stageInfo = stages[currentStage];
-          if (stageInfo.message) {
-            description += ` - ${stageInfo.message}`;
-          }
-          
-          // Show timing data specific progress
-          if (currentStage === 'enhancement_timing_data') {
-            description += ' (Fetching actual start times and durations)';
-          }
-        }
-        
-        // Show estimated time for timing data operations
-        if (percentage < 50) {
-          description += ' (2-4 minutes remaining for timing data)';
-        } else if (percentage < 80) {
-          description += ' (1-2 minutes remaining)';
-        }
-        
+    // Make the API call to fetch fresh data from Zoom with timeout protection
+    const refreshData = await executeWithTimeout(
+      () => refreshWebinarsFromAPI(userId, force),
+      OPERATION_TIMEOUT,
+      () => {
+        timeoutTriggered = true;
         toast({
-          title: 'Timing data sync in progress...',
-          description,
-          variant: 'default',
-          duration: 10000
+          title: 'Sync taking longer than expected',
+          description: 'The operation is still running in the background. Historical data will be preserved.',
+          variant: 'default'
         });
-      },
-      3000, // Poll every 3 seconds
-      240   // 12 minutes timeout for comprehensive timing operations
+      }
     );
     
-    // Comprehensive sync completed successfully
+    isCompleted = true;
+
+    // Also update participant data for completed webinars (silently)
+    try {
+      const participantData = await updateParticipantDataOperation(userId, queryClient, true);
+      participantsUpdated = participantData?.updated || 0;
+    } catch (err) {
+      console.error('[refreshWebinarsOperation] Error updating participant data:', err);
+      // Don't throw here, as we want the main sync to succeed even if participant data fails
+    }
+
+    // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
     
-    // Enhanced success message with timing data results
-    const results = finalResult.results || {};
-    const webinarsProcessed = results.webinars_processed || 0;
-    const timingDataEnhanced = results.timing_data_enhanced || 0;
-    const stagesCompleted = results.total_stages_completed || 0;
-    
-    toast({
-      title: 'Comprehensive timing data sync completed!',
-      description: `Processed ${webinarsProcessed} webinars, enhanced ${timingDataEnhanced} with actual timing data across ${stagesCompleted} stages. All metadata, participants, instances, recordings, and timing data synced.`,
-      variant: 'default',
-      duration: 8000
-    });
-    
-    console.log(`[refreshWebinarsOperation] COMPREHENSIVE timing data sync completed successfully`);
-    console.log(`[refreshWebinarsOperation] Timing data enhanced for ${timingDataEnhanced} webinars`);
-    
-  } catch (err: any) {
-    console.error('[refreshWebinarsOperation] Error during COMPREHENSIVE timing data refresh:', err);
-    
-    // Enhanced error handling for timing data sync
-    let errorMessage = 'An unexpected error occurred during timing data sync';
-    let errorTitle = 'Timing data sync failed';
-    
-    if (err?.message) {
-      errorMessage = err.message;
+    // Show enhanced notification with non-destructive sync results
+    if (refreshData.syncResults) {
+      const { 
+        newWebinars = 0, 
+        updatedWebinars = 0, 
+        preservedWebinars = 0, 
+        totalWebinars = 0,
+        dataRange 
+      } = refreshData.syncResults;
       
-      if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
-        errorTitle = 'Sync timeout';
-        errorMessage = 'The timing data sync took longer than expected. Some data may still be processing. Please check your webinars and try again if needed.';
-      } else if (errorMessage.includes('credentials') || errorMessage.includes('Authentication')) {
-        errorTitle = 'Authentication Error';
-        errorMessage = 'Please check your Zoom credentials and try again.';
-      } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
-        errorTitle = 'Rate limit exceeded';
-        errorMessage = 'Too many requests to Zoom API. Please wait a few minutes and try again.';
+      const syncMessage = `${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`;
+      const totalMessage = `Total: ${totalWebinars} webinars${dataRange?.oldest ? ` (from ${new Date(dataRange.oldest).toLocaleDateString()})` : ''}`;
+      const participantMessage = participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : '';
+      
+      toast({
+        title: 'Non-destructive sync completed',
+        description: `${syncMessage}. ${totalMessage}${participantMessage}`,
+        variant: 'default'
+      });
+    } else {
+      // Fallback for backward compatibility
+      toast({
+        title: 'Webinars synced',
+        description: 'Webinar data has been updated from Zoom',
+        variant: 'default'
+      });
+    }
+  } catch (err: any) {
+    isCompleted = true;
+    
+    console.error('[refreshWebinarsOperation] Error during refresh:', err);
+    
+    // Different error handling based on error type
+    if (timeoutTriggered) {
+      toast({
+        title: 'Sync may be incomplete',
+        description: 'The operation took too long. Historical data has been preserved.',
+        variant: 'warning'
+      });
+    } else {
+      // Enhanced error handling
+      let errorMessage = 'An unexpected error occurred';
+      
+      if (err?.message) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+      
+      // Handle specific error types
+      if (errorMessage.includes('scopes')) {
+        toast({
+          title: 'Missing OAuth Scopes',
+          description: 'Please check your Zoom app configuration and add the required scopes',
+          variant: 'destructive'
+        });
+      } else if (errorMessage.includes('credentials')) {
+        toast({
+          title: 'Authentication Error',
+          description: 'Please check your Zoom credentials',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Non-destructive sync failed',
+          description: errorMessage,
+          variant: 'destructive'
+        });
       }
     }
     
-    toast({
-      title: errorTitle,
-      description: errorMessage,
-      variant: 'destructive',
-      duration: 10000
-    });
-    
     throw err;
+  } finally {
+    // Ensure that even if there's an uncaught exception, we set isCompleted
+    // This flag can be used by the calling code to reset UI states
+    console.log(`[refreshWebinarsOperation] Non-destructive operation completed: ${isCompleted}`);
   }
 }
