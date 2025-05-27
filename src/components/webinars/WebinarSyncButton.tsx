@@ -2,9 +2,12 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { RefreshCw, Clock, Zap } from 'lucide-react';
+import { RefreshCw, Clock, Zap, Sparkles } from 'lucide-react';
 import { useSingleWebinarSync } from '@/hooks/zoom/useSingleWebinarSync';
 import { formatDistanceToNow } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from '@/hooks/use-toast';
 
 interface WebinarSyncButtonProps {
   webinarId: string;
@@ -12,7 +15,7 @@ interface WebinarSyncButtonProps {
   variant?: 'default' | 'outline' | 'ghost' | 'secondary';
   showLastSync?: boolean;
   className?: string;
-  mode?: 'single' | 'timing'; // New prop to indicate sync mode
+  mode?: 'single' | 'timing' | 'enhance'; // New enhance mode for on-demand enhancement
 }
 
 export const WebinarSyncButton: React.FC<WebinarSyncButtonProps> = ({
@@ -23,10 +26,13 @@ export const WebinarSyncButton: React.FC<WebinarSyncButtonProps> = ({
   className,
   mode = 'single'
 }) => {
+  const { user } = useAuth();
   const { syncWebinar, isSyncing, syncingWebinarId, getLastSyncTime } = useSingleWebinarSync();
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [isEnhancing, setIsEnhancing] = useState(false);
   
   const isThisWebinarSyncing = isSyncing && syncingWebinarId === webinarId;
+  const isThisWebinarEnhancing = isEnhancing;
 
   // Load last sync time on mount
   useEffect(() => {
@@ -38,33 +44,114 @@ export const WebinarSyncButton: React.FC<WebinarSyncButtonProps> = ({
   }, [webinarId, getLastSyncTime]);
 
   const handleSync = () => {
-    syncWebinar(webinarId);
+    if (mode === 'enhance') {
+      handleEnhance();
+    } else {
+      syncWebinar(webinarId);
+    }
+  };
+
+  const handleEnhance = async () => {
+    if (!user) return;
+    
+    setIsEnhancing(true);
+    try {
+      console.log(`[WebinarSyncButton] Enhancing webinar: ${webinarId}`);
+      
+      const { data, error } = await supabase.functions.invoke('zoom-api', {
+        body: { 
+          action: 'enhance-single-webinar',
+          webinar_id: webinarId
+        }
+      });
+      
+      if (error) {
+        console.error('[WebinarSyncButton] Enhancement error:', error);
+        toast({
+          title: 'Enhancement failed',
+          description: error.message || 'Failed to enhance webinar data',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      console.log('[WebinarSyncButton] Enhancement completed:', data);
+      
+      toast({
+        title: 'Webinar enhanced',
+        description: data.enhancement_status === 'cached' 
+          ? 'Webinar data is current' 
+          : 'Webinar enhanced with detailed host, panelist, and participant data',
+        variant: 'default'
+      });
+      
+      // Update last sync time
+      setLastSync(new Date());
+      
+    } catch (error: any) {
+      console.error('[WebinarSyncButton] Enhancement exception:', error);
+      toast({
+        title: 'Enhancement failed',
+        description: 'Failed to enhance webinar data',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsEnhancing(false);
+    }
   };
 
   const getButtonText = () => {
+    if (isThisWebinarEnhancing) {
+      return 'Enhancing...';
+    }
     if (isThisWebinarSyncing) {
       return mode === 'timing' ? 'Enhancing...' : 'Syncing...';
     }
-    return mode === 'timing' ? 'Enhance Timing' : 'Sync';
+    
+    switch (mode) {
+      case 'enhance':
+        return 'Enhance';
+      case 'timing':
+        return 'Enhance Timing';
+      default:
+        return 'Sync';
+    }
   };
 
   const getTooltipText = () => {
-    if (mode === 'timing') {
-      return lastSync 
-        ? `Last timing enhancement: ${formatDistanceToNow(lastSync, { addSuffix: true })}`
-        : 'Enhance this webinar with actual timing data (Phase 2)';
+    switch (mode) {
+      case 'enhance':
+        return lastSync 
+          ? `Last enhanced: ${formatDistanceToNow(lastSync, { addSuffix: true })}. Click to enhance with host, panelist, and participant data.`
+          : 'Enhance this webinar with detailed host, panelist, and participant data';
+      case 'timing':
+        return lastSync 
+          ? `Last timing enhancement: ${formatDistanceToNow(lastSync, { addSuffix: true })}`
+          : 'Enhance this webinar with actual timing data (Phase 2)';
+      default:
+        return lastSync 
+          ? `Last synced: ${formatDistanceToNow(lastSync, { addSuffix: true })}`
+          : 'Sync this webinar';
     }
-    
-    return lastSync 
-      ? `Last synced: ${formatDistanceToNow(lastSync, { addSuffix: true })}`
-      : 'Sync this webinar';
   };
 
   const getIcon = () => {
-    if (mode === 'timing') {
-      return <Zap className={`h-4 w-4 ${isThisWebinarSyncing ? 'animate-pulse' : ''}`} />;
+    const isLoading = isThisWebinarSyncing || isThisWebinarEnhancing;
+    
+    switch (mode) {
+      case 'enhance':
+        return <Sparkles className={`h-4 w-4 ${isLoading ? 'animate-pulse' : ''}`} />;
+      case 'timing':
+        return <Zap className={`h-4 w-4 ${isLoading ? 'animate-pulse' : ''}`} />;
+      default:
+        return <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />;
     }
-    return <RefreshCw className={`h-4 w-4 ${isThisWebinarSyncing ? 'animate-spin' : ''}`} />;
+  };
+
+  const getVariant = () => {
+    if (mode === 'enhance') return 'default';
+    if (mode === 'timing') return 'secondary';
+    return variant;
   };
 
   return (
@@ -72,10 +159,10 @@ export const WebinarSyncButton: React.FC<WebinarSyncButtonProps> = ({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant={mode === 'timing' ? 'secondary' : variant}
+            variant={getVariant()}
             size={size}
             onClick={handleSync}
-            disabled={isThisWebinarSyncing}
+            disabled={isThisWebinarSyncing || isThisWebinarEnhancing}
             className="gap-1"
           >
             {getIcon()}

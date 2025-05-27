@@ -24,12 +24,62 @@ export function useZoomWebinarDetails(webinarId: string | null) {
       if (!dbError && dbWebinar) {
         console.log(`[useZoomWebinarDetails] Found webinar in database:`, dbWebinar);
         
-        // Safely access raw_data with proper typing
+        // Check if webinar needs enhancement (missing host data)
+        const needsEnhancement = !dbWebinar.host_email || !dbWebinar.host_name;
+        
+        if (needsEnhancement) {
+          console.log(`[useZoomWebinarDetails] Webinar needs enhancement, triggering on-demand enhancement`);
+          
+          // Trigger enhancement in background
+          const { data: enhancementData, error: enhancementError } = await supabase.functions.invoke('zoom-api', {
+            body: { 
+              action: 'enhance-single-webinar',
+              webinar_id: webinarId
+            }
+          });
+          
+          if (enhancementError) {
+            console.error('[useZoomWebinarDetails] Enhancement failed:', enhancementError);
+            // Continue with existing data even if enhancement fails
+          } else if (enhancementData?.webinar) {
+            console.log('[useZoomWebinarDetails] Enhancement successful, using enhanced data');
+            // Use enhanced data
+            const enhancedWebinar = enhancementData.webinar;
+            
+            // Safely access raw_data with proper typing
+            const rawData = enhancedWebinar.raw_data as any;
+            
+            return {
+              // Start with raw_data
+              ...rawData,
+              // Override with database fields (these should take precedence)
+              id: enhancedWebinar.webinar_id,
+              webinar_id: enhancedWebinar.webinar_id,
+              webinar_uuid: enhancedWebinar.webinar_uuid,
+              topic: enhancedWebinar.topic,
+              start_time: enhancedWebinar.start_time,
+              duration: enhancedWebinar.duration,
+              timezone: enhancedWebinar.timezone,
+              agenda: enhancedWebinar.agenda,
+              host_email: enhancedWebinar.host_email,
+              host_id: enhancedWebinar.host_id,
+              host_name: enhancedWebinar.host_name,
+              host_first_name: enhancedWebinar.host_first_name,
+              host_last_name: enhancedWebinar.host_last_name,
+              status: enhancedWebinar.status,
+              type: enhancedWebinar.type,
+              last_synced_at: enhancedWebinar.last_synced_at,
+              // Ensure panelists is available at the top level for easier access
+              panelists: rawData?.panelists || [],
+              _enhanced: true
+            };
+          }
+        }
+        
+        // Use existing data (possibly not fully enhanced)
         const rawData = dbWebinar.raw_data as any;
-        console.log(`[useZoomWebinarDetails] Raw data panelists:`, rawData?.panelists);
         
         // Create webinar data with proper field precedence
-        // Database fields should take precedence over raw_data fields
         const webinarData = {
           // Start with raw_data
           ...rawData,
@@ -52,18 +102,8 @@ export function useZoomWebinarDetails(webinarId: string | null) {
           last_synced_at: dbWebinar.last_synced_at,
           // Ensure panelists is available at the top level for easier access
           panelists: rawData?.panelists || [],
+          _enhanced: !needsEnhancement
         };
-        
-        console.log(`[useZoomWebinarDetails] Processed webinar data:`, {
-          id: webinarData.id,
-          host_email: webinarData.host_email,
-          host_id: webinarData.host_id,
-          host_name: webinarData.host_name,
-          host_first_name: webinarData.host_first_name,
-          host_last_name: webinarData.host_last_name,
-          panelists_count: webinarData.panelists?.length || 0,
-          raw_data_keys: Object.keys(rawData || {})
-        });
         
         return webinarData;
       }
