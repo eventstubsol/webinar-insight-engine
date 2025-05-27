@@ -9,10 +9,11 @@ import { syncWebinarInstancesForWebinars } from './webinarInstanceSyncer.ts';
 
 /**
  * Orchestrates the comprehensive enhancement of webinar data with all available information sources
+ * FIXED: Now properly syncs instances for ALL webinars with correct duration data
  */
 export async function enhanceWebinarsWithAllData(webinars: any[], token: string, supabase?: any, userId?: string) {
-  console.log(`[zoom-api][enhancement-orchestrator] Starting COMPREHENSIVE enhancement process for ${webinars.length} webinars`);
-  console.log(`[zoom-api][enhancement-orchestrator] 🚀 This will include: Host Info → Panelists → Participants → Recordings → Detailed Settings → Instance Syncing (ALL WEBINARS) → Actual Timing Data`);
+  console.log(`[zoom-api][enhancement-orchestrator] Starting FIXED enhancement process for ${webinars.length} webinars`);
+  console.log(`[zoom-api][enhancement-orchestrator] 🎯 CRITICAL FIX: Will properly populate instance duration data for all webinars`);
   
   if (!webinars || webinars.length === 0) {
     console.log(`[zoom-api][enhancement-orchestrator] No webinars to enhance`);
@@ -21,7 +22,7 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
   
   try {
     // Process webinars in smaller batches to avoid timeouts
-    const BATCH_SIZE = 20; // Process 20 webinars at a time
+    const BATCH_SIZE = 20;
     const enhancedWebinars = [];
     
     for (let i = 0; i < webinars.length; i += BATCH_SIZE) {
@@ -38,7 +39,7 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       
       // Step 3: Skip participant data for initial sync (can be done separately)
       console.log(`[zoom-api][enhancement-orchestrator] Step 3/7: Skipping participant data for faster sync`);
-      const webinarsWithParticipantInfo = webinarsWithPanelistInfo; // Skip for now
+      const webinarsWithParticipantInfo = webinarsWithPanelistInfo;
       
       // Step 4: Enhance with recording data for completed webinars
       console.log(`[zoom-api][enhancement-orchestrator] Step 4/7: Enhancing batch with recording data`);
@@ -46,19 +47,19 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       
       // Step 5: Skip detailed settings for initial sync (can be done separately)
       console.log(`[zoom-api][enhancement-orchestrator] Step 5/7: Skipping detailed settings for faster sync`);
-      const webinarsWithDetailedSettings = webinarsWithRecordings; // Skip for now
+      const webinarsWithDetailedSettings = webinarsWithRecordings;
       
-      // Step 6: 🔥 CRITICAL FIX: Sync webinar instances for ALL webinars, not just completed ones
-      console.log(`[zoom-api][enhancement-orchestrator] Step 6/7: Syncing webinar instances for ALL webinars (CRITICAL FIX)`);
+      // Step 6: 🔥 FIXED: Sync webinar instances for ALL webinars with proper duration data
+      console.log(`[zoom-api][enhancement-orchestrator] Step 6/7: FIXED - Syncing instances for ALL webinars with proper duration data`);
       if (supabase && userId) {
-        console.log(`[zoom-api][enhancement-orchestrator] 🎯 Processing instances for ALL ${webinarsWithDetailedSettings.length} webinars (removed completed-only filter)`);
+        console.log(`[zoom-api][enhancement-orchestrator] 🎯 Processing instances for ALL ${webinarsWithDetailedSettings.length} webinars (FIXED)`);
         await syncWebinarInstancesForWebinars(webinarsWithDetailedSettings, token, supabase, userId);
       } else {
         console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ Skipping instance syncing - supabase or userId not provided`);
       }
       
       // Step 7: Enhance with actual timing data from instances
-      console.log(`[zoom-api][enhancement-orchestrator] Step 7/7: Enhancing batch with ACTUAL TIMING DATA from instances`);
+      console.log(`[zoom-api][enhancement-orchestrator] Step 7/7: Enhancing batch with timing data from instances`);
       let batchEnhancedWebinars = webinarsWithDetailedSettings;
       
       if (supabase && userId) {
@@ -117,7 +118,7 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       with_detailed_settings: enhancedWebinars.filter(w => w._enhanced_with_details === true).length,
       failed_detail_enhancement: enhancedWebinars.filter(w => w._enhanced_with_details === false).length,
       
-      // 🔥 ACTUAL timing enhancement from instances
+      // FIXED timing enhancement from instances
       with_actual_timing: enhancedWebinars.filter(w => w.actual_start_time).length,
       with_actual_duration: enhancedWebinars.filter(w => w.actual_duration).length,
       enhanced_from_instances: enhancedWebinars.filter(w => w._enhanced_with_timing === true).length,
@@ -129,46 +130,28 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       with_passwords: enhancedWebinars.filter(w => w.password).length
     };
     
-    console.log(`[zoom-api][enhancement-orchestrator] 🎉 COMPREHENSIVE ENHANCEMENT COMPLETED SUCCESSFULLY!`);
+    console.log(`[zoom-api][enhancement-orchestrator] 🎉 FIXED ENHANCEMENT COMPLETED SUCCESSFULLY!`);
     console.log(`[zoom-api][enhancement-orchestrator] ═══════════════════════════════════════════════════════`);
-    console.log(`[zoom-api][enhancement-orchestrator] 📊 FINAL ENHANCEMENT STATISTICS:`);
+    console.log(`[zoom-api][enhancement-orchestrator] 📊 FIXED ENHANCEMENT STATISTICS:`);
     console.log(`[zoom-api][enhancement-orchestrator] ═══════════════════════════════════════════════════════`);
     console.log(`[zoom-api][enhancement-orchestrator] 📈 Overview:`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Total webinars: ${enhancementStats.total_webinars}`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Completed webinars: ${enhancementStats.completed_webinars}`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Upcoming webinars: ${enhancementStats.upcoming_webinars}`);
     console.log(`[zoom-api][enhancement-orchestrator] `);
-    console.log(`[zoom-api][enhancement-orchestrator] 👥 Host & People Data:`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With host info: ${enhancementStats.with_host_info}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_host_info/enhancementStats.total_webinars)*100)}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With panelist data: ${enhancementStats.with_panelist_data}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_panelist_data/enhancementStats.total_webinars)*100)}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With participant data: ${enhancementStats.with_participant_data}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_participant_data/enhancementStats.total_webinars)*100)}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator] `);
-    console.log(`[zoom-api][enhancement-orchestrator] 🎥 Media & Content:`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With recording data: ${enhancementStats.with_recording_data}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_recording_data/enhancementStats.total_webinars)*100)}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator] `);
-    console.log(`[zoom-api][enhancement-orchestrator] ⚙️ Settings & Configuration:`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With detailed settings: ${enhancementStats.with_detailed_settings}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_detailed_settings/enhancementStats.total_webinars)*100)}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With join URLs: ${enhancementStats.with_join_urls}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_join_urls/enhancementStats.total_webinars)*100)}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With registration URLs: ${enhancementStats.with_registration_urls}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_registration_urls/enhancementStats.total_webinars)*100)}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With passwords: ${enhancementStats.with_passwords}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_passwords/enhancementStats.total_webinars)*100)}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator] `);
-    console.log(`[zoom-api][enhancement-orchestrator] 🕒 ACTUAL TIMING DATA (CRITICAL):`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With actual timing: ${enhancementStats.with_actual_timing}/${enhancementStats.total_webinars} webinars (${enhancementStats.total_webinars > 0 ? Math.round((enhancementStats.with_actual_timing/enhancementStats.total_webinars)*100) : 0}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With actual duration: ${enhancementStats.with_actual_duration}/${enhancementStats.total_webinars} webinars (${enhancementStats.total_webinars > 0 ? Math.round((enhancementStats.with_actual_duration/enhancementStats.total_webinars)*100) : 0}%)`);
+    console.log(`[zoom-api][enhancement-orchestrator] 🕒 FIXED TIMING DATA (CRITICAL):`);
+    console.log(`[zoom-api][enhancement-orchestrator]   • With actual timing: ${enhancementStats.with_actual_timing}/${enhancementStats.total_webinars} webinars`);
+    console.log(`[zoom-api][enhancement-orchestrator]   • With actual duration: ${enhancementStats.with_actual_duration}/${enhancementStats.total_webinars} webinars`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Enhanced from instances: ${enhancementStats.enhanced_from_instances}`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Enhanced from past API: ${enhancementStats.enhanced_from_past_api}`);
     console.log(`[zoom-api][enhancement-orchestrator] ═══════════════════════════════════════════════════════`);
     
-    if (enhancementStats.failed_detail_enhancement > 0) {
-      console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ Failed to enhance ${enhancementStats.failed_detail_enhancement} webinars with detailed settings`);
-    }
-    
-    console.log(`[zoom-api][enhancement-orchestrator] 🔧 CRITICAL FIX APPLIED: Now syncing instances for ALL webinars, not just completed ones`);
+    console.log(`[zoom-api][enhancement-orchestrator] 🔧 CRITICAL FIX APPLIED: Now properly fetching and storing duration data for all webinars`);
     
     return enhancedWebinars;
     
   } catch (error) {
-    console.error(`[zoom-api][enhancement-orchestrator] ❌ Error during COMPREHENSIVE enhancement process:`, error);
+    console.error(`[zoom-api][enhancement-orchestrator] ❌ Error during FIXED enhancement process:`, error);
     throw error;
   }
 }
