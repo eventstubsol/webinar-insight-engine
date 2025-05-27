@@ -41,21 +41,25 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
       if (!user) return [];
       
       try {
+        console.log(`[useZoomWebinarInstances] Fetching instances for webinar: ${webinarId || 'all'}`);
+        
         // First try to get instances from database
         const dbInstances = await fetchWebinarInstancesFromDatabase(user.id, webinarId);
         
         // If we don't have the webinarId, just return what's in the database
         if (!webinarId) {
+          console.log(`[useZoomWebinarInstances] Returning ${dbInstances?.length || 0} instances from database`);
           return dbInstances || [];
         }
         
-        // If we have a webinarId but no instances in DB or we have < 2 instances,
-        // try to fetch instances from the API
-        if (!dbInstances || dbInstances.length < 2) {
+        // If we have a webinarId but no instances in DB, try to fetch from API
+        if (!dbInstances || dbInstances.length === 0) {
           try {
+            console.log(`[useZoomWebinarInstances] No instances in database, fetching from API for webinar ${webinarId}`);
             await fetchWebinarInstancesAPI(webinarId);
             // Refetch from database after API call
             const refreshedInstances = await fetchWebinarInstancesFromDatabase(user.id, webinarId);
+            console.log(`[useZoomWebinarInstances] Fetched ${refreshedInstances?.length || 0} instances from API`);
             return refreshedInstances || [];
           } catch (apiError) {
             console.error('[useZoomWebinarInstances] Error fetching instances from API:', apiError);
@@ -64,6 +68,7 @@ export function useZoomWebinarInstances(webinarId?: string): UseZoomWebinarInsta
           }
         }
         
+        console.log(`[useZoomWebinarInstances] Returning ${dbInstances?.length || 0} instances from database`);
         return dbInstances || [];
       } catch (err) {
         console.error('[useZoomWebinarInstances] Error:', err);

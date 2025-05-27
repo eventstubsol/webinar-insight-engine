@@ -16,12 +16,13 @@ export interface DurationInfo {
  * Get formatted start time display with appropriate label for instances
  */
 export function getInstanceStartTimeDisplay(instance: any, timezone: string): StartTimeInfo {
+  // For instances, start_time is the actual start time, actual_start_time is from past_webinars API
   if (instance.actual_start_time) {
     const actualStart = formatInTimeZone(parseISO(instance.actual_start_time), timezone, 'h:mm a');
-    return { label: 'Actual Start:', time: actualStart };
+    return { label: 'Verified Start:', time: actualStart };
   } else if (instance.start_time) {
-    const scheduledStart = formatInTimeZone(parseISO(instance.start_time), timezone, 'h:mm a');
-    return { label: 'Scheduled Start:', time: scheduledStart };
+    const start = formatInTimeZone(parseISO(instance.start_time), timezone, 'h:mm a');
+    return { label: 'Start Time:', time: start };
   } else {
     return { label: 'Start Time:', time: 'Not available' };
   }
@@ -31,10 +32,11 @@ export function getInstanceStartTimeDisplay(instance: any, timezone: string): St
  * Get formatted duration display with appropriate label for instances
  */
 export function getInstanceDurationDisplay(instance: any): DurationInfo {
+  // Prioritize actual_duration from past_webinars API, then regular duration
   if (instance.actual_duration) {
-    return { label: 'Actual Duration:', duration: `${instance.actual_duration} minutes` };
+    return { label: 'Verified Duration:', duration: `${instance.actual_duration} minutes` };
   } else if (instance.duration) {
-    return { label: 'Scheduled Duration:', duration: `${instance.duration} minutes` };
+    return { label: 'Duration:', duration: `${instance.duration} minutes` };
   } else {
     return { label: 'Duration:', duration: 'Not specified' };
   }
