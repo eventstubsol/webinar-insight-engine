@@ -54,7 +54,7 @@ export async function enhanceWebinarsWithAllData(
               instance_id: instance.uuid || '',
               start_time: instance.start_time || null,
               end_time: instance.end_time || null,
-              duration: instance.duration || null,
+              duration: instance.duration || null, // Store actual duration from instance
               topic: webinar.topic || 'Untitled Webinar',
               status: instance.status || null,
               registrants_count: 0,
@@ -74,7 +74,7 @@ export async function enhanceWebinarsWithAllData(
             }
           }
           
-          // Calculate total actual duration from instances
+          // Calculate total actual duration from instances using the existing duration column
           const { data: durationSum, error: durationError } = await supabase
             .from('zoom_webinar_instances')
             .select('duration')
@@ -88,7 +88,7 @@ export async function enhanceWebinarsWithAllData(
             
             if (totalDuration > 0) {
               actualDuration = totalDuration;
-              console.log(`[webinar-enhancement] Calculated actual duration for webinar ${webinar.id}: ${actualDuration} minutes`);
+              console.log(`[webinar-enhancement] Calculated actual duration for webinar ${webinar.id}: ${actualDuration} minutes from ${durationSum.length} instances`);
             }
           }
         } else {
