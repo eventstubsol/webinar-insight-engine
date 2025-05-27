@@ -94,6 +94,20 @@ export async function performNonDestructiveUpsert(
   let updatedWebinars = 0;
   const currentTimestamp = new Date().toISOString();
   
+  // Log detailed info about actual timing data before upserting
+  const webinarsWithActualTiming = webinars.filter(w => w.actual_start_time || w.actual_duration);
+  console.log(`[zoom-api][performNonDestructiveUpsert] 🕒 TIMING DATA CHECK:`);
+  console.log(`[zoom-api][performNonDestructiveUpsert] - Total webinars to upsert: ${webinars.length}`);
+  console.log(`[zoom-api][performNonDestructiveUpsert] - Webinars with actual timing data: ${webinarsWithActualTiming.length}`);
+  
+  // Log sample of webinars with timing data
+  if (webinarsWithActualTiming.length > 0) {
+    console.log(`[zoom-api][performNonDestructiveUpsert] Sample webinars with timing data:`);
+    webinarsWithActualTiming.slice(0, 3).forEach(w => {
+      console.log(`[zoom-api][performNonDestructiveUpsert] - Webinar ${w.id}: actual_start_time=${w.actual_start_time}, actual_duration=${w.actual_duration}`);
+    });
+  }
+  
   for (const webinar of webinars) {
     // Extract actual timing data from webinar response
     const actualStartTime = webinar.actual_start_time || 
@@ -105,6 +119,11 @@ export async function performNonDestructiveUpsert(
                            webinar.duration_actual || 
                            webinar.actualDuration || 
                            null;
+
+    // Log timing data for each webinar that has it
+    if (actualStartTime || actualDuration) {
+      console.log(`[zoom-api][performNonDestructiveUpsert] 🎯 Webinar ${webinar.id} has timing data: start=${actualStartTime}, duration=${actualDuration}`);
+    }
 
     // Comprehensive field mapping - extracting all available data
     const webinarData = {
@@ -167,13 +186,12 @@ export async function performNonDestructiveUpsert(
       updated_at: currentTimestamp
     };
     
-    // Log field mapping success for debugging
-    const mappedFields = Object.keys(webinarData).filter(key => 
-      webinarData[key] !== null && 
-      webinarData[key] !== undefined && 
-      webinarData[key] !== ''
-    );
-    console.log(`[zoom-api][performNonDestructiveUpsert] Webinar ${webinar.id}: mapped ${mappedFields.length} fields`);
+    // Log the actual data being upserted for webinars with timing
+    if (webinarData.actual_start_time || webinarData.actual_duration) {
+      console.log(`[zoom-api][performNonDestructiveUpsert] 📝 Upserting timing data for webinar ${webinar.id}:`);
+      console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_start_time: ${webinarData.actual_start_time}`);
+      console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_duration: ${webinarData.actual_duration}`);
+    }
     
     // Use UPSERT with ON CONFLICT to either insert new or update existing
     const { error: upsertError } = await supabase
@@ -184,7 +202,7 @@ export async function performNonDestructiveUpsert(
       });
     
     if (upsertError) {
-      console.error(`[zoom-api][performNonDestructiveUpsert] Error upserting webinar ${webinar.id}:`, upsertError);
+      console.error(`[zoom-api][performNonDestructiveUpsert] ❌ Error upserting webinar ${webinar.id}:`, upsertError);
     } else {
       // Check if this was an insert (new) or update (existing)
       const existingWebinar = existingWebinars?.find(w => w.webinar_id === webinar.id.toString());
@@ -208,6 +226,13 @@ export async function performNonDestructiveUpsert(
         if (hasChanges) {
           updatedWebinars++;
           console.log(`[zoom-api][performNonDestructiveUpsert] ✅ Webinar updated: ${webinar.id}`);
+          
+          // Log specific timing updates
+          if (existingWebinar.actual_start_time !== actualStartTime || existingWebinar.actual_duration !== actualDuration) {
+            console.log(`[zoom-api][performNonDestructiveUpsert] 🔄 Timing data updated for webinar ${webinar.id}:`);
+            console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_start_time: ${existingWebinar.actual_start_time} → ${actualStartTime}`);
+            console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_duration: ${existingWebinar.actual_duration} → ${actualDuration}`);
+          }
         }
       }
     }
@@ -219,6 +244,10 @@ export async function performNonDestructiveUpsert(
   const preservedWebinars = preservedWebinarsList.length;
   
   console.log(`[zoom-api][performNonDestructiveUpsert] 🎉 Comprehensive upsert completed: ${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`);
+  
+  // Final timing data summary
+  const finalTimingCount = webinars.filter(w => w.actual_start_time || w.actual_duration).length;
+  console.log(`[zoom-api][performNonDestructiveUpsert] 📊 Final timing data summary: ${finalTimingCount}/${webinars.length} webinars have actual timing data`);
   
   return { newWebinars, updatedWebinars, preservedWebinars };
 }
