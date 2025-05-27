@@ -14,15 +14,25 @@ export interface DurationInfo {
 
 /**
  * Get formatted start time display with appropriate label
- * Note: Actual timing data temporarily disabled to fix 500 errors
+ * Note: Minimal sync returns scheduled times only for performance
  */
 export function getStartTimeDisplay(webinar: any, timezone: string): StartTimeInfo {
+  // In minimal sync mode, we only have scheduled times
+  if (webinar._minimal_sync || !webinar.actual_start_time) {
+    if (webinar.start_time) {
+      const scheduledStart = formatInTimeZone(parseISO(webinar.start_time), timezone, 'h:mm a');
+      return { label: 'Scheduled Start:', time: scheduledStart };
+    } else {
+      return { label: 'Start Time:', time: 'Not available' };
+    }
+  }
+  
+  // Legacy handling for enhanced webinars (rarely used now)
   if (webinar.actual_start_time) {
     const actualStart = formatInTimeZone(parseISO(webinar.actual_start_time), timezone, 'h:mm a');
     return { label: 'Actual Start:', time: actualStart };
   } else if (webinar.start_time) {
     const scheduledStart = formatInTimeZone(parseISO(webinar.start_time), timezone, 'h:mm a');
-    // Show scheduled time since actual timing data is temporarily disabled
     return { label: 'Scheduled Start:', time: scheduledStart };
   } else {
     return { label: 'Start Time:', time: 'Not available' };
@@ -31,13 +41,22 @@ export function getStartTimeDisplay(webinar: any, timezone: string): StartTimeIn
 
 /**
  * Get formatted duration display with appropriate label
- * Note: Actual timing data temporarily disabled to fix 500 errors
+ * Note: Minimal sync returns scheduled duration only for performance
  */
 export function getDurationDisplay(webinar: any): DurationInfo {
+  // In minimal sync mode, we only have scheduled duration
+  if (webinar._minimal_sync || !webinar.actual_duration) {
+    if (webinar.duration) {
+      return { label: 'Scheduled Duration:', duration: `${webinar.duration} minutes` };
+    } else {
+      return { label: 'Duration:', duration: 'Not specified' };
+    }
+  }
+  
+  // Legacy handling for enhanced webinars (rarely used now)
   if (webinar.actual_duration) {
     return { label: 'Actual Duration:', duration: `${webinar.actual_duration} minutes` };
   } else if (webinar.duration) {
-    // Show scheduled duration since actual timing data is temporarily disabled
     return { label: 'Scheduled Duration:', duration: `${webinar.duration} minutes` };
   } else {
     return { label: 'Duration:', duration: 'Not specified' };
