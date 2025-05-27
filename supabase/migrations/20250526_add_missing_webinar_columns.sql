@@ -125,3 +125,17 @@ CREATE INDEX IF NOT EXISTS idx_zoom_webinars_host_name ON zoom_webinars(host_nam
 
 -- Update RLS policy to ensure users can read all columns
 -- This ensures that the new columns are accessible through the existing RLS policies
+
+-- IMPORTANT: Log current state of actual_duration column
+DO $$ 
+BEGIN
+    RAISE NOTICE 'Checking actual_duration column...';
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'zoom_webinars' AND column_name = 'actual_duration') THEN
+        RAISE NOTICE 'actual_duration column EXISTS with data type: %', (
+            SELECT data_type FROM information_schema.columns 
+            WHERE table_name = 'zoom_webinars' AND column_name = 'actual_duration'
+        );
+    ELSE
+        RAISE NOTICE 'actual_duration column DOES NOT EXIST';
+    END IF;
+END $$;
