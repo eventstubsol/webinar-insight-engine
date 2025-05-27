@@ -12,7 +12,8 @@ import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
 // Handle listing webinars with non-destructive upsert-based sync
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
-  console.log(`[zoom-api][list-webinars] Starting non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
+  console.log(`[zoom-api][list-webinars] Starting ENHANCED non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
+  console.log(`[zoom-api][list-webinars] 🔄 This sync will include webinar instances for complete timing data!`);
   console.log(`[zoom-api][list-webinars] Current timestamp: ${new Date().toISOString()}`);
   
   try {
@@ -57,8 +58,9 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     // Process webinars if any exist
     if (allWebinars && allWebinars.length > 0) {
-      // Enhance webinars with all additional data (host, panelist, participant, and recording info)
-      // Pass supabase client and user ID for recording data storage
+      // 🔥 NEW: Enhanced webinars with ALL data including instance syncing
+      // Pass supabase client and user ID for both recording AND instance data storage
+      console.log(`[zoom-api][list-webinars] 🚀 Starting ENHANCED enhancement with instance syncing`);
       const enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
       
       // Perform non-destructive upsert
@@ -67,15 +69,24 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       // Calculate comprehensive statistics
       statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
       
-      // Record sync in history with enhanced statistics including recording data
+      // Get instance sync statistics
+      const { data: instancesData, error: instancesError } = await supabase
+        .from('zoom_webinar_instances')
+        .select('webinar_id')
+        .eq('user_id', user.id);
+      
+      const instanceStats = instancesError ? 0 : (instancesData?.length || 0);
+      const completedWebinars = enhancedWebinars.filter(w => w.status === 'ended' || w.status === 'aborted').length;
       const recordingStats = enhancedWebinars.filter(w => w.has_recordings).length;
+      
+      // Record enhanced sync in history with instance information
       await recordSyncHistory(
         supabase,
         user.id,
         'webinars',
         'success',
         syncResults.newWebinars + syncResults.updatedWebinars,
-        `Non-destructive sync with full data resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+        `ENHANCED non-destructive sync with instance data: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${completedWebinars} completed webinars processed. ${instanceStats} instances synced. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
       );
     } else {
       // Handle empty sync result
@@ -88,7 +99,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     return formatListWebinarsResponse(finalWebinarsList, allWebinars, syncResults, statsResult);
     
   } catch (error) {
-    console.error('[zoom-api][list-webinars] Error in action:', error);
+    console.error('[zoom-api][list-webinars] Error in enhanced sync action:', error);
     
     // Record failed sync in history
     await recordSyncHistory(
@@ -97,7 +108,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       'webinars',
       'error',
       0,
-      error.message || 'Unknown error'
+      `Enhanced sync error: ${error.message || 'Unknown error'}`
     );
     
     throw error; // Let the main error handler format the response

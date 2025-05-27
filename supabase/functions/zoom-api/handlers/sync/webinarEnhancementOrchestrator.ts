@@ -5,13 +5,14 @@ import { enhanceWebinarsWithParticipantData } from './participantDataProcessor.t
 import { enhanceWebinarsWithRecordingData, storeRecordingData } from './recordingDataProcessor.ts';
 import { batchEnhanceWebinarsWithDetailedSettings } from './webinarDetailProcessor.ts';
 import { enhanceWebinarsWithComprehensiveTimingData } from './actualTimingDataProcessor.ts';
+import { syncWebinarInstancesForWebinars } from './webinarInstanceSyncer.ts';
 
 /**
  * Orchestrates the comprehensive enhancement of webinar data with all available information sources
  */
 export async function enhanceWebinarsWithAllData(webinars: any[], token: string, supabase?: any, userId?: string) {
   console.log(`[zoom-api][enhancement-orchestrator] Starting COMPREHENSIVE enhancement process for ${webinars.length} webinars`);
-  console.log(`[zoom-api][enhancement-orchestrator] 🚀 This will include: Host Info → Panelists → Participants → Recordings → Detailed Settings → Actual Timing Data`);
+  console.log(`[zoom-api][enhancement-orchestrator] 🚀 This will include: Host Info → Panelists → Participants → Recordings → Detailed Settings → Instance Syncing → Actual Timing Data`);
   
   if (!webinars || webinars.length === 0) {
     console.log(`[zoom-api][enhancement-orchestrator] No webinars to enhance`);
@@ -28,27 +29,41 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       console.log(`[zoom-api][enhancement-orchestrator] Processing batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(webinars.length/BATCH_SIZE)} (${batch.length} webinars)`);
       
       // Step 1: Enhance with host information
-      console.log(`[zoom-api][enhancement-orchestrator] Step 1/6: Enhancing batch with host information`);
+      console.log(`[zoom-api][enhancement-orchestrator] Step 1/7: Enhancing batch with host information`);
       const webinarsWithHostInfo = await enhanceWebinarsWithHostInfo(batch, token);
       
       // Step 2: Enhance with panelist data (only for webinars that need it)
-      console.log(`[zoom-api][enhancement-orchestrator] Step 2/6: Enhancing batch with panelist data`);
+      console.log(`[zoom-api][enhancement-orchestrator] Step 2/7: Enhancing batch with panelist data`);
       const webinarsWithPanelistInfo = await enhanceWebinarsWithPanelistData(webinarsWithHostInfo, token);
       
       // Step 3: Skip participant data for initial sync (can be done separately)
-      console.log(`[zoom-api][enhancement-orchestrator] Step 3/6: Skipping participant data for faster sync`);
+      console.log(`[zoom-api][enhancement-orchestrator] Step 3/7: Skipping participant data for faster sync`);
       const webinarsWithParticipantInfo = webinarsWithPanelistInfo; // Skip for now
       
       // Step 4: Enhance with recording data for completed webinars
-      console.log(`[zoom-api][enhancement-orchestrator] Step 4/6: Enhancing batch with recording data`);
+      console.log(`[zoom-api][enhancement-orchestrator] Step 4/7: Enhancing batch with recording data`);
       const webinarsWithRecordings = await enhanceWebinarsWithRecordingData(webinarsWithParticipantInfo, token);
       
       // Step 5: Skip detailed settings for initial sync (can be done separately)
-      console.log(`[zoom-api][enhancement-orchestrator] Step 5/6: Skipping detailed settings for faster sync`);
+      console.log(`[zoom-api][enhancement-orchestrator] Step 5/7: Skipping detailed settings for faster sync`);
       const webinarsWithDetailedSettings = webinarsWithRecordings; // Skip for now
       
-      // Step 6: Enhance with actual timing data
-      console.log(`[zoom-api][enhancement-orchestrator] Step 6/6: Enhancing batch with ACTUAL TIMING DATA`);
+      // Step 6: 🔥 NEW: Sync webinar instances for completed webinars
+      console.log(`[zoom-api][enhancement-orchestrator] Step 6/7: Syncing webinar instances for completed webinars`);
+      if (supabase && userId) {
+        const completedWebinars = webinarsWithDetailedSettings.filter(w => w.status === 'ended' || w.status === 'aborted');
+        if (completedWebinars.length > 0) {
+          console.log(`[zoom-api][enhancement-orchestrator] 🎯 Found ${completedWebinars.length} completed webinars to sync instances for`);
+          await syncWebinarInstancesForWebinars(completedWebinars, token, supabase, userId);
+        } else {
+          console.log(`[zoom-api][enhancement-orchestrator] 📭 No completed webinars found in this batch to sync instances for`);
+        }
+      } else {
+        console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ Skipping instance syncing - supabase or userId not provided`);
+      }
+      
+      // Step 7: Enhance with actual timing data from instances
+      console.log(`[zoom-api][enhancement-orchestrator] Step 7/7: Enhancing batch with ACTUAL TIMING DATA from instances`);
       let batchEnhancedWebinars = webinarsWithDetailedSettings;
       
       if (supabase && userId) {
@@ -62,9 +77,9 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
         console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ Skipping timing enhancement - supabase or userId not provided`);
       }
       
-      // Step 7: Store recording data in database if supabase client is provided
+      // Step 8: Store recording data in database if supabase client is provided
       if (supabase && userId) {
-        console.log(`[zoom-api][enhancement-orchestrator] Step 7: Storing recording data for batch`);
+        console.log(`[zoom-api][enhancement-orchestrator] Step 8: Storing recording data for batch`);
         let totalRecordingsStored = 0;
         
         for (const webinar of batchEnhancedWebinars) {
@@ -107,7 +122,7 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       with_detailed_settings: enhancedWebinars.filter(w => w._enhanced_with_details === true).length,
       failed_detail_enhancement: enhancedWebinars.filter(w => w._enhanced_with_details === false).length,
       
-      // 🔥 NEW: Actual timing enhancement
+      // 🔥 ACTUAL timing enhancement from instances
       with_actual_timing: enhancedWebinars.filter(w => w.actual_start_time).length,
       with_actual_duration: enhancedWebinars.filter(w => w.actual_duration).length,
       enhanced_from_instances: enhancedWebinars.filter(w => w._enhanced_with_timing === true).length,
