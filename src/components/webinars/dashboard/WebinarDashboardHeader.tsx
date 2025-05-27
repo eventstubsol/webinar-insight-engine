@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, Calendar, Clock, Download, Share2 } from 'lucide-react';
 import { WebinarStatusBadge } from '@/components/webinars/list/WebinarStatusBadge';
-import { WebinarSyncButton } from '@/components/webinars/WebinarSyncButton';
+import { WebinarEnhancementPanel } from '@/components/webinars/enhancement/WebinarEnhancementPanel';
 import { getWebinarStatus } from '@/components/webinars/list/webinarHelpers';
 import { extractHostInfo, formatHostDisplay } from './utils/hostDisplayUtils';
 import { formatWebinarId } from '@/lib/utils';
@@ -47,11 +47,6 @@ export const WebinarDashboardHeader: React.FC<WebinarDashboardHeaderProps> = ({
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-bold tracking-tight">{webinar.topic}</h1>
         <div className="flex flex-wrap gap-2">
-          <WebinarSyncButton 
-            webinarId={webinar.id} 
-            showLastSync={true}
-            className="order-first"
-          />
           <Button size="sm" variant="outline" className="gap-1">
             <Download className="h-4 w-4" />
             <span>Export</span>
@@ -81,6 +76,9 @@ export const WebinarDashboardHeader: React.FC<WebinarDashboardHeaderProps> = ({
           </div>
         )}
       </div>
+
+      {/* Enhancement Panel */}
+      <WebinarEnhancementPanel webinar={webinar} />
     </div>
   );
 };
