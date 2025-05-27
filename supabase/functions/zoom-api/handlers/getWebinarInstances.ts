@@ -56,13 +56,17 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
       const webinarData = webinarResponse.ok ? await webinarResponse.json() : null;
       
       for (const instance of data.instances) {
-        // For each instance, we need more detailed information like actual participants
+        console.log(`[zoom-api][get-webinar-instances] Processing instance ${instance.uuid}`);
+        
+        // For each instance, we need more detailed information like actual participants and duration
         // We'll use the past_webinar endpoint with the specific instance UUID
         let instanceDetails = { ...instance };
+        let actualDuration = null;
         
-        // Only try to get past webinar details if the instance has a uuid
-        if (instance.uuid) {
+        // Only try to get past webinar details if the instance has a uuid and is completed
+        if (instance.uuid && (instance.status === 'ended' || instance.status === 'aborted')) {
           try {
+            console.log(`[zoom-api][get-webinar-instances] Fetching past webinar details for instance ${instance.uuid}`);
             const pastWebinarResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${instance.uuid}`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -73,6 +77,12 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
             if (pastWebinarResponse.ok) {
               const pastWebinarData = await pastWebinarResponse.json();
               instanceDetails = { ...instanceDetails, ...pastWebinarData };
+              
+              // Extract actual duration from past webinar data
+              actualDuration = pastWebinarData.duration || null;
+              console.log(`[zoom-api][get-webinar-instances] 🕒 Instance ${instance.uuid} actual duration: ${actualDuration} minutes`);
+            } else {
+              console.warn(`[zoom-api][get-webinar-instances] Could not fetch past webinar data for instance ${instance.uuid}`);
             }
           } catch (pastWebinarError) {
             console.warn(`[zoom-api][get-webinar-instances] Error fetching past webinar details for instance ${instance.uuid}:`, pastWebinarError);
@@ -117,6 +127,21 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
           console.warn(`[zoom-api][get-webinar-instances] Error fetching counts for instance ${instance.uuid}:`, countError);
         }
         
+        // Calculate duration with proper priority:
+        // 1. Actual duration from past webinar API (most accurate)
+        // 2. Instance duration from instances API
+        // 3. Fallback to scheduled webinar duration
+        const finalDuration = actualDuration || 
+                             instanceDetails.duration || 
+                             webinarData?.duration || 
+                             null;
+        
+        console.log(`[zoom-api][get-webinar-instances] 📊 Duration calculation for instance ${instance.uuid}:`);
+        console.log(`[zoom-api][get-webinar-instances]   - Actual duration (past API): ${actualDuration}`);
+        console.log(`[zoom-api][get-webinar-instances]   - Instance duration: ${instanceDetails.duration}`);
+        console.log(`[zoom-api][get-webinar-instances]   - Webinar scheduled duration: ${webinarData?.duration}`);
+        console.log(`[zoom-api][get-webinar-instances]   - Final duration used: ${finalDuration}`);
+        
         // Prepare the instance data for database insertion with fallback topic
         const instanceToInsert = {
           user_id: user.id,
@@ -125,12 +150,18 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
           instance_id: instance.uuid || '',
           start_time: instance.start_time || null,
           end_time: instanceDetails.end_time || null,
-          duration: webinarData?.duration || instanceDetails.duration || null,
+          duration: finalDuration, // This now contains the actual duration
           topic: webinarData?.topic || instanceDetails.topic || 'Untitled Webinar', // Always provide a topic
           status: instance.status || null,
           registrants_count: registrantsCount,
           participants_count: participantsCount,
-          raw_data: instanceDetails
+          raw_data: {
+            ...instanceDetails,
+            _duration_source: actualDuration ? 'past_api' : (instanceDetails.duration ? 'instance_api' : 'scheduled'),
+            _actual_duration: actualDuration,
+            _instance_duration: instanceDetails.duration,
+            _scheduled_duration: webinarData?.duration
+          }
         };
         
         // Check if this instance already exists
@@ -150,6 +181,8 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
             
           if (updateError) {
             console.error(`[zoom-api][get-webinar-instances] Error updating instance:`, updateError);
+          } else {
+            console.log(`[zoom-api][get-webinar-instances] ✅ Updated instance ${instance.uuid} with duration: ${finalDuration}`);
           }
         } else {
           // Insert new instance
@@ -159,6 +192,8 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
             
           if (insertError) {
             console.error(`[zoom-api][get-webinar-instances] Error inserting instance:`, insertError);
+          } else {
+            console.log(`[zoom-api][get-webinar-instances] ✅ Inserted instance ${instance.uuid} with duration: ${finalDuration}`);
           }
         }
       }
