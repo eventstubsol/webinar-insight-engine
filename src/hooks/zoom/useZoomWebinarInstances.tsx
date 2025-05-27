@@ -12,6 +12,8 @@ export interface WebinarInstance {
   start_time: string | null;
   end_time: string | null;
   duration: number | null;
+  actual_start_time: string | null;
+  actual_duration: number | null;
   status: string | null;
   participants_count: number;
   registrants_count: number;

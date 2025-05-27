@@ -7,6 +7,8 @@ export async function createSingleWebinarInstance(webinarId: string, token: stri
     console.log(`[zoom-api][single-creator] 🔄 Creating instance for single webinar ${webinarId}, completed: ${isCompleted}`);
     
     let actualData = null;
+    let actualStartTime = null;
+    let actualDuration = null;
     
     if (isCompleted) {
       // For completed single-occurrence webinars, fetch actual data
@@ -22,7 +24,9 @@ export async function createSingleWebinarInstance(webinarId: string, token: stri
         
         if (pastResponse.ok) {
           actualData = await pastResponse.json();
-          console.log(`[zoom-api][single-creator] ✅ Got actual data: duration=${actualData.duration}, participants=${actualData.participants_count}`);
+          actualStartTime = actualData.start_time || null;
+          actualDuration = actualData.duration || null;
+          console.log(`[zoom-api][single-creator] ✅ Got actual timing data: start=${actualStartTime}, duration=${actualDuration}`);
         } else {
           const errorData = await pastResponse.json().catch(() => ({ message: 'Unknown error' }));
           console.warn(`[zoom-api][single-creator] ⚠️ Could not fetch past webinar data for ${webinarId}: ${errorData.message}`);
@@ -35,40 +39,53 @@ export async function createSingleWebinarInstance(webinarId: string, token: stri
     // Calculate end time for completed webinars
     let endTime = null;
     if (isCompleted) {
-      const duration = actualData?.duration || webinarData.duration;
+      const finalDuration = actualDuration || webinarData.duration;
+      const finalStartTime = actualStartTime || webinarData.start_time;
+      
       if (actualData?.end_time) {
         endTime = actualData.end_time;
-      } else if ((actualData?.start_time || webinarData.start_time) && duration) {
+      } else if (finalStartTime && finalDuration) {
         try {
-          const startDate = new Date(actualData?.start_time || webinarData.start_time);
-          const endDate = new Date(startDate.getTime() + (duration * 60000));
+          const startDate = new Date(finalStartTime);
+          const endDate = new Date(startDate.getTime() + (finalDuration * 60000));
           endTime = endDate.toISOString();
-          console.log(`[zoom-api][single-creator] 📊 Calculated end time: ${endTime} (start: ${startDate.toISOString()}, duration: ${duration}min)`);
+          console.log(`[zoom-api][single-creator] 📊 Calculated end time: ${endTime} (start: ${finalStartTime}, duration: ${finalDuration}min)`);
         } catch (error) {
           console.warn(`[zoom-api][single-creator] ⚠️ Error calculating end time for ${webinarId}:`, error);
         }
       }
     }
     
-    // Create synthetic instance
+    // Create synthetic instance with actual timing data
     const instance = {
       id: webinarData.uuid || webinarId,
       uuid: webinarData.uuid || webinarId,
-      start_time: actualData?.start_time || webinarData.start_time,
+      start_time: webinarData.start_time,
       end_time: endTime,
-      duration: actualData?.duration || webinarData.duration,
+      duration: webinarData.duration,
+      actual_start_time: actualStartTime,
+      actual_duration: actualDuration,
       status: isCompleted ? (webinarData.status || 'ended') : (webinarData.status || 'waiting'),
       topic: webinarData.topic,
       participants_count: actualData?.participants_count || 0,
       registrants_count: 0, // Will be updated separately if needed
       _is_single_occurrence: true,
       _is_completed: isCompleted,
-      _duration_source: actualData?.duration ? 'past_webinar_api' : 'scheduled',
+      _timing_source: {
+        actual_start_time: actualStartTime ? 'past_webinar_api' : 'none',
+        actual_duration: actualDuration ? 'past_webinar_api' : 'none',
+        scheduled_start_time: 'webinar_data',
+        scheduled_duration: webinarData.duration ? 'webinar_data' : 'none'
+      },
       _actual_data: actualData,
       _webinar_data: webinarData
     };
     
-    console.log(`[zoom-api][single-creator] ✅ Created single instance for ${webinarId}: duration=${instance.duration}, status=${instance.status}, source=${instance._duration_source}`);
+    console.log(`[zoom-api][single-creator] ✅ Created single instance for ${webinarId}:`);
+    console.log(`[zoom-api][single-creator]   - scheduled: start=${instance.start_time}, duration=${instance.duration}`);
+    console.log(`[zoom-api][single-creator]   - actual: start=${instance.actual_start_time}, duration=${instance.actual_duration}`);
+    console.log(`[zoom-api][single-creator]   - status=${instance.status}`);
+    
     return [instance];
     
   } catch (error) {

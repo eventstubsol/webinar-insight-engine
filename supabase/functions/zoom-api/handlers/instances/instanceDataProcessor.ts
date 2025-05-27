@@ -9,6 +9,16 @@ export async function processInstanceForDatabase(
   userId: string
 ) {
   try {
+    // Extract actual timing data with priority: actual > instance > scheduled
+    const actualStartTime = instance.actual_start_time || instance.start_time || null;
+    const actualDuration = instance.actual_duration || instance.duration || webinarData.duration || null;
+    
+    console.log(`[zoom-api][instance-processor] 📊 Processing timing data for instance ${instance.uuid || instance.id}:`);
+    console.log(`[zoom-api][instance-processor]   - actual_start_time: ${actualStartTime}`);
+    console.log(`[zoom-api][instance-processor]   - actual_duration: ${actualDuration}`);
+    console.log(`[zoom-api][instance-processor]   - scheduled_start_time: ${instance.start_time}`);
+    console.log(`[zoom-api][instance-processor]   - scheduled_duration: ${instance.duration || webinarData.duration}`);
+    
     return {
       user_id: userId,
       webinar_id: webinarId,
@@ -16,14 +26,20 @@ export async function processInstanceForDatabase(
       instance_id: instance.uuid || instance.id || '',
       start_time: instance.start_time || null,
       end_time: instance.end_time || null,
-      duration: instance.duration || null,
+      duration: instance.duration || webinarData.duration || null,
+      actual_start_time: actualStartTime,
+      actual_duration: actualDuration,
       topic: webinarData.topic || instance.topic || 'Untitled Webinar',
       status: instance.status || null,
       registrants_count: instance.registrants_count || 0,
       participants_count: instance.participants_count || 0,
       raw_data: {
         ...instance,
-        _webinar_data: webinarData
+        _webinar_data: webinarData,
+        _timing_source: {
+          actual_start_time: instance.actual_start_time ? 'api_actual' : (instance.start_time ? 'api_scheduled' : 'none'),
+          actual_duration: instance.actual_duration ? 'api_actual' : (instance.duration ? 'api_scheduled' : (webinarData.duration ? 'webinar_scheduled' : 'none'))
+        }
       }
     };
   } catch (error) {

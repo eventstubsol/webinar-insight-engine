@@ -497,6 +497,8 @@ export type Database = {
       }
       zoom_webinar_instances: {
         Row: {
+          actual_duration: number | null
+          actual_start_time: string | null
           created_at: string
           duration: number | null
           end_time: string | null
@@ -515,6 +517,8 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          actual_duration?: number | null
+          actual_start_time?: string | null
           created_at?: string
           duration?: number | null
           end_time?: string | null
@@ -533,6 +537,8 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          actual_duration?: number | null
+          actual_start_time?: string | null
           created_at?: string
           duration?: number | null
           end_time?: string | null

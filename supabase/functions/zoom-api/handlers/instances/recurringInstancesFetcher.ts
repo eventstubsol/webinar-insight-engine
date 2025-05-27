@@ -54,10 +54,14 @@ async function processRecurringInstance(instance: any, token: string, webinarDat
   
   console.log(`[zoom-api][recurring-fetcher] 🔍 Processing instance ${instanceId}, status: ${instance.status}, completed: ${isCompleted}`);
   
+  let actualStartTime = null;
+  let actualDuration = null;
+  let actualData = null;
+  
   if (isCompleted && instance.uuid) {
     // For completed instances, fetch actual data
     try {
-      console.log(`[zoom-api][recurring-fetcher] 📡 Fetching actual data for completed instance ${instance.uuid}`);
+      console.log(`[zoom-api][recurring-fetcher] 📡 Fetching actual timing data for completed instance ${instance.uuid}`);
       
       const pastResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${instance.uuid}`, {
         headers: {
@@ -67,17 +71,12 @@ async function processRecurringInstance(instance: any, token: string, webinarDat
       });
       
       if (pastResponse.ok) {
-        const actualData = await pastResponse.json();
-        console.log(`[zoom-api][recurring-fetcher] ✅ Got actual data for instance ${instance.uuid}: duration=${actualData.duration}, participants=${actualData.participants_count}`);
-        
-        return {
-          ...instance,
-          duration: actualData.duration || instance.duration || webinarData.duration,
-          end_time: actualData.end_time || instance.end_time,
-          participants_count: actualData.participants_count || 0,
-          _duration_source: 'past_webinar_api',
-          _actual_data: actualData
-        };
+        actualData = await pastResponse.json();
+        actualStartTime = actualData.start_time || null;
+        actualDuration = actualData.duration || null;
+        console.log(`[zoom-api][recurring-fetcher] ✅ Got actual timing data for instance ${instance.uuid}:`);
+        console.log(`[zoom-api][recurring-fetcher]   - actual_start_time: ${actualStartTime}`);
+        console.log(`[zoom-api][recurring-fetcher]   - actual_duration: ${actualDuration}`);
       } else {
         const errorData = await pastResponse.json().catch(() => ({ message: 'Unknown error' }));
         console.warn(`[zoom-api][recurring-fetcher] ⚠️ Could not fetch past data for instance ${instance.uuid}: ${errorData.message}`);
@@ -87,14 +86,25 @@ async function processRecurringInstance(instance: any, token: string, webinarDat
     }
   }
   
-  // Return instance with scheduled data
+  // Return instance with both scheduled and actual timing data
   const processedInstance = {
     ...instance,
     duration: instance.duration || webinarData.duration,
-    participants_count: 0,
-    _duration_source: instance.duration ? 'instance_api' : 'scheduled'
+    actual_start_time: actualStartTime,
+    actual_duration: actualDuration,
+    participants_count: actualData?.participants_count || 0,
+    _timing_source: {
+      actual_start_time: actualStartTime ? 'past_webinar_api' : 'none',
+      actual_duration: actualDuration ? 'past_webinar_api' : 'none',
+      scheduled_start_time: instance.start_time ? 'instances_api' : 'none',
+      scheduled_duration: instance.duration ? 'instances_api' : (webinarData.duration ? 'webinar_data' : 'none')
+    },
+    _actual_data: actualData
   };
   
-  console.log(`[zoom-api][recurring-fetcher] 📊 Processed instance ${instanceId} with duration: ${processedInstance.duration} (source: ${processedInstance._duration_source})`);
+  console.log(`[zoom-api][recurring-fetcher] 📊 Processed instance ${instanceId}:`);
+  console.log(`[zoom-api][recurring-fetcher]   - scheduled: start=${instance.start_time}, duration=${processedInstance.duration}`);
+  console.log(`[zoom-api][recurring-fetcher]   - actual: start=${actualStartTime}, duration=${actualDuration}`);
+  
   return processedInstance;
 }
