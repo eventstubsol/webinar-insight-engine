@@ -21,9 +21,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Apply 30-second timeout to all operations
+  // Apply 50-second timeout to all operations (increased from 30s)
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Operation timed out after 30000ms')), 30000);
+    setTimeout(() => reject(new Error('Operation timed out after 50000ms')), 50000);
   });
 
   try {
