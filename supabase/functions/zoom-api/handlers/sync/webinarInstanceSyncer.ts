@@ -1,9 +1,10 @@
 
 /**
  * Syncs webinar instances for a batch of webinars during the main sync process
+ * CRITICAL FIX: Now handles ALL webinars, not just completed ones
  */
 export async function syncWebinarInstancesForWebinars(webinars: any[], token: string, supabase: any, userId: string) {
-  console.log(`[zoom-api][instance-syncer] 🔄 Starting instance sync for ${webinars.length} webinars`);
+  console.log(`[zoom-api][instance-syncer] 🔄 Starting CRITICAL FIX: instance sync for ALL ${webinars.length} webinars (removed completed-only filter)`);
   
   if (!webinars || webinars.length === 0) {
     console.log(`[zoom-api][instance-syncer] No webinars to sync instances for`);
@@ -20,13 +21,11 @@ export async function syncWebinarInstancesForWebinars(webinars: any[], token: st
     
     const batchPromises = batch.map(async (webinar) => {
       try {
-        console.log(`[zoom-api][instance-syncer] 🎯 Syncing instances for webinar: ${webinar.id} (${webinar.topic})`);
+        console.log(`[zoom-api][instance-syncer] 🎯 Syncing instances for webinar: ${webinar.id} (${webinar.topic}) - Status: ${webinar.status}`);
         
-        // Only sync instances for completed webinars
-        if (webinar.status !== 'ended' && webinar.status !== 'aborted') {
-          console.log(`[zoom-api][instance-syncer] ⏭️ Skipping instances for non-completed webinar ${webinar.id} (status: ${webinar.status})`);
-          return 0;
-        }
+        // CRITICAL FIX: Try to get instances for ALL webinars, not just completed ones
+        // Some scheduled webinars may have instances, and we need the scheduled duration at minimum
+        console.log(`[zoom-api][instance-syncer] 🔧 CRITICAL FIX: Processing webinar ${webinar.id} regardless of status (was previously filtered out if not completed)`);
         
         // Get webinar instances from Zoom API
         const response = await fetch(`https://api.zoom.us/v2/webinars/${webinar.id}/instances`, {
@@ -40,7 +39,65 @@ export async function syncWebinarInstancesForWebinars(webinars: any[], token: st
           const errorData = await response.json();
           if (errorData.code === 3001) {
             // This is normal for webinars without multiple instances
-            console.log(`[zoom-api][instance-syncer] 📭 Webinar ${webinar.id} has no instances or is not recurring`);
+            console.log(`[zoom-api][instance-syncer] 📭 Webinar ${webinar.id} has no instances or is not recurring - creating scheduled instance entry`);
+            
+            // CRITICAL FIX: Create a basic instance entry for webinars without instances
+            // This ensures we have duration data from the scheduled webinar
+            const scheduledInstanceToInsert = {
+              user_id: userId,
+              webinar_id: webinar.id,
+              webinar_uuid: webinar.uuid || '',
+              instance_id: webinar.uuid || webinar.id, // Use webinar UUID/ID as instance ID for scheduled webinars
+              start_time: webinar.start_time || null,
+              end_time: null, // Will be populated when webinar completes
+              duration: webinar.duration || null, // Use scheduled duration
+              topic: webinar.topic || 'Untitled Webinar',
+              status: webinar.status || 'waiting',
+              registrants_count: 0, 
+              participants_count: 0, 
+              raw_data: {
+                ...webinar,
+                _duration_source: 'scheduled',
+                _scheduled_duration: webinar.duration,
+                _is_scheduled_instance: true
+              }
+            };
+            
+            // Check if this scheduled instance already exists
+            const { data: existingInstance } = await supabase
+              .from('zoom_webinar_instances')
+              .select('id')
+              .eq('webinar_id', webinar.id)
+              .eq('instance_id', webinar.uuid || webinar.id)
+              .maybeSingle();
+            
+            if (existingInstance) {
+              // Update existing scheduled instance
+              const { error: updateError } = await supabase
+                .from('zoom_webinar_instances')
+                .update(scheduledInstanceToInsert)
+                .eq('id', existingInstance.id);
+                
+              if (updateError) {
+                console.error(`[zoom-api][instance-syncer] ❌ Error updating scheduled instance:`, updateError);
+              } else {
+                console.log(`[zoom-api][instance-syncer] ✅ Updated scheduled instance for webinar ${webinar.id} with duration: ${webinar.duration}`);
+                return 1;
+              }
+            } else {
+              // Insert new scheduled instance
+              const { error: insertError } = await supabase
+                .from('zoom_webinar_instances')
+                .insert(scheduledInstanceToInsert);
+                
+              if (insertError) {
+                console.error(`[zoom-api][instance-syncer] ❌ Error inserting scheduled instance:`, insertError);
+              } else {
+                console.log(`[zoom-api][instance-syncer] ✅ Inserted scheduled instance for webinar ${webinar.id} with duration: ${webinar.duration}`);
+                return 1;
+              }
+            }
+            
             return 0;
           }
           console.warn(`[zoom-api][instance-syncer] ⚠️ Failed to fetch instances for webinar ${webinar.id}: ${errorData.message}`);
@@ -51,7 +108,7 @@ export async function syncWebinarInstancesForWebinars(webinars: any[], token: st
         const instances = data.instances || [];
         
         if (instances.length === 0) {
-          console.log(`[zoom-api][instance-syncer] 📭 No instances found for webinar ${webinar.id}`);
+          console.log(`[zoom-api][instance-syncer] 📭 No instances found for webinar ${webinar.id} - this may be a single-occurrence webinar`);
           return 0;
         }
         
@@ -62,7 +119,7 @@ export async function syncWebinarInstancesForWebinars(webinars: any[], token: st
         // Process each instance
         for (const instance of instances) {
           try {
-            console.log(`[zoom-api][instance-syncer] 🔍 Processing instance ${instance.uuid} for webinar ${webinar.id}`);
+            console.log(`[zoom-api][instance-syncer] 🔍 Processing instance ${instance.uuid} for webinar ${webinar.id} - Status: ${instance.status}`);
             
             // Get detailed instance data from past webinar API if completed
             let instanceDetails = { ...instance };
@@ -70,7 +127,7 @@ export async function syncWebinarInstancesForWebinars(webinars: any[], token: st
             
             if (instance.uuid && (instance.status === 'ended' || instance.status === 'aborted')) {
               try {
-                console.log(`[zoom-api][instance-syncer] 📡 Fetching past webinar details for instance ${instance.uuid}`);
+                console.log(`[zoom-api][instance-syncer] 📡 Fetching past webinar details for completed instance ${instance.uuid}`);
                 const pastWebinarResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${instance.uuid}`, {
                   headers: {
                     'Authorization': `Bearer ${token}`,
@@ -82,13 +139,15 @@ export async function syncWebinarInstancesForWebinars(webinars: any[], token: st
                   const pastWebinarData = await pastWebinarResponse.json();
                   instanceDetails = { ...instanceDetails, ...pastWebinarData };
                   actualDuration = pastWebinarData.duration || null;
-                  console.log(`[zoom-api][instance-syncer] ✅ Got actual duration for instance ${instance.uuid}: ${actualDuration} minutes`);
+                  console.log(`[zoom-api][instance-syncer] ✅ Got actual duration for completed instance ${instance.uuid}: ${actualDuration} minutes`);
                 } else {
                   console.warn(`[zoom-api][instance-syncer] ⚠️ Could not fetch past webinar data for instance ${instance.uuid}`);
                 }
               } catch (pastWebinarError) {
                 console.warn(`[zoom-api][instance-syncer] ⚠️ Error fetching past webinar details for instance ${instance.uuid}:`, pastWebinarError);
               }
+            } else {
+              console.log(`[zoom-api][instance-syncer] 📅 Instance ${instance.uuid} is not completed (status: ${instance.status}) - using scheduled duration`);
             }
             
             // Calculate final duration with proper priority
@@ -180,6 +239,6 @@ export async function syncWebinarInstancesForWebinars(webinars: any[], token: st
     console.log(`[zoom-api][instance-syncer] 📊 Batch ${Math.floor(i/BATCH_SIZE) + 1} completed: ${batchTotal} instances synced`);
   }
   
-  console.log(`[zoom-api][instance-syncer] 🎉 Instance sync completed: ${totalInstancesSynced} total instances synced`);
+  console.log(`[zoom-api][instance-syncer] 🎉 CRITICAL FIX COMPLETE: Instance sync completed for ALL webinars: ${totalInstancesSynced} total instances synced`);
   return totalInstancesSynced;
 }

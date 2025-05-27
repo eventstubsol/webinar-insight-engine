@@ -12,7 +12,7 @@ import { syncWebinarInstancesForWebinars } from './webinarInstanceSyncer.ts';
  */
 export async function enhanceWebinarsWithAllData(webinars: any[], token: string, supabase?: any, userId?: string) {
   console.log(`[zoom-api][enhancement-orchestrator] Starting COMPREHENSIVE enhancement process for ${webinars.length} webinars`);
-  console.log(`[zoom-api][enhancement-orchestrator] 🚀 This will include: Host Info → Panelists → Participants → Recordings → Detailed Settings → Instance Syncing → Actual Timing Data`);
+  console.log(`[zoom-api][enhancement-orchestrator] 🚀 This will include: Host Info → Panelists → Participants → Recordings → Detailed Settings → Instance Syncing (ALL WEBINARS) → Actual Timing Data`);
   
   if (!webinars || webinars.length === 0) {
     console.log(`[zoom-api][enhancement-orchestrator] No webinars to enhance`);
@@ -48,16 +48,11 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       console.log(`[zoom-api][enhancement-orchestrator] Step 5/7: Skipping detailed settings for faster sync`);
       const webinarsWithDetailedSettings = webinarsWithRecordings; // Skip for now
       
-      // Step 6: 🔥 NEW: Sync webinar instances for completed webinars
-      console.log(`[zoom-api][enhancement-orchestrator] Step 6/7: Syncing webinar instances for completed webinars`);
+      // Step 6: 🔥 CRITICAL FIX: Sync webinar instances for ALL webinars, not just completed ones
+      console.log(`[zoom-api][enhancement-orchestrator] Step 6/7: Syncing webinar instances for ALL webinars (CRITICAL FIX)`);
       if (supabase && userId) {
-        const completedWebinars = webinarsWithDetailedSettings.filter(w => w.status === 'ended' || w.status === 'aborted');
-        if (completedWebinars.length > 0) {
-          console.log(`[zoom-api][enhancement-orchestrator] 🎯 Found ${completedWebinars.length} completed webinars to sync instances for`);
-          await syncWebinarInstancesForWebinars(completedWebinars, token, supabase, userId);
-        } else {
-          console.log(`[zoom-api][enhancement-orchestrator] 📭 No completed webinars found in this batch to sync instances for`);
-        }
+        console.log(`[zoom-api][enhancement-orchestrator] 🎯 Processing instances for ALL ${webinarsWithDetailedSettings.length} webinars (removed completed-only filter)`);
+        await syncWebinarInstancesForWebinars(webinarsWithDetailedSettings, token, supabase, userId);
       } else {
         console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ Skipping instance syncing - supabase or userId not provided`);
       }
@@ -158,8 +153,8 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
     console.log(`[zoom-api][enhancement-orchestrator]   • With passwords: ${enhancementStats.with_passwords}/${enhancementStats.total_webinars} (${Math.round((enhancementStats.with_passwords/enhancementStats.total_webinars)*100)}%)`);
     console.log(`[zoom-api][enhancement-orchestrator] `);
     console.log(`[zoom-api][enhancement-orchestrator] 🕒 ACTUAL TIMING DATA (CRITICAL):`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With actual timing: ${enhancementStats.with_actual_timing}/${enhancementStats.completed_webinars} completed webinars (${enhancementStats.completed_webinars > 0 ? Math.round((enhancementStats.with_actual_timing/enhancementStats.completed_webinars)*100) : 0}%)`);
-    console.log(`[zoom-api][enhancement-orchestrator]   • With actual duration: ${enhancementStats.with_actual_duration}/${enhancementStats.completed_webinars} completed webinars (${enhancementStats.completed_webinars > 0 ? Math.round((enhancementStats.with_actual_duration/enhancementStats.completed_webinars)*100) : 0}%)`);
+    console.log(`[zoom-api][enhancement-orchestrator]   • With actual timing: ${enhancementStats.with_actual_timing}/${enhancementStats.total_webinars} webinars (${enhancementStats.total_webinars > 0 ? Math.round((enhancementStats.with_actual_timing/enhancementStats.total_webinars)*100) : 0}%)`);
+    console.log(`[zoom-api][enhancement-orchestrator]   • With actual duration: ${enhancementStats.with_actual_duration}/${enhancementStats.total_webinars} webinars (${enhancementStats.total_webinars > 0 ? Math.round((enhancementStats.with_actual_duration/enhancementStats.total_webinars)*100) : 0}%)`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Enhanced from instances: ${enhancementStats.enhanced_from_instances}`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Enhanced from past API: ${enhancementStats.enhanced_from_past_api}`);
     console.log(`[zoom-api][enhancement-orchestrator] ═══════════════════════════════════════════════════════`);
@@ -168,15 +163,7 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ Failed to enhance ${enhancementStats.failed_detail_enhancement} webinars with detailed settings`);
     }
     
-    if (enhancementStats.completed_webinars > enhancementStats.with_actual_timing) {
-      const missingTiming = enhancementStats.completed_webinars - enhancementStats.with_actual_timing;
-      console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ ${missingTiming} completed webinars still missing actual timing data`);
-    }
-    
-    if (enhancementStats.completed_webinars > enhancementStats.with_actual_duration) {
-      const missingDuration = enhancementStats.completed_webinars - enhancementStats.with_actual_duration;
-      console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ ${missingDuration} completed webinars still missing actual duration data`);
-    }
+    console.log(`[zoom-api][enhancement-orchestrator] 🔧 CRITICAL FIX APPLIED: Now syncing instances for ALL webinars, not just completed ones`);
     
     return enhancedWebinars;
     
