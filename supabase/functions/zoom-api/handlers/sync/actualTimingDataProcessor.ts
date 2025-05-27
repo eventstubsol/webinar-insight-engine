@@ -27,6 +27,7 @@ export async function fetchPastWebinarByUUID(
     if (response.ok) {
       const pastWebinarData = await response.json();
       console.log(`[zoom-api][fetchPastWebinarByUUID] ✅ Successfully fetched past webinar details for UUID: ${webinarUUID}`);
+      console.log(`[zoom-api][fetchPastWebinarByUUID] 📊 Past webinar data - duration: ${pastWebinarData.duration}, start_time: ${pastWebinarData.start_time}, end_time: ${pastWebinarData.end_time}`);
       return pastWebinarData;
     } else {
       const errorText = await response.text();
@@ -44,6 +45,7 @@ export async function fetchPastWebinarByUUID(
         if (simpleResponse.ok) {
           const pastWebinarData = await simpleResponse.json();
           console.log(`[zoom-api][fetchPastWebinarByUUID] ✅ Successfully fetched with simple UUID encoding`);
+          console.log(`[zoom-api][fetchPastWebinarByUUID] 📊 Past webinar data - duration: ${pastWebinarData.duration}, start_time: ${pastWebinarData.start_time}, end_time: ${pastWebinarData.end_time}`);
           return pastWebinarData;
         }
       }
@@ -102,6 +104,7 @@ export async function enhanceWebinarsWithActualTimingData(
   const enhancedWebinars = [];
   let successfulTimingEnhancements = 0;
   let failedTimingEnhancements = 0;
+  let webinarsWithDuration = 0;
   
   for (const webinar of webinars) {
     try {
@@ -137,6 +140,13 @@ export async function enhanceWebinarsWithActualTimingData(
             const pastWebinarData = await fetchPastWebinarByUUID(latestOccurrence.occurrence_id, token);
             
             if (pastWebinarData) {
+              // Log the duration we received
+              console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] 📊 DURATION DATA for webinar ${webinar.id}: ${pastWebinarData.duration} minutes`);
+              
+              if (pastWebinarData.duration) {
+                webinarsWithDuration++;
+              }
+              
               const enhancedWebinar = {
                 ...webinar,
                 actual_start_time: pastWebinarData.start_time,
@@ -150,7 +160,7 @@ export async function enhanceWebinarsWithActualTimingData(
               
               enhancedWebinars.push(enhancedWebinar);
               successfulTimingEnhancements++;
-              console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with occurrence timing data`);
+              console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with occurrence timing data - duration: ${pastWebinarData.duration}`);
               continue;
             }
           }
@@ -163,6 +173,13 @@ export async function enhanceWebinarsWithActualTimingData(
           const pastWebinarData = await fetchPastWebinarByUUID(webinar.uuid, token);
           
           if (pastWebinarData) {
+            // Log the duration we received
+            console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] 📊 DURATION DATA for webinar ${webinar.id}: ${pastWebinarData.duration} minutes`);
+            
+            if (pastWebinarData.duration) {
+              webinarsWithDuration++;
+            }
+            
             const enhancedWebinar = {
               ...webinar,
               actual_start_time: pastWebinarData.start_time,
@@ -176,7 +193,7 @@ export async function enhanceWebinarsWithActualTimingData(
             
             enhancedWebinars.push(enhancedWebinar);
             successfulTimingEnhancements++;
-            console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with UUID timing data`);
+            console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with UUID timing data - duration: ${pastWebinarData.duration}`);
             continue;
           }
         }
@@ -200,6 +217,10 @@ export async function enhanceWebinarsWithActualTimingData(
             const actualStartTime = latestInstance.start_time || latestInstance.raw_data?.start_time;
             const actualDuration = latestInstance.duration || latestInstance.raw_data?.duration;
             
+            if (actualDuration) {
+              webinarsWithDuration++;
+            }
+            
             const enhancedWebinar = {
               ...webinar,
               actual_start_time: actualStartTime,
@@ -211,7 +232,7 @@ export async function enhanceWebinarsWithActualTimingData(
             
             enhancedWebinars.push(enhancedWebinar);
             successfulTimingEnhancements++;
-            console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with instances API data`);
+            console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with instances API data - duration: ${actualDuration}`);
             continue;
           }
         }
@@ -248,6 +269,7 @@ export async function enhanceWebinarsWithActualTimingData(
   }
   
   console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] 🎉 Timing enhancement completed: ${successfulTimingEnhancements} successful, ${failedTimingEnhancements} failed`);
+  console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] 📊 Webinars with actual_duration data: ${webinarsWithDuration}/${successfulTimingEnhancements} enhanced webinars`);
   
   return enhancedWebinars;
 }
@@ -272,6 +294,7 @@ export async function fetchPastWebinarDetails(
     if (response.ok) {
       const pastWebinarData = await response.json();
       console.log(`[zoom-api][fetchPastWebinarDetails] ✅ Successfully fetched past webinar details for: ${webinarId}`);
+      console.log(`[zoom-api][fetchPastWebinarDetails] 📊 Past webinar data - duration: ${pastWebinarData.duration}`);
       return pastWebinarData;
     } else {
       const errorText = await response.text();
@@ -301,6 +324,7 @@ export async function enhanceWebinarsWithComprehensiveTimingData(
   const timingStats = {
     total_webinars: enhancedWebinars.length,
     with_actual_timing: enhancedWebinars.filter(w => w.actual_start_time).length,
+    with_actual_duration: enhancedWebinars.filter(w => w.actual_duration).length,
     enhanced_successfully: enhancedWebinars.filter(w => w._enhanced_with_timing === true).length,
     past_webinars: enhancedWebinars.filter(w => {
       const start = new Date(w.start_time);
@@ -318,6 +342,7 @@ export async function enhanceWebinarsWithComprehensiveTimingData(
   console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData] - Total webinars: ${timingStats.total_webinars}`);
   console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData] - Past webinars: ${timingStats.past_webinars}`);
   console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData] - With actual timing: ${timingStats.with_actual_timing}`);
+  console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData] - With actual duration: ${timingStats.with_actual_duration}`);
   console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData] - Enhancement methods:`);
   console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData]   • Occurrence API: ${timingStats.methods.occurrence_past_api}`);
   console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData]   • UUID API: ${timingStats.methods.uuid_past_api}`);
