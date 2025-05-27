@@ -1,4 +1,3 @@
-
 import { syncWebinarInstances } from './webinarDataSyncer.ts';
 
 /**
@@ -276,7 +275,8 @@ export async function fetchPastWebinarDetails(
       return pastWebinarData;
     } else {
       const errorText = await response.text();
-      console.warn(`[zoom-api][fetchPastWebinarDetails] ⚠️ Failed to fetch past webinar details for ${webinarId}: ${response.status} - ${errorText}`);\n      return null;
+      console.warn(`[zoom-api][fetchPastWebinarDetails] ⚠️ Failed to fetch past webinar details for ${webinarId}: ${response.status} - ${errorText}`);
+      return null;
     }
   } catch (error) {
     console.error(`[zoom-api][fetchPastWebinarDetails] ❌ Error fetching past webinar details for ${webinarId}:`, error);
