@@ -117,7 +117,7 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
           console.warn(`[zoom-api][get-webinar-instances] Error fetching counts for instance ${instance.uuid}:`, countError);
         }
         
-        // Prepare the instance data for database insertion
+        // Prepare the instance data for database insertion with fallback topic
         const instanceToInsert = {
           user_id: user.id,
           webinar_id: webinarId,
@@ -126,7 +126,7 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
           start_time: instance.start_time || null,
           end_time: instanceDetails.end_time || null,
           duration: webinarData?.duration || instanceDetails.duration || null,
-          topic: webinarData?.topic || instanceDetails.topic || 'Untitled Webinar',
+          topic: webinarData?.topic || instanceDetails.topic || 'Untitled Webinar', // Always provide a topic
           status: instance.status || null,
           registrants_count: registrantsCount,
           participants_count: participantsCount,
@@ -143,15 +143,23 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
         
         if (existingInstance) {
           // Update existing instance
-          await supabase
+          const { error: updateError } = await supabase
             .from('zoom_webinar_instances')
             .update(instanceToInsert)
             .eq('id', existingInstance.id);
+            
+          if (updateError) {
+            console.error(`[zoom-api][get-webinar-instances] Error updating instance:`, updateError);
+          }
         } else {
           // Insert new instance
-          await supabase
+          const { error: insertError } = await supabase
             .from('zoom_webinar_instances')
             .insert(instanceToInsert);
+            
+          if (insertError) {
+            console.error(`[zoom-api][get-webinar-instances] Error inserting instance:`, insertError);
+          }
         }
       }
       

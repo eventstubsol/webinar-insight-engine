@@ -507,7 +507,7 @@ export type Database = {
           registrants_count: number | null
           start_time: string | null
           status: string | null
-          topic: string
+          topic: string | null
           updated_at: string
           user_id: string
           webinar_id: string
@@ -525,7 +525,7 @@ export type Database = {
           registrants_count?: number | null
           start_time?: string | null
           status?: string | null
-          topic: string
+          topic?: string | null
           updated_at?: string
           user_id: string
           webinar_id: string
@@ -543,7 +543,7 @@ export type Database = {
           registrants_count?: number | null
           start_time?: string | null
           status?: string | null
-          topic?: string
+          topic?: string | null
           updated_at?: string
           user_id?: string
           webinar_id?: string
