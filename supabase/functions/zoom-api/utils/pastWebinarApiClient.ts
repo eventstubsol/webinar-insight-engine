@@ -40,9 +40,13 @@ export async function fetchPastWebinarData(
     identifiersUsed: []
   };
   
+  console.log(`[past-webinar-api] 🚀 Starting past webinar data fetch`);
+  console.log(`[past-webinar-api] Completion analysis: ${completionResult.reason}`);
+  console.log(`[past-webinar-api] Should fetch: ${completionResult.shouldFetchActualData}`);
+  
   // Don't make API calls if webinar isn't completed
   if (!completionResult.shouldFetchActualData) {
-    console.log(`[past-webinar-api] Skipping API call: ${completionResult.reason}`);
+    console.log(`[past-webinar-api] ⏭️ Skipping API call: ${completionResult.reason}`);
     return result;
   }
   
@@ -50,71 +54,74 @@ export async function fetchPastWebinarData(
   const webinarId = webinarData.id || webinarData.webinar_id;
   
   console.log(`[past-webinar-api] 📡 Fetching actual data for ${isRecurring ? 'recurring' : 'single'} webinar ${webinarId}`);
-  console.log(`[past-webinar-api] Completion confidence: ${completionResult.confidenceLevel} (${completionResult.reason})`);
+  console.log(`[past-webinar-api] Webinar type: ${webinarData.type}`);
+  console.log(`[past-webinar-api] Has instance data: ${instanceData ? 'yes' : 'no'}`);
   
   // Define the API call strategies in order of preference
   const strategies = [];
   
-  if (isRecurring && instanceData) {
-    // Strategy 1: Recurring webinar instance endpoint
-    if (instanceData.uuid) {
-      strategies.push({
-        name: 'recurring_instance',
-        url: `https://api.zoom.us/v2/past_webinars/${webinarId}/instances/${instanceData.uuid}`,
-        identifier: instanceData.uuid,
-        description: `Recurring instance API with instance UUID`
-      });
-    }
-    
-    // Strategy 2: Direct past webinar with instance UUID
-    if (instanceData.uuid) {
-      strategies.push({
-        name: 'past_webinar_instance_uuid',
-        url: `https://api.zoom.us/v2/past_webinars/${instanceData.uuid}`,
-        identifier: instanceData.uuid,
-        description: `Past webinar API with instance UUID`
-      });
-    }
-  } else {
-    // Strategy 1: Past webinar with webinar UUID (best for single webinars)
-    if (webinarData.uuid) {
-      strategies.push({
-        name: 'past_webinar_uuid',
-        url: `https://api.zoom.us/v2/past_webinars/${webinarData.uuid}`,
-        identifier: webinarData.uuid,
-        description: `Past webinar API with webinar UUID`
-      });
-    }
-    
-    // Strategy 2: Past webinar with webinar ID
+  if (isRecurring && instanceData?.uuid) {
+    // Strategy 1: Past webinar with instance UUID (most direct for recurring instances)
     strategies.push({
-      name: 'past_webinar_id',
-      url: `https://api.zoom.us/v2/past_webinars/${webinarId}`,
-      identifier: webinarId,
-      description: `Past webinar API with webinar ID`
+      name: 'past_webinar_instance_uuid',
+      url: `https://api.zoom.us/v2/past_webinars/${instanceData.uuid}`,
+      identifier: instanceData.uuid,
+      description: `Past webinar API with instance UUID`
+    });
+    
+    // Strategy 2: Recurring webinar instance endpoint (alternative for recurring)
+    strategies.push({
+      name: 'recurring_instance',
+      url: `https://api.zoom.us/v2/past_webinars/${webinarId}/instances/${instanceData.uuid}`,
+      identifier: instanceData.uuid,
+      description: `Recurring instance API with instance UUID`
+    });
+  } 
+  
+  // Strategy for single webinars or fallback
+  if (webinarData.uuid) {
+    strategies.push({
+      name: 'past_webinar_uuid',
+      url: `https://api.zoom.us/v2/past_webinars/${webinarData.uuid}`,
+      identifier: webinarData.uuid,
+      description: `Past webinar API with webinar UUID`
     });
   }
   
+  // Last resort with webinar ID
+  strategies.push({
+    name: 'past_webinar_id',
+    url: `https://api.zoom.us/v2/past_webinars/${webinarId}`,
+    identifier: webinarId,
+    description: `Past webinar API with webinar ID`
+  });
+  
+  console.log(`[past-webinar-api] 🎯 Will try ${strategies.length} strategies`);
+  
   // Try each strategy until one succeeds
-  for (const strategy of strategies) {
+  for (let i = 0; i < strategies.length; i++) {
+    const strategy = strategies[i];
+    
     try {
-      console.log(`[past-webinar-api] 🔍 Trying strategy: ${strategy.description}`);
+      console.log(`[past-webinar-api] 🔍 Strategy ${i + 1}/${strategies.length}: ${strategy.description}`);
       console.log(`[past-webinar-api] URL: ${strategy.url}`);
       
       result.apiCallsMade.push(strategy.url);
       result.identifiersUsed.push(strategy.identifier);
       
-      const response = await fetch(strategy.url, {
+      const response = await fetchWithRetry(strategy.url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
-      });
+      }, 2, 1000);
       
       console.log(`[past-webinar-api] Response status: ${response.status}`);
       
       if (response.ok) {
         const actualData = await response.json();
+        
+        console.log(`[past-webinar-api] Raw response keys: ${Object.keys(actualData).join(', ')}`);
         
         // Validate that we got meaningful data
         if (actualData && (actualData.start_time || actualData.duration || actualData.participants)) {
@@ -125,8 +132,8 @@ export async function fetchPastWebinarData(
           result.actualEndTime = actualData.end_time || null;
           result.participantsCount = actualData.participants_count || 0;
           
-          console.log(`[past-webinar-api] ✅ Success with strategy: ${strategy.name}`);
-          console.log(`[past-webinar-api] Actual data:`, {
+          console.log(`[past-webinar-api] ✅ SUCCESS with strategy: ${strategy.name}`);
+          console.log(`[past-webinar-api] Actual timing data:`, {
             start_time: result.actualStartTime,
             duration: result.actualDuration,
             end_time: result.actualEndTime,
@@ -136,6 +143,7 @@ export async function fetchPastWebinarData(
           return result;
         } else {
           console.log(`[past-webinar-api] ⚠️ Got response but no meaningful timing data`);
+          console.log(`[past-webinar-api] Available data: ${actualData ? Object.keys(actualData).join(', ') : 'none'}`);
         }
       } else {
         const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
@@ -145,6 +153,8 @@ export async function fetchPastWebinarData(
           console.log(`[past-webinar-api] 📭 No past data found with ${strategy.name} (404)`);
         } else if (response.status === 400) {
           console.log(`[past-webinar-api] ❌ Bad request with ${strategy.name} (400): ${errorData.message}`);
+        } else if (response.status === 403) {
+          console.log(`[past-webinar-api] 🚫 Forbidden with ${strategy.name} (403): ${errorData.message}`);
         } else {
           console.warn(`[past-webinar-api] ⚠️ API error with ${strategy.name}: ${errorMsg}`);
         }
@@ -155,11 +165,19 @@ export async function fetchPastWebinarData(
       console.error(`[past-webinar-api] ❌ Network error with ${strategy.name}:`, error);
       result.error = error.message || 'Network error';
     }
+    
+    // Add a small delay between attempts to be respectful to the API
+    if (i < strategies.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
   }
   
   // All strategies failed
   const attemptedStrategies = strategies.map(s => s.name).join(', ');
-  console.warn(`[past-webinar-api] ❌ All strategies failed for webinar ${webinarId}. Attempted: ${attemptedStrategies}`);
+  console.error(`[past-webinar-api] ❌ ALL STRATEGIES FAILED for webinar ${webinarId}`);
+  console.error(`[past-webinar-api] Attempted: ${attemptedStrategies}`);
+  console.error(`[past-webinar-api] API calls made: ${result.apiCallsMade.length}`);
+  console.error(`[past-webinar-api] Identifiers tried: ${result.identifiersUsed.join(', ')}`);
   
   if (!result.error) {
     result.error = `No actual timing data available. Tried ${strategies.length} API endpoints.`;
