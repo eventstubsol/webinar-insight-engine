@@ -1,8 +1,8 @@
 
 import { toast } from '@/hooks/use-toast';
 
-// Operation timeout in milliseconds (45 seconds - allowing for edge function's 30s timeout)
-export const OPERATION_TIMEOUT = 45000;
+// Operation timeout in milliseconds (60 seconds - allowing for edge function's 50s timeout with buffer)
+export const OPERATION_TIMEOUT = 60000;
 
 /**
  * Execute a function with a timeout
