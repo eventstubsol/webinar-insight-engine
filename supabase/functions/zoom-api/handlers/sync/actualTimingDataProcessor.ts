@@ -5,6 +5,28 @@ import { syncWebinarInstances } from './webinarDataSyncer.ts';
  * This processor fetches webinar instances for completed webinars to get actual start/end times
  */
 
+// Configuration constants
+const API_CALL_TIMEOUT = 5000; // 5 seconds per API call
+const BATCH_SIZE = 5; // Process 5 webinars at a time
+const BATCH_DELAY = 1000; // 1 second delay between batches
+const MAX_CONSECUTIVE_FAILURES = 3; // Circuit breaker threshold
+const PROCESSING_TIME_LIMIT = 25000; // 25 seconds total limit (leaving 5s buffer)
+
+/**
+ * Wrapper for API calls with timeout protection
+ */
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((_, reject) => 
+      setTimeout(() => reject(new Error(`API call timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]).catch(error => {
+    console.warn(`[zoom-api][withTimeout] API call failed: ${error.message}`);
+    return null;
+  });
+}
+
 /**
  * Fetch past webinar details using UUID to get actual execution data
  */
@@ -17,12 +39,19 @@ export async function fetchPastWebinarByUUID(
   try {
     // Encode the UUID properly for the URL
     const encodedUUID = encodeURIComponent(encodeURIComponent(webinarUUID));
-    const response = await fetch(`https://api.zoom.us/v2/past_webinars/${encodedUUID}`, {
+    const fetchPromise = fetch(`https://api.zoom.us/v2/past_webinars/${encodedUUID}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
+    
+    const response = await withTimeout(fetchPromise, API_CALL_TIMEOUT);
+    
+    if (!response) {
+      console.warn(`[zoom-api][fetchPastWebinarByUUID] ⚠️ API call timed out for UUID: ${webinarUUID}`);
+      return null;
+    }
     
     if (response.ok) {
       const pastWebinarData = await response.json();
@@ -34,14 +63,16 @@ export async function fetchPastWebinarByUUID(
       
       // If 404, try without double encoding
       if (response.status === 404) {
-        const simpleResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarUUID}`, {
+        const simplePromise = fetch(`https://api.zoom.us/v2/past_webinars/${webinarUUID}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
         
-        if (simpleResponse.ok) {
+        const simpleResponse = await withTimeout(simplePromise, API_CALL_TIMEOUT);
+        
+        if (simpleResponse && simpleResponse.ok) {
           const pastWebinarData = await simpleResponse.json();
           console.log(`[zoom-api][fetchPastWebinarByUUID] ✅ Successfully fetched with simple UUID encoding`);
           return pastWebinarData;
@@ -66,12 +97,19 @@ export async function fetchWebinarDetails(
   console.log(`[zoom-api][fetchWebinarDetails] Fetching webinar details for: ${webinarId}`);
   
   try {
-    const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
+    const fetchPromise = fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
+    
+    const response = await withTimeout(fetchPromise, API_CALL_TIMEOUT);
+    
+    if (!response) {
+      console.warn(`[zoom-api][fetchWebinarDetails] ⚠️ API call timed out for webinar: ${webinarId}`);
+      return null;
+    }
     
     if (response.ok) {
       const webinarData = await response.json();
@@ -89,7 +127,148 @@ export async function fetchWebinarDetails(
 }
 
 /**
+ * Enhanced single webinar timing processor with timeout protection
+ */
+async function enhanceSingleWebinarTiming(
+  webinar: any, 
+  token: string, 
+  supabase: any, 
+  userId: string
+): Promise<any> {
+  const webinarStartTime = new Date(webinar.start_time);
+  const now = new Date();
+  const isPastWebinar = webinarStartTime < now;
+  
+  console.log(`[zoom-api][enhanceSingleWebinarTiming] Processing webinar ${webinar.id} - Start time: ${webinar.start_time}, Status: ${webinar.status}, Is past: ${isPastWebinar}`);
+  
+  if (!isPastWebinar) {
+    // For future webinars, just pass through
+    return {
+      ...webinar,
+      _enhanced_with_timing: false,
+      _timing_enhancement_note: 'Webinar not yet held',
+      _timing_enhancement_timestamp: new Date().toISOString()
+    };
+  }
+  
+  console.log(`[zoom-api][enhanceSingleWebinarTiming] Processing past webinar: ${webinar.id}`);
+  
+  // Method 1: Try instances API first (most reliable)
+  try {
+    console.log(`[zoom-api][enhanceSingleWebinarTiming] Trying instances API for webinar ${webinar.id}`);
+    
+    const instancesResult = await withTimeout(
+      syncWebinarInstances(supabase, { id: userId }, token, webinar.id.toString()),
+      API_CALL_TIMEOUT
+    );
+    
+    if (instancesResult && instancesResult.count > 0) {
+      // Fetch the stored instances from database
+      const { data: instances } = await supabase
+        .from('zoom_webinar_instances')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('webinar_id', webinar.id.toString())
+        .order('start_time', { ascending: false });
+      
+      if (instances && instances.length > 0) {
+        const latestInstance = instances[0];
+        const actualStartTime = latestInstance.start_time || latestInstance.raw_data?.start_time;
+        const actualDuration = latestInstance.duration || latestInstance.raw_data?.duration;
+        
+        console.log(`[zoom-api][enhanceSingleWebinarTiming] ✅ Enhanced webinar ${webinar.id} with instances API data`);
+        return {
+          ...webinar,
+          actual_start_time: actualStartTime,
+          actual_duration: actualDuration,
+          _enhanced_with_timing: true,
+          _timing_enhancement_method: 'instances_api',
+          _timing_enhancement_timestamp: new Date().toISOString()
+        };
+      }
+    }
+  } catch (error) {
+    console.warn(`[zoom-api][enhanceSingleWebinarTiming] Instances API failed for webinar ${webinar.id}:`, error);
+  }
+  
+  // Method 2: Try webinar details and occurrences
+  try {
+    const webinarDetails = await fetchWebinarDetails(webinar.id.toString(), token);
+    
+    if (webinarDetails && webinarDetails.occurrences && webinarDetails.occurrences.length > 0) {
+      console.log(`[zoom-api][enhanceSingleWebinarTiming] Found ${webinarDetails.occurrences.length} occurrences for webinar ${webinar.id}`);
+      
+      // Find the most recent past occurrence
+      const pastOccurrences = webinarDetails.occurrences.filter((occ: any) => {
+        const occStart = new Date(occ.start_time);
+        return occStart < now && occ.status === 'available';
+      });
+      
+      if (pastOccurrences.length > 0) {
+        // Use the most recent past occurrence
+        const latestOccurrence = pastOccurrences[pastOccurrences.length - 1];
+        console.log(`[zoom-api][enhanceSingleWebinarTiming] Using occurrence ${latestOccurrence.occurrence_id} for timing data`);
+        
+        // Try to fetch past webinar data using the occurrence ID
+        const pastWebinarData = await fetchPastWebinarByUUID(latestOccurrence.occurrence_id, token);
+        
+        if (pastWebinarData) {
+          console.log(`[zoom-api][enhanceSingleWebinarTiming] ✅ Enhanced webinar ${webinar.id} with occurrence timing data`);
+          return {
+            ...webinar,
+            actual_start_time: pastWebinarData.start_time,
+            actual_duration: pastWebinarData.duration,
+            actual_end_time: pastWebinarData.end_time,
+            participant_count: pastWebinarData.participants_count,
+            _enhanced_with_timing: true,
+            _timing_enhancement_method: 'occurrence_past_api',
+            _timing_enhancement_timestamp: new Date().toISOString()
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.warn(`[zoom-api][enhanceSingleWebinarTiming] Occurrence method failed for webinar ${webinar.id}:`, error);
+  }
+  
+  // Method 3: Try with webinar UUID (last resort)
+  if (webinar.uuid) {
+    try {
+      console.log(`[zoom-api][enhanceSingleWebinarTiming] Trying to fetch past webinar data using UUID: ${webinar.uuid}`);
+      
+      const pastWebinarData = await fetchPastWebinarByUUID(webinar.uuid, token);
+      
+      if (pastWebinarData) {
+        console.log(`[zoom-api][enhanceSingleWebinarTiming] ✅ Enhanced webinar ${webinar.id} with UUID timing data`);
+        return {
+          ...webinar,
+          actual_start_time: pastWebinarData.start_time,
+          actual_duration: pastWebinarData.duration,
+          actual_end_time: pastWebinarData.end_time,
+          participant_count: pastWebinarData.participants_count,
+          _enhanced_with_timing: true,
+          _timing_enhancement_method: 'uuid_past_api',
+          _timing_enhancement_timestamp: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      console.warn(`[zoom-api][enhanceSingleWebinarTiming] UUID method failed for webinar ${webinar.id}:`, error);
+    }
+  }
+  
+  // If all methods failed
+  console.log(`[zoom-api][enhanceSingleWebinarTiming] ⚠️ Could not get timing data for webinar ${webinar.id}`);
+  return {
+    ...webinar,
+    _enhanced_with_timing: false,
+    _timing_enhancement_error: 'No timing data available from any source',
+    _timing_enhancement_timestamp: new Date().toISOString()
+  };
+}
+
+/**
  * Enhance webinars with actual timing data by fetching and syncing webinar instances
+ * Now with batch processing and circuit breaker logic
  */
 export async function enhanceWebinarsWithActualTimingData(
   webinars: any[], 
@@ -97,157 +276,100 @@ export async function enhanceWebinarsWithActualTimingData(
   supabase: any, 
   userId: string
 ): Promise<any[]> {
-  console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Processing actual timing data for ${webinars.length} webinars`);
+  console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Processing actual timing data for ${webinars.length} webinars with timeout protection`);
   
+  const startTime = Date.now();
   const enhancedWebinars = [];
   let successfulTimingEnhancements = 0;
   let failedTimingEnhancements = 0;
+  let consecutiveFailures = 0;
+  let batchNumber = 0;
   
-  for (const webinar of webinars) {
-    try {
-      // Check if webinar is in the past (scheduled time has passed)
-      const webinarStartTime = new Date(webinar.start_time);
-      const now = new Date();
-      const isPastWebinar = webinarStartTime < now;
+  // Process webinars in batches to prevent timeout
+  for (let i = 0; i < webinars.length; i += BATCH_SIZE) {
+    batchNumber++;
+    const batch = webinars.slice(i, i + BATCH_SIZE);
+    
+    console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Processing batch ${batchNumber}/${Math.ceil(webinars.length / BATCH_SIZE)} (${batch.length} webinars)`);
+    
+    // Check if we're approaching time limit
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime > PROCESSING_TIME_LIMIT) {
+      console.warn(`[zoom-api][enhanceWebinarsWithActualTimingData] ⚠️ Approaching time limit, processing remaining webinars without timing enhancement`);
       
-      console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Webinar ${webinar.id} - Start time: ${webinar.start_time}, Status: ${webinar.status}, Is past: ${isPastWebinar}`);
-      
-      if (isPastWebinar) {
-        console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Processing past webinar: ${webinar.id}`);
-        
-        // First, try to get detailed webinar data to check occurrences
-        const webinarDetails = await fetchWebinarDetails(webinar.id.toString(), token);
-        
-        // Check if webinar has occurrences (instances)
-        if (webinarDetails && webinarDetails.occurrences && webinarDetails.occurrences.length > 0) {
-          console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Found ${webinarDetails.occurrences.length} occurrences for webinar ${webinar.id}`);
-          
-          // Find the most recent past occurrence
-          const pastOccurrences = webinarDetails.occurrences.filter((occ: any) => {
-            const occStart = new Date(occ.start_time);
-            return occStart < now && occ.status === 'available';
-          });
-          
-          if (pastOccurrences.length > 0) {
-            // Use the most recent past occurrence
-            const latestOccurrence = pastOccurrences[pastOccurrences.length - 1];
-            console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Using occurrence ${latestOccurrence.occurrence_id} for timing data`);
-            
-            // Try to fetch past webinar data using the occurrence ID
-            const pastWebinarData = await fetchPastWebinarByUUID(latestOccurrence.occurrence_id, token);
-            
-            if (pastWebinarData) {
-              const enhancedWebinar = {
-                ...webinar,
-                actual_start_time: pastWebinarData.start_time,
-                actual_duration: pastWebinarData.duration,
-                actual_end_time: pastWebinarData.end_time,
-                participant_count: pastWebinarData.participants_count,
-                _enhanced_with_timing: true,
-                _timing_enhancement_method: 'occurrence_past_api',
-                _timing_enhancement_timestamp: new Date().toISOString()
-              };
-              
-              enhancedWebinars.push(enhancedWebinar);
-              successfulTimingEnhancements++;
-              console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with occurrence timing data`);
-              continue;
-            }
-          }
-        }
-        
-        // If no occurrences or occurrence method failed, try with webinar UUID
-        if (webinar.uuid) {
-          console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Trying to fetch past webinar data using UUID: ${webinar.uuid}`);
-          
-          const pastWebinarData = await fetchPastWebinarByUUID(webinar.uuid, token);
-          
-          if (pastWebinarData) {
-            const enhancedWebinar = {
-              ...webinar,
-              actual_start_time: pastWebinarData.start_time,
-              actual_duration: pastWebinarData.duration,
-              actual_end_time: pastWebinarData.end_time,
-              participant_count: pastWebinarData.participants_count,
-              _enhanced_with_timing: true,
-              _timing_enhancement_method: 'uuid_past_api',
-              _timing_enhancement_timestamp: new Date().toISOString()
-            };
-            
-            enhancedWebinars.push(enhancedWebinar);
-            successfulTimingEnhancements++;
-            console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with UUID timing data`);
-            continue;
-          }
-        }
-        
-        // If both methods failed, try instances API as fallback
-        console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Falling back to instances API for webinar ${webinar.id}`);
-        
-        const instancesResult = await syncWebinarInstances(supabase, { id: userId }, token, webinar.id.toString());
-        
-        if (instancesResult.count > 0) {
-          // Fetch the stored instances from database
-          const { data: instances } = await supabase
-            .from('zoom_webinar_instances')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('webinar_id', webinar.id.toString())
-            .order('start_time', { ascending: false });
-          
-          if (instances && instances.length > 0) {
-            const latestInstance = instances[0];
-            const actualStartTime = latestInstance.start_time || latestInstance.raw_data?.start_time;
-            const actualDuration = latestInstance.duration || latestInstance.raw_data?.duration;
-            
-            const enhancedWebinar = {
-              ...webinar,
-              actual_start_time: actualStartTime,
-              actual_duration: actualDuration,
-              _enhanced_with_timing: true,
-              _timing_enhancement_method: 'instances_api',
-              _timing_enhancement_timestamp: new Date().toISOString()
-            };
-            
-            enhancedWebinars.push(enhancedWebinar);
-            successfulTimingEnhancements++;
-            console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ✅ Enhanced webinar ${webinar.id} with instances API data`);
-            continue;
-          }
-        }
-        
-        // If all methods failed
-        console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] ⚠️ Could not get timing data for webinar ${webinar.id}`);
+      // Add remaining webinars without timing enhancement
+      for (let j = i; j < webinars.length; j++) {
         enhancedWebinars.push({
-          ...webinar,
+          ...webinars[j],
           _enhanced_with_timing: false,
-          _timing_enhancement_error: 'No timing data available from any source',
-          _timing_enhancement_timestamp: new Date().toISOString()
-        });
-        failedTimingEnhancements++;
-      } else {
-        // For future webinars, just pass through
-        enhancedWebinars.push({
-          ...webinar,
-          _enhanced_with_timing: false,
-          _timing_enhancement_note: 'Webinar not yet held',
+          _timing_enhancement_error: 'Skipped due to time limit',
           _timing_enhancement_timestamp: new Date().toISOString()
         });
       }
-    } catch (error) {
-      console.error(`[zoom-api][enhanceWebinarsWithActualTimingData] ❌ Error enhancing timing for webinar ${webinar.id}:`, error);
+      break;
+    }
+    
+    // Circuit breaker: stop if too many consecutive failures
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      console.warn(`[zoom-api][enhanceWebinarsWithActualTimingData] ⚠️ Circuit breaker activated: ${consecutiveFailures} consecutive failures`);
       
-      enhancedWebinars.push({
-        ...webinar,
-        _enhanced_with_timing: false,
-        _timing_enhancement_error: error.message,
-        _timing_enhancement_timestamp: new Date().toISOString()
-      });
-      failedTimingEnhancements++;
+      // Add remaining webinars without timing enhancement
+      for (let j = i; j < webinars.length; j++) {
+        enhancedWebinars.push({
+          ...webinars[j],
+          _enhanced_with_timing: false,
+          _timing_enhancement_error: 'Circuit breaker activated',
+          _timing_enhancement_timestamp: new Date().toISOString()
+        });
+      }
+      break;
+    }
+    
+    // Process batch in parallel but with individual timeouts
+    const batchPromises = batch.map(webinar => 
+      enhanceSingleWebinarTiming(webinar, token, supabase, userId)
+    );
+    
+    try {
+      const batchResults = await Promise.all(batchPromises);
+      
+      for (const result of batchResults) {
+        enhancedWebinars.push(result);
+        
+        if (result._enhanced_with_timing === true) {
+          successfulTimingEnhancements++;
+          consecutiveFailures = 0; // Reset consecutive failures
+        } else {
+          failedTimingEnhancements++;
+          consecutiveFailures++;
+        }
+      }
+      
+      // Add delay between batches to prevent overwhelming the API
+      if (i + BATCH_SIZE < webinars.length) {
+        console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] Waiting ${BATCH_DELAY}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+      }
+      
+    } catch (error) {
+      console.error(`[zoom-api][enhanceWebinarsWithActualTimingData] ❌ Error processing batch ${batchNumber}:`, error);
+      
+      // Add batch webinars with error status
+      for (const webinar of batch) {
+        enhancedWebinars.push({
+          ...webinar,
+          _enhanced_with_timing: false,
+          _timing_enhancement_error: `Batch processing error: ${error.message}`,
+          _timing_enhancement_timestamp: new Date().toISOString()
+        });
+        failedTimingEnhancements++;
+        consecutiveFailures++;
+      }
     }
   }
   
-  console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] 🎉 Timing enhancement completed: ${successfulTimingEnhancements} successful, ${failedTimingEnhancements} failed`);
+  const totalTime = Date.now() - startTime;
+  console.log(`[zoom-api][enhanceWebinarsWithActualTimingData] 🎉 Timing enhancement completed in ${totalTime}ms: ${successfulTimingEnhancements} successful, ${failedTimingEnhancements} failed`);
   
   return enhancedWebinars;
 }
@@ -262,12 +384,19 @@ export async function fetchPastWebinarDetails(
   console.log(`[zoom-api][fetchPastWebinarDetails] Fetching past webinar details for: ${webinarId}`);
   
   try {
-    const response = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}`, {
+    const fetchPromise = fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
+    
+    const response = await withTimeout(fetchPromise, API_CALL_TIMEOUT);
+    
+    if (!response) {
+      console.warn(`[zoom-api][fetchPastWebinarDetails] ⚠️ API call timed out for webinar: ${webinarId}`);
+      return null;
+    }
     
     if (response.ok) {
       const pastWebinarData = await response.json();
@@ -293,7 +422,7 @@ export async function enhanceWebinarsWithComprehensiveTimingData(
   supabase: any, 
   userId: string
 ): Promise<any[]> {
-  console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData] Processing comprehensive timing data for ${webinars.length} webinars`);
+  console.log(`[zoom-api][enhanceWebinarsWithComprehensiveTimingData] Processing comprehensive timing data for ${webinars.length} webinars with enhanced timeout protection`);
   
   // Use the new enhanced timing processor
   const enhancedWebinars = await enhanceWebinarsWithActualTimingData(webinars, token, supabase, userId);
