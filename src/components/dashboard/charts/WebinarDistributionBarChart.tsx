@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { TimeRangeView } from '@/hooks/useWebinarDistribution';
 
@@ -53,43 +53,43 @@ export const WebinarDistributionBarChart: React.FC<WebinarDistributionBarChartPr
       config={chartConfig}
       className="h-full w-full"
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={data}
-          margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
-          barSize={40}
+      <BarChart
+        data={data}
+        width={500}
+        height={300}
+        margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
+        barSize={40}
+      >
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" opacity={0.7} />
+        <XAxis 
+          dataKey="monthYear" 
+          tick={{ fontSize: 11, fontFamily: 'inherit', fill: '#64748b' }}
+          tickLine={false}
+          axisLine={{ stroke: '#cbd5e1' }}
+          interval={0} 
+        />
+        <YAxis 
+          allowDecimals={false}
+          tickLine={false}
+          axisLine={{ stroke: '#cbd5e1' }}
+          tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
+        />
+        <ChartTooltip content={<ChartTooltipContent />} />
+        <Bar 
+          dataKey="total" 
+          name="Total Webinars" 
+          radius={[4, 4, 0, 0]}
         >
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" opacity={0.7} />
-          <XAxis 
-            dataKey="monthYear" 
-            tick={{ fontSize: 11, fontFamily: 'inherit', fill: '#64748b' }}
-            tickLine={false}
-            axisLine={{ stroke: '#cbd5e1' }}
-            interval={0} 
-          />
-          <YAxis 
-            allowDecimals={false}
-            tickLine={false}
-            axisLine={{ stroke: '#cbd5e1' }}
-            tick={{ fontSize: 12, fontFamily: 'inherit', fill: '#64748b' }}
-          />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <Bar 
-            dataKey="total" 
-            name="Total Webinars" 
-            radius={[4, 4, 0, 0]}
-          >
-            {data.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
-                fill={timeRange === 'past' ? COLOR_PALETTE[index % COLOR_PALETTE.length] : 'none'}
-                stroke={timeRange === 'future' ? COLOR_PALETTE[index % COLOR_PALETTE.length] : undefined}
-                strokeWidth={timeRange === 'future' ? 2 : undefined}
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+          {data.map((entry, index) => (
+            <Cell 
+              key={`cell-${index}`} 
+              fill={timeRange === 'past' ? COLOR_PALETTE[index % COLOR_PALETTE.length] : 'none'}
+              stroke={timeRange === 'future' ? COLOR_PALETTE[index % COLOR_PALETTE.length] : undefined}
+              strokeWidth={timeRange === 'future' ? 2 : undefined}
+            />
+          ))}
+        </Bar>
+      </BarChart>
     </ChartContainer>
   );
 };
