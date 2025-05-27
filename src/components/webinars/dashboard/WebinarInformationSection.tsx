@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ZoomWebinar } from '@/hooks/zoom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +28,7 @@ export const WebinarInformationSection: React.FC<WebinarInformationSectionProps>
       return (
         <div className="flex items-center gap-2">
           <span className="text-gray-900">{formatDuration(webinar.actual_duration)}</span>
-          <Badge variant="default" size="sm">Actual</Badge>
+          <Badge variant="default">Actual</Badge>
         </div>
       );
     }
@@ -36,7 +37,7 @@ export const WebinarInformationSection: React.FC<WebinarInformationSectionProps>
       return (
         <div className="flex items-center gap-2">
           <span className="text-gray-500">Duration missing</span>
-          <Badge variant="secondary" size="sm">Needs Enhancement</Badge>
+          <Badge variant="secondary">Needs Enhancement</Badge>
         </div>
       );
     }
@@ -46,7 +47,7 @@ export const WebinarInformationSection: React.FC<WebinarInformationSectionProps>
       return (
         <div className="flex items-center gap-2">
           <span className="text-gray-700">{formatDuration(webinar.duration)}</span>
-          <Badge variant="outline" size="sm">Planned</Badge>
+          <Badge variant="outline">Planned</Badge>
         </div>
       );
     }

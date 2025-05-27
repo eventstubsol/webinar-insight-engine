@@ -1,7 +1,8 @@
+
 import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { DurationDebugPanel } from './DurationDebugPanel';
 import { ZoomWebinar } from '@/hooks/zoom';
 
@@ -16,12 +17,12 @@ export const WebinarDashboardHeader: React.FC<WebinarDashboardHeaderProps> = ({
   isLoading,
   onRefresh
 }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [isSyncing, setIsSyncing] = useState(false);
   
   const handleGoBack = useCallback(() => {
-    router.back();
-  }, [router]);
+    navigate(-1);
+  }, [navigate]);
   
   const handleSync = async () => {
     setIsSyncing(true);

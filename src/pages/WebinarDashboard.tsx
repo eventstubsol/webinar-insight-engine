@@ -44,7 +44,8 @@ const WebinarDashboard = () => {
   const { 
     webinar, 
     isLoading: isWebinarLoading,
-    error: webinarError
+    error: webinarError,
+    refetch: refetchWebinar
   } = useZoomWebinarDetails(webinarId || null);
   
   const { 
@@ -63,6 +64,10 @@ const WebinarDashboard = () => {
       navigate('/webinars');
     }
   }, [webinar, isLoading, navigate, webinarId]);
+
+  const handleRefresh = async () => {
+    await refetchWebinar();
+  };
 
   if (webinarError) {
     return (
@@ -89,7 +94,11 @@ const WebinarDashboard = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <WebinarDashboardHeader webinar={webinar} />
+        <WebinarDashboardHeader 
+          webinar={webinar} 
+          isLoading={isLoading}
+          onRefresh={handleRefresh}
+        />
         <WebinarMetadataHeader webinar={webinar} participants={participants} />
         <WebinarDashboardTabs 
           webinar={webinar}
