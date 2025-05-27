@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { RefreshCw, Clock, Zap } from 'lucide-react';
+import { RefreshCw, Clock } from 'lucide-react';
 import { useSingleWebinarSync } from '@/hooks/zoom/useSingleWebinarSync';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -12,7 +12,6 @@ interface WebinarSyncButtonProps {
   variant?: 'default' | 'outline' | 'ghost' | 'secondary';
   showLastSync?: boolean;
   className?: string;
-  mode?: 'single' | 'timing'; // New prop to indicate sync mode
 }
 
 export const WebinarSyncButton: React.FC<WebinarSyncButtonProps> = ({
@@ -20,8 +19,7 @@ export const WebinarSyncButton: React.FC<WebinarSyncButtonProps> = ({
   size = 'sm',
   variant = 'outline',
   showLastSync = false,
-  className,
-  mode = 'single'
+  className
 }) => {
   const { syncWebinar, isSyncing, syncingWebinarId, getLastSyncTime } = useSingleWebinarSync();
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -41,49 +39,27 @@ export const WebinarSyncButton: React.FC<WebinarSyncButtonProps> = ({
     syncWebinar(webinarId);
   };
 
-  const getButtonText = () => {
-    if (isThisWebinarSyncing) {
-      return mode === 'timing' ? 'Enhancing...' : 'Syncing...';
-    }
-    return mode === 'timing' ? 'Enhance Timing' : 'Sync';
-  };
-
-  const getTooltipText = () => {
-    if (mode === 'timing') {
-      return lastSync 
-        ? `Last timing enhancement: ${formatDistanceToNow(lastSync, { addSuffix: true })}`
-        : 'Enhance this webinar with actual timing data (Phase 2)';
-    }
-    
-    return lastSync 
-      ? `Last synced: ${formatDistanceToNow(lastSync, { addSuffix: true })}`
-      : 'Sync this webinar';
-  };
-
-  const getIcon = () => {
-    if (mode === 'timing') {
-      return <Zap className={`h-4 w-4 ${isThisWebinarSyncing ? 'animate-pulse' : ''}`} />;
-    }
-    return <RefreshCw className={`h-4 w-4 ${isThisWebinarSyncing ? 'animate-spin' : ''}`} />;
-  };
+  const syncTooltip = lastSync 
+    ? `Last synced: ${formatDistanceToNow(lastSync, { addSuffix: true })}`
+    : 'Sync this webinar';
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant={mode === 'timing' ? 'secondary' : variant}
+            variant={variant}
             size={size}
             onClick={handleSync}
             disabled={isThisWebinarSyncing}
             className="gap-1"
           >
-            {getIcon()}
-            {size !== 'icon' && getButtonText()}
+            <RefreshCw className={`h-4 w-4 ${isThisWebinarSyncing ? 'animate-spin' : ''}`} />
+            {size !== 'icon' && (isThisWebinarSyncing ? 'Syncing...' : 'Sync')}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{getTooltipText()}</p>
+          <p>{syncTooltip}</p>
         </TooltipContent>
       </Tooltip>
       

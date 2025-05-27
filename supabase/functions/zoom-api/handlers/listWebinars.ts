@@ -2,7 +2,7 @@
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 import { fetchWebinarsFromZoomAPI, performNonDestructiveUpsert } from './sync/nonDestructiveSync.ts';
-import { enhanceWebinarsWithEssentialData } from './sync/webinarEnhancementOrchestrator.ts';
+import { enhanceWebinarsWithAllData } from './sync/webinarEnhancementOrchestrator.ts';
 import { calculateSyncStats, recordSyncHistory } from './sync/syncStatsCalculator.ts';
 import { checkDatabaseCache } from './sync/databaseCache.ts';
 import { formatListWebinarsResponse, logWebinarStatistics, SyncResults, StatsResult } from './sync/responseFormatter.ts';
@@ -10,10 +10,9 @@ import { fetchUserInfo } from './sync/userInfoFetcher.ts';
 import { handleEmptySync } from './sync/emptySyncHandler.ts';
 import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
-// Handle listing webinars with two-phase enhancement strategy
+// Handle listing webinars with non-destructive upsert-based sync
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
-  console.log(`[zoom-api][list-webinars] Starting TWO-PHASE non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
-  console.log(`[zoom-api][list-webinars] Phase 1: Essential data (fast), Phase 2: Timing data (background)`);
+  console.log(`[zoom-api][list-webinars] Starting non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
   console.log(`[zoom-api][list-webinars] Current timestamp: ${new Date().toISOString()}`);
   
   try {
@@ -58,9 +57,9 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     // Process webinars if any exist
     if (allWebinars && allWebinars.length > 0) {
-      // PHASE 1: Enhance webinars with essential data only (fast, no timing data)
-      console.log('[zoom-api][list-webinars] 🚀 Starting PHASE 1: Essential enhancements (no timing data)');
-      const enhancedWebinars = await enhanceWebinarsWithEssentialData(allWebinars, token, supabase, user.id);
+      // Enhance webinars with all additional data (host, panelist, participant, and recording info)
+      // Pass supabase client and user ID for recording data storage
+      const enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
       
       // Perform non-destructive upsert
       syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
@@ -68,7 +67,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       // Calculate comprehensive statistics
       statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
       
-      // Record sync in history with phase information
+      // Record sync in history with enhanced statistics including recording data
       const recordingStats = enhancedWebinars.filter(w => w.has_recordings).length;
       await recordSyncHistory(
         supabase,
@@ -76,11 +75,8 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
         'webinars',
         'success',
         syncResults.newWebinars + syncResults.updatedWebinars,
-        `Phase 1 sync completed: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars. Timing data available via "Update Participant Data"`
+        `Non-destructive sync with full data resolution: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
       );
-      
-      console.log('[zoom-api][list-webinars] ✅ PHASE 1 completed successfully - webinars ready for immediate use');
-      console.log('[zoom-api][list-webinars] 💡 Use "Update Participant Data" button to run PHASE 2 (timing enhancement)');
     } else {
       // Handle empty sync result
       await handleEmptySync(supabase, user.id, syncResults, statsResult);
