@@ -16,40 +16,55 @@ export async function createSingleWebinarInstance(webinarId: string, token: stri
       try {
         console.log(`[zoom-api][single-creator] 📡 Fetching actual data for completed single webinar ${webinarId}`);
         
-        // Use webinar UUID if available, fallback to webinar ID
-        const apiIdentifier = webinarData.uuid || webinarId;
-        const pastResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${apiIdentifier}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        // Try webinar UUID first, then fallback to webinar ID
+        const identifiers = [webinarData.uuid, webinarId].filter(Boolean);
         
-        if (pastResponse.ok) {
-          actualData = await pastResponse.json();
-          actualStartTime = actualData.start_time || null;
-          actualDuration = actualData.duration || null;
-          actualEndTime = actualData.end_time || null;
-          
-          console.log(`[zoom-api][single-creator] ✅ Got actual timing data:`);
-          console.log(`[zoom-api][single-creator]   - start: ${actualStartTime}`);
-          console.log(`[zoom-api][single-creator]   - duration: ${actualDuration}`);
-          console.log(`[zoom-api][single-creator]   - end: ${actualEndTime}`);
-        } else {
-          const errorData = await pastResponse.json().catch(() => ({ message: 'Unknown error' }));
-          console.warn(`[zoom-api][single-creator] ⚠️ Could not fetch past webinar data for ${webinarId}: ${errorData.message}`);
+        for (const identifier of identifiers) {
+          try {
+            console.log(`[zoom-api][single-creator] 🔍 Trying past_webinars API with identifier: ${identifier}`);
+            
+            const pastResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${identifier}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (pastResponse.ok) {
+              actualData = await pastResponse.json();
+              actualStartTime = actualData.start_time || null;
+              actualDuration = actualData.duration || null;
+              actualEndTime = actualData.end_time || null;
+              
+              console.log(`[zoom-api][single-creator] ✅ Got actual timing data using ${identifier}:`);
+              console.log(`[zoom-api][single-creator]   - start: ${actualStartTime}`);
+              console.log(`[zoom-api][single-creator]   - duration: ${actualDuration}`);
+              console.log(`[zoom-api][single-creator]   - end: ${actualEndTime}`);
+              break; // Success, exit the loop
+            } else {
+              const errorData = await pastResponse.json().catch(() => ({ message: 'Unknown error' }));
+              console.warn(`[zoom-api][single-creator] ⚠️ Failed with identifier ${identifier}: ${errorData.message}`);
+            }
+          } catch (error) {
+            console.warn(`[zoom-api][single-creator] ⚠️ Error with identifier ${identifier}:`, error);
+          }
+        }
+        
+        if (!actualData) {
+          console.warn(`[zoom-api][single-creator] ⚠️ Could not fetch past webinar data for ${webinarId} using any identifier`);
         }
       } catch (error) {
         console.warn(`[zoom-api][single-creator] ⚠️ Error fetching past webinar data for ${webinarId}:`, error);
       }
     }
     
-    // Calculate end time for completed webinars
+    // Calculate end time for completed webinars with proper validation
+    const finalTopic = webinarData.topic && webinarData.topic.trim() !== '' ? webinarData.topic : 'Untitled Webinar';
     const finalDuration = actualDuration || webinarData.duration;
     const finalStartTime = webinarData.start_time; // This is already the actual start time
     let endTime = actualEndTime;
     
-    if (!endTime && isCompleted && finalStartTime && finalDuration) {
+    if (!endTime && finalStartTime && finalDuration) {
       try {
         const startDate = new Date(finalStartTime);
         const endDate = new Date(startDate.getTime() + (finalDuration * 60000));
@@ -60,15 +75,23 @@ export async function createSingleWebinarInstance(webinarId: string, token: stri
       }
     }
     
-    // Determine proper status
+    // Determine proper status with enhanced logic
     let finalStatus = webinarData.status;
-    if (!finalStatus) {
-      if (isCompleted) {
+    if (!finalStatus || finalStatus.trim() === '') {
+      if (isCompleted || (actualData && actualEndTime)) {
         finalStatus = 'ended';
-      } else if (webinarData.start_time) {
+      } else if (finalStartTime) {
         const now = new Date();
-        const startTime = new Date(webinarData.start_time);
-        finalStatus = now > startTime ? 'started' : 'waiting';
+        const startTime = new Date(finalStartTime);
+        if (now > startTime) {
+          if (endTime && now > new Date(endTime)) {
+            finalStatus = 'ended';
+          } else {
+            finalStatus = 'started';
+          }
+        } else {
+          finalStatus = 'waiting';
+        }
       } else {
         finalStatus = 'waiting';
       }
@@ -84,7 +107,7 @@ export async function createSingleWebinarInstance(webinarId: string, token: stri
       actual_start_time: actualStartTime,
       actual_duration: actualDuration,
       status: finalStatus,
-      topic: webinarData.topic || 'Untitled Webinar',
+      topic: finalTopic,
       participants_count: actualData?.participants_count || 0,
       registrants_count: 0,
       _is_single_occurrence: true,
@@ -95,11 +118,12 @@ export async function createSingleWebinarInstance(webinarId: string, token: stri
         actual_duration: actualDuration ? 'past_webinar_api' : 'none',
         scheduled_duration: webinarData.duration ? 'webinar_data' : 'none',
         end_time: actualEndTime ? 'past_webinar_api' : (endTime ? 'calculated' : 'none'),
-        topic: 'webinar_data',
+        topic: webinarData.topic ? 'webinar_data' : 'default',
         status: webinarData.status ? 'webinar_data' : 'calculated'
       },
       _actual_data: actualData,
-      _webinar_data: webinarData
+      _webinar_data: webinarData,
+      _identifiers_tried: [webinarData.uuid, webinarId].filter(Boolean)
     };
     
     console.log(`[zoom-api][single-creator] ✅ Created single instance for ${webinarId}:`);

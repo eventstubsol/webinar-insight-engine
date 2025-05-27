@@ -9,14 +9,19 @@ export async function processInstanceForDatabase(
   userId: string
 ) {
   try {
-    // Properly inherit data with correct precedence
-    const finalTopic = instance.topic || webinarData.topic || 'Untitled Webinar';
+    // Properly inherit data with correct precedence and validation
+    const finalTopic = (instance.topic && instance.topic.trim() !== '') ? instance.topic :
+                      (webinarData.topic && webinarData.topic.trim() !== '') ? webinarData.topic : 'Untitled Webinar';
+    
     const finalStartTime = instance.start_time || webinarData.start_time;
-    const finalDuration = instance.duration || webinarData.duration || null;
+    const scheduledDuration = instance.duration || webinarData.duration || null;
     
     // Extract actual timing data from instance if available
     const actualStartTime = instance.actual_start_time || null;
     const actualDuration = instance.actual_duration || null;
+    
+    // Use actual duration if available, otherwise scheduled
+    const finalDuration = actualDuration || scheduledDuration;
     
     // Calculate end time: actual > calculated from start+duration
     let finalEndTime = instance.end_time || null;
@@ -30,17 +35,25 @@ export async function processInstanceForDatabase(
       }
     }
     
-    // Determine proper status
+    // Determine proper status with enhanced logic
     let finalStatus = instance.status;
-    if (!finalStatus) {
-      if (finalStartTime) {
+    if (!finalStatus || finalStatus.trim() === '') {
+      if (actualStartTime && actualDuration) {
+        // If we have actual timing data, determine status based on actual completion
+        const now = new Date();
+        const actualEnd = new Date(new Date(actualStartTime).getTime() + (actualDuration * 60000));
+        finalStatus = now > actualEnd ? 'ended' : 'started';
+      } else if (finalStartTime) {
         const now = new Date();
         const startTime = new Date(finalStartTime);
-        if (now > startTime && finalEndTime) {
-          const endTime = new Date(finalEndTime);
-          finalStatus = now > endTime ? 'ended' : 'started';
+        if (now > startTime) {
+          if (finalEndTime && now > new Date(finalEndTime)) {
+            finalStatus = 'ended';
+          } else {
+            finalStatus = 'started';
+          }
         } else {
-          finalStatus = now > startTime ? 'started' : 'waiting';
+          finalStatus = 'waiting';
         }
       } else {
         finalStatus = 'waiting';
@@ -50,7 +63,7 @@ export async function processInstanceForDatabase(
     console.log(`[zoom-api][instance-processor] 📊 Processing data for instance ${instance.uuid || instance.id}:`);
     console.log(`[zoom-api][instance-processor]   - topic: ${finalTopic}`);
     console.log(`[zoom-api][instance-processor]   - start_time: ${finalStartTime}`);
-    console.log(`[zoom-api][instance-processor]   - duration: ${finalDuration}`);
+    console.log(`[zoom-api][instance-processor]   - duration: ${finalDuration} (actual: ${actualDuration}, scheduled: ${scheduledDuration})`);
     console.log(`[zoom-api][instance-processor]   - end_time: ${finalEndTime}`);
     console.log(`[zoom-api][instance-processor]   - status: ${finalStatus}`);
     console.log(`[zoom-api][instance-processor]   - actual_start_time: ${actualStartTime}`);
@@ -74,13 +87,18 @@ export async function processInstanceForDatabase(
         ...instance,
         _webinar_data: webinarData,
         _timing_source: {
-          topic: instance.topic ? 'instance' : 'webinar',
+          topic: instance.topic ? 'instance' : (webinarData.topic ? 'webinar' : 'default'),
           start_time: instance.start_time ? 'instance' : 'webinar',
-          duration: instance.duration ? 'instance' : 'webinar',
+          duration: actualDuration ? 'actual_data' : (scheduledDuration ? (instance.duration ? 'instance' : 'webinar') : 'none'),
           actual_start_time: actualStartTime ? 'actual_data' : 'none',
           actual_duration: actualDuration ? 'actual_data' : 'none',
           end_time: instance.end_time ? 'instance' : (finalEndTime ? 'calculated' : 'none'),
           status: instance.status ? 'instance' : 'calculated'
+        },
+        _data_inheritance: {
+          topic_source: instance.topic ? 'instance' : (webinarData.topic ? 'webinar' : 'default'),
+          duration_source: actualDuration ? 'actual' : (instance.duration ? 'instance_scheduled' : 'webinar_scheduled'),
+          timing_data_available: !!actualStartTime
         }
       }
     };

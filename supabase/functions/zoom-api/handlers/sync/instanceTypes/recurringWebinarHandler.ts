@@ -54,8 +54,10 @@ async function processRecurringInstance(webinar: any, instance: any, token: stri
   let actualEndTime = null;
   let actualData = null;
   
-  // Determine if instance is completed
-  const isCompleted = instance.status === 'ended' || instance.status === 'aborted';
+  // Determine if instance is completed with robust checking
+  const isCompleted = instance.status === 'ended' || instance.status === 'aborted' || 
+    (instance.start_time && new Date(instance.start_time) < new Date() && 
+     (!instance.duration || new Date(instance.start_time).getTime() + (instance.duration * 60000) < Date.now()));
   
   // For completed instances, fetch actual data using past webinars API with instance UUID
   if (isCompleted && instance.uuid) {
@@ -87,36 +89,52 @@ async function processRecurringInstance(webinar: any, instance: any, token: stri
     }
   }
   
-  // Determine final values: inherit from webinar, override with instance, then with actual data
-  const finalStartTime = instance.start_time || webinar.start_time;
-  const finalDuration = actualDuration || instance.duration || webinar.duration || null;
-  const finalEndTime = actualEndTime || (finalStartTime && finalDuration ? 
-    new Date(new Date(finalStartTime).getTime() + (finalDuration * 60000)).toISOString() : null);
+  // Determine final values with proper inheritance: instance → webinar → defaults
+  const finalTopic = (instance.topic && instance.topic.trim() !== '') ? instance.topic : 
+                    (webinar.topic && webinar.topic.trim() !== '') ? webinar.topic : 'Untitled Webinar';
   
-  // Determine proper status
+  const finalStartTime = instance.start_time || webinar.start_time;
+  const scheduledDuration = instance.duration || webinar.duration || null;
+  const finalDuration = actualDuration || scheduledDuration;
+  
+  // Calculate end time with priority: actual > calculated
+  let finalEndTime = actualEndTime;
+  if (!finalEndTime && finalStartTime && finalDuration) {
+    try {
+      const startDate = new Date(finalStartTime);
+      const endDate = new Date(startDate.getTime() + (finalDuration * 60000));
+      finalEndTime = endDate.toISOString();
+    } catch (error) {
+      console.warn(`[zoom-api][recurring-handler] ⚠️ Error calculating end time:`, error);
+    }
+  }
+  
+  // Determine proper status with enhanced logic
   let finalStatus = instance.status;
-  if (!finalStatus) {
-    if (finalStartTime) {
+  if (!finalStatus || finalStatus.trim() === '') {
+    if (isCompleted || (actualData && actualEndTime)) {
+      finalStatus = 'ended';
+    } else if (finalStartTime) {
       const now = new Date();
       const startTime = new Date(finalStartTime);
-      if (now > startTime && finalEndTime) {
-        const endTime = new Date(finalEndTime);
-        finalStatus = now > endTime ? 'ended' : 'started';
+      if (now > startTime) {
+        if (finalEndTime && now > new Date(finalEndTime)) {
+          finalStatus = 'ended';
+        } else {
+          finalStatus = 'started';
+        }
       } else {
-        finalStatus = now > startTime ? 'started' : 'waiting';
+        finalStatus = 'waiting';
       }
     } else {
       finalStatus = 'waiting';
     }
   }
   
-  // Use webinar topic if instance doesn't have one
-  const finalTopic = instance.topic || webinar.topic || 'Untitled Webinar';
-  
   console.log(`[zoom-api][recurring-handler] 📊 Final data for instance ${instance.uuid}:`);
   console.log(`[zoom-api][recurring-handler]   - topic: ${finalTopic}`);
   console.log(`[zoom-api][recurring-handler]   - start_time: ${finalStartTime}`);
-  console.log(`[zoom-api][recurring-handler]   - duration: ${finalDuration}`);
+  console.log(`[zoom-api][recurring-handler]   - duration: ${finalDuration} (actual: ${actualDuration}, scheduled: ${scheduledDuration})`);
   console.log(`[zoom-api][recurring-handler]   - end_time: ${finalEndTime}`);
   console.log(`[zoom-api][recurring-handler]   - status: ${finalStatus}`);
   console.log(`[zoom-api][recurring-handler]   - actual_start_time: ${actualStartTime}`);
@@ -144,8 +162,10 @@ async function processRecurringInstance(webinar: any, instance: any, token: stri
         start_time: instance.start_time ? 'instances_api' : 'webinar_data',
         actual_start_time: actualStartTime ? 'past_webinar_api' : 'none',
         actual_duration: actualDuration ? 'past_webinar_api' : 'none',
-        scheduled_duration: instance.duration ? 'instances_api' : (webinar.duration ? 'webinar_data' : 'none'),
-        end_time: actualEndTime ? 'past_webinar_api' : (finalEndTime ? 'calculated' : 'none')
+        scheduled_duration: scheduledDuration ? (instance.duration ? 'instances_api' : 'webinar_data') : 'none',
+        end_time: actualEndTime ? 'past_webinar_api' : (finalEndTime ? 'calculated' : 'none'),
+        topic: instance.topic ? 'instances_api' : (webinar.topic ? 'webinar_data' : 'default'),
+        status: instance.status ? 'instances_api' : 'calculated'
       },
       _is_recurring_instance: true,
       _is_completed: isCompleted
