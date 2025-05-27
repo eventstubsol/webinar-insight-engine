@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -105,10 +106,6 @@ async function handleRequest(req: Request): Promise<Response> {
       case 'get-webinar-recordings':
         const recordingsCredentials = await getZoomCredentials(supabase, user.id);
         return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials, params.webinar_id);
-      
-      case 'enhance-duration':
-        const enhanceDurationCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleEnhanceDuration(req, supabase, user, enhanceDurationCredentials, params.webinar_id);
       
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {

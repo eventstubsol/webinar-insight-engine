@@ -1,103 +1,103 @@
 
 import React from 'react';
 import { ZoomWebinar } from '@/hooks/zoom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { ZoomRecording } from '@/hooks/zoom/useZoomWebinarRecordings';
+import { Separator } from '@/components/ui/separator';
+import { WebinarRecordingInfo } from './WebinarRecordingInfo';
+import { extractHostInfo, extractPresenterInfo, formatHostDisplay } from './utils/hostDisplayUtils';
+import { formatWebinarId } from '@/lib/utils';
+import { formatWebinarDate } from './utils/timeDisplayUtils';
+import {
+  User,
+  Calendar,
+  Hash,
+  Users,
+  Clock
+} from 'lucide-react';
 
 interface WebinarInformationSectionProps {
   webinar: ZoomWebinar;
+  recordings: ZoomRecording[];
+  isLoadingRecordings: boolean;
 }
 
 export const WebinarInformationSection: React.FC<WebinarInformationSectionProps> = ({
-  webinar
+  webinar,
+  recordings,
+  isLoadingRecordings
 }) => {
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins}m`;
-  };
-
-  const renderDurationField = () => {
-    const hasDuration = webinar.actual_duration !== null && webinar.actual_duration !== undefined;
-    const isCompleted = webinar.status === 'ended' || webinar.status === 'stopped';
-    
-    if (hasDuration) {
-      return (
-        <div className="flex items-center gap-2">
-          <span className="text-gray-900">{formatDuration(webinar.actual_duration)}</span>
-          <Badge variant="default">Actual</Badge>
-        </div>
-      );
-    }
-    
-    if (isCompleted) {
-      return (
-        <div className="flex items-center gap-2">
-          <span className="text-gray-500">Duration missing</span>
-          <Badge variant="secondary">Needs Enhancement</Badge>
-        </div>
-      );
-    }
-    
-    // For future webinars, show planned duration
-    if (webinar.duration) {
-      return (
-        <div className="flex items-center gap-2">
-          <span className="text-gray-700">{formatDuration(webinar.duration)}</span>
-          <Badge variant="outline">Planned</Badge>
-        </div>
-      );
-    }
-    
-    return <span className="text-gray-500">Not set</span>;
-  };
+  // Extract and format host and presenter information
+  const hostInfo = extractHostInfo(webinar);
+  const presenterInfo = extractPresenterInfo(webinar);
+  
+  const formattedHost = formatHostDisplay(hostInfo);
+  const formattedPresenter = formatHostDisplay(presenterInfo);
+  
+  // Get panelists from webinar data
+  const panelists = Array.isArray(webinar.panelists) ? webinar.panelists : [];
+  
+  // Get webinar timezone, fallback to UTC if not available
+  const webinarTimezone = webinar.timezone || 'UTC';
+  
+  // Format webinar date in the webinar's timezone
+  const webinarDate = formatWebinarDate(webinar.start_time, webinarTimezone);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Webinar Information</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <dt className="text-sm font-medium text-gray-500 mb-1">Topic</dt>
-            <dd className="text-sm text-gray-900">{webinar.topic}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500 mb-1">Status</dt>
-            <dd className="text-sm text-gray-900">{webinar.status}</dd>
-          </div>
+    <div className="space-y-3">
+      <h3 className="text-lg font-medium">Webinar Information</h3>
+      <Separator />
+      
+      <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-2 items-start">
+        <User className="h-4 w-4 text-muted-foreground mt-1" />
+        <div>
+          <span className="font-medium">Webinar Host:</span> {formattedHost}
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <dt className="text-sm font-medium text-gray-500 mb-1">Start Time</dt>
-            <dd className="text-sm text-gray-900">{webinar.start_time}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500 mb-1">Timezone</dt>
-            <dd className="text-sm text-gray-900">{webinar.timezone}</dd>
-          </div>
+        <Hash className="h-4 w-4 text-muted-foreground mt-1" />
+        <div>
+          <span className="font-medium">Webinar ID:</span> {formatWebinarId(webinar.id)}
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Duration field with enhancement status */}
-          <div>
-            <dt className="text-sm font-medium text-gray-500 mb-1">Duration</dt>
-            <dd className="text-sm">
-              {renderDurationField()}
-            </dd>
-          </div>
-          
-          <div>
-            <dt className="text-sm font-medium text-gray-500 mb-1">Type</dt>
-            <dd className="text-sm text-gray-900">{webinar.type}</dd>
-          </div>
+        <Calendar className="h-4 w-4 text-muted-foreground mt-1" />
+        <div>
+          <span className="font-medium">Webinar Date:</span> {webinarDate}
         </div>
-      </CardContent>
-    </Card>
+        
+        <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+        <div>
+          <span className="font-medium">Timezone:</span> {webinar.timezone || 'Not specified'}
+        </div>
+        
+        <User className="h-4 w-4 text-muted-foreground mt-1" />
+        <div>
+          <span className="font-medium">Presenter:</span> {formattedPresenter}
+        </div>
+        
+        <Users className="h-4 w-4 text-muted-foreground mt-1" />
+        <div>
+          <span className="font-medium">Panelists:</span>
+          {panelists.length > 0 ? (
+            <div className="mt-1">
+              {panelists.map((panelist: any, index: number) => (
+                <div key={index} className="ml-4">
+                  • {panelist.name || panelist.email || `Panelist ${index + 1}`}
+                  {panelist.email && panelist.name && (
+                    <span className="ml-1">({panelist.email})</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span> No panelists assigned</span>
+          )}
+        </div>
+        
+        <WebinarRecordingInfo 
+          webinar={webinar}
+          recordings={recordings}
+          isLoadingRecordings={isLoadingRecordings}
+        />
+      </div>
+    </div>
   );
 };

@@ -37,6 +37,8 @@ export const WebinarMetadataHeader: React.FC<WebinarMetadataHeaderProps> = ({ we
           {/* Column 1: Basic webinar information */}
           <WebinarInformationSection 
             webinar={webinar}
+            recordings={recordings}
+            isLoadingRecordings={isLoadingRecordings}
           />
           
           {/* Column 2: Registration and viewer statistics */}
