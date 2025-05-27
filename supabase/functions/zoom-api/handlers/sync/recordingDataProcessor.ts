@@ -74,7 +74,7 @@ export async function enhanceWebinarsWithRecordingData(webinars: any[], token: s
 /**
  * Fetches recording data for a specific webinar from Zoom API
  */
-async function fetchWebinarRecordings(token: string, webinarId: string): Promise<any> {
+export async function fetchWebinarRecordings(token: string, webinarId: string): Promise<any> {
   const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/recordings`, {
     headers: {
       'Authorization': `Bearer ${token}`,

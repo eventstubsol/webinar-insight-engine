@@ -1,7 +1,7 @@
 
 import { getHostInfo } from './hostResolver.ts';
 import { getPanelistInfo } from './panelistResolver.ts';
-import { fetchWebinarRecordings } from './recordingDataProcessor.ts';
+import { storeRecordingData } from './recordingDataProcessor.ts';
 
 /**
  * Enhanced webinar data orchestrator that processes all webinar data including instances
@@ -26,7 +26,7 @@ export async function enhanceWebinarsWithAllData(
       // Get panelist information
       const panelistData = await getPanelistInfo(token, webinar.id);
       
-      // Get recording information
+      // Get recording information using internal fetch function
       const recordingData = await fetchWebinarRecordings(token, webinar.id);
       
       // Fetch webinar instances and calculate actual duration
@@ -131,4 +131,36 @@ export async function enhanceWebinarsWithAllData(
   
   console.log(`[webinar-enhancement] Enhanced ${enhancedWebinars.length} webinars with complete data`);
   return enhancedWebinars;
+}
+
+/**
+ * Fetches recording data for a specific webinar from Zoom API
+ */
+async function fetchWebinarRecordings(token: string, webinarId: string): Promise<any[]> {
+  try {
+    const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/recordings`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        // No recordings found - this is normal for webinars without recordings
+        console.log(`[webinar-enhancement] No recordings found for webinar ${webinarId} (404)`);
+        return [];
+      }
+      
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`[webinar-enhancement] Failed to fetch recordings for webinar ${webinarId}:`, errorData);
+      throw new Error(`Failed to fetch recordings: ${errorData.message || response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.recordings || [];
+  } catch (error) {
+    console.error(`[webinar-enhancement] Error fetching recordings for webinar ${webinarId}:`, error);
+    return [];
+  }
 }
