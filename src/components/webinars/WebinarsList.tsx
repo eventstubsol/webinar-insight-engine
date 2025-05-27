@@ -9,8 +9,6 @@ import { WebinarLoading } from './list/WebinarLoading';
 import { WebinarEmptyState } from './list/WebinarEmptyState';
 import { getPageNumbers } from './list/webinarHelpers';
 import { useWebinarListState } from '@/hooks/webinars/useWebinarListState';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Info } from 'lucide-react';
 
 interface DateRange {
   from: Date | undefined;
@@ -54,9 +52,6 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
     dateRange 
   });
 
-  // Check if this is minimal sync data
-  const isMinimalSync = webinars.length > 0 && webinars[0]._minimal_sync;
-
   // If loading, show loading state
   if (isLoading) {
     return <WebinarLoading />;
@@ -70,17 +65,6 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
   return (
     <>
       {error && <WebinarError error={error} />}
-      
-      {/* Show minimal sync notice */}
-      {isMinimalSync && (
-        <Alert className="mb-4 border-blue-200 bg-blue-50">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-800">
-            <strong>Fast Sync Complete:</strong> Basic webinar data loaded successfully. 
-            Enhanced features (participant data, recordings, detailed settings) can be loaded individually as needed.
-          </AlertDescription>
-        </Alert>
-      )}
       
       {viewMode === 'grid' ? (
         <WebinarGridView 

@@ -1,33 +1,39 @@
 
-// Reduced timeouts for minimal sync approach
-export const OPERATION_TIMEOUT = 25000; // 25 seconds (down from 45s)
-export const API_TIMEOUT = 20000; // 20 seconds for individual API calls
+import { toast } from '@/hooks/use-toast';
+
+// Operation timeout in milliseconds (45 seconds - allowing for edge function's 30s timeout)
+export const OPERATION_TIMEOUT = 45000;
 
 /**
- * Execute operation with timeout protection for minimal sync
+ * Execute a function with a timeout
  */
 export async function executeWithTimeout<T>(
-  operation: () => Promise<T>,
-  timeout: number = OPERATION_TIMEOUT,
-  onTimeout?: () => void
+  operation: () => Promise<T>, 
+  timeoutMs: number, 
+  onTimeout: () => void
 ): Promise<T> {
-  let timeoutHandle: ReturnType<typeof setTimeout>;
-  
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => {
-      if (onTimeout) {
-        onTimeout();
-      }
-      reject(new Error(`Operation timed out after ${timeout}ms`));
-    }, timeout);
-  });
+  let timeoutId: number;
   
   try {
-    const result = await Promise.race([operation(), timeoutPromise]);
-    clearTimeout(timeoutHandle);
+    const result = await Promise.race([
+      operation(),
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`Operation timed out after ${timeoutMs}ms`));
+        }, timeoutMs) as unknown as number;
+      })
+    ]);
+    
+    clearTimeout(timeoutId);
     return result;
   } catch (error) {
-    clearTimeout(timeoutHandle);
+    clearTimeout(timeoutId!);
+    
+    // If it's a timeout error, run the timeout callback
+    if (error.message && error.message.includes('timed out')) {
+      onTimeout();
+    }
+    
     throw error;
   }
 }

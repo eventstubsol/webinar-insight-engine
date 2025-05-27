@@ -14,10 +14,6 @@ import { handleGetInstanceParticipants } from './handlers/getInstanceParticipant
 import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
-import { handleEnhanceParticipants } from './handlers/enhanceParticipants.ts';
-import { handleEnhanceHostDetails } from './handlers/enhanceHostDetails.ts';
-import { handleEnhancePanelistDetails } from './handlers/enhancePanelistDetails.ts';
-import { handleEnhanceSettings } from './handlers/enhanceSettings.ts';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -25,9 +21,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Apply 30-second timeout for minimal sync operations (reduced from 50s)
+  // Apply 50-second timeout to all operations (increased from 30s)
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Operation timed out after 30000ms')), 30000);
+    setTimeout(() => reject(new Error('Operation timed out after 50000ms')), 50000);
   });
 
   try {
@@ -110,23 +106,6 @@ async function handleRequest(req: Request): Promise<Response> {
       case 'get-webinar-recordings':
         const recordingsCredentials = await getZoomCredentials(supabase, user.id);
         return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials, params.webinar_id);
-      
-      // New enhancement endpoints
-      case 'enhance-participants':
-        const enhanceParticipantsCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleEnhanceParticipants(req, supabase, user, enhanceParticipantsCredentials, params.webinar_id);
-      
-      case 'enhance-host-details':
-        const enhanceHostCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleEnhanceHostDetails(req, supabase, user, enhanceHostCredentials, params.webinar_id);
-      
-      case 'enhance-panelist-details':
-        const enhancePanelistCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleEnhancePanelistDetails(req, supabase, user, enhancePanelistCredentials, params.webinar_id);
-      
-      case 'enhance-settings':
-        const enhanceSettingsCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleEnhanceSettings(req, supabase, user, enhanceSettingsCredentials, params.webinar_id);
       
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {

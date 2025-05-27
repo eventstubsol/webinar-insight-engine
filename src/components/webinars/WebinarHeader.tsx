@@ -41,30 +41,21 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
     setTimeout(() => setIsCreateLoading(false), 1000);
   };
 
-  const handleComprehensiveSync = async () => {
-    // Toast to indicate comprehensive sync is starting
+  const handleForceSync = async () => {
+    // Toast to indicate sync is starting
     const syncToast = toast({
-      title: "Comprehensive sync starting",
-      description: "Syncing all webinars with full data enhancement...",
+      title: "Syncing webinars",
+      description: "Retrieving data from Zoom...",
     });
 
     try {
-      // Force a full sync from the Zoom API with enhancements
+      // Pass true to force a full sync from the Zoom API
       await refreshWebinars(true);
       
-      // Update the toast on success
-      toast({
-        title: "Comprehensive sync complete",
-        description: "All webinars synced with enhanced data from Zoom",
-        variant: 'default'
-      });
+      // Success toast will be shown by the operation itself
+      // We don't need to show another toast here
     } catch (error) {
       // Error handling is done in the operation itself
-      toast({
-        title: "Comprehensive sync failed",
-        description: "Some data may not have been updated. Try individual enhancements.",
-        variant: 'destructive'
-      });
     } finally {
       // Dismiss the syncing toast
       syncToast.dismiss();
@@ -87,14 +78,6 @@ export const WebinarHeader: React.FC<WebinarHeaderProps> = ({
                 <PlusCircle className="h-4 w-4 mr-2" />
               )}
               Create Webinar
-            </Button>
-            <Button variant="outline" onClick={handleComprehensiveSync} disabled={isRefetching}>
-              {isRefetching ? (
-                <LoaderCircle className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Comprehensive Sync
             </Button>
             <Button variant="outline" onClick={onSetupZoom}>
               <Settings className="h-4 w-4 mr-2" />
