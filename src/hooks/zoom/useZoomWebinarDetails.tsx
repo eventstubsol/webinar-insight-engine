@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 export function useZoomWebinarDetails(webinarId: string | null) {
   const { user } = useAuth();
   
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['zoom-webinar', user?.id, webinarId],
     queryFn: async () => {
       if (!user || !webinarId) return null;
@@ -50,6 +50,9 @@ export function useZoomWebinarDetails(webinarId: string | null) {
           status: dbWebinar.status,
           type: dbWebinar.type,
           last_synced_at: dbWebinar.last_synced_at,
+          // Enhanced timing data
+          actual_duration: dbWebinar.actual_duration,
+          actual_start_time: dbWebinar.actual_start_time,
           // Ensure panelists is available at the top level for easier access
           panelists: rawData?.panelists || [],
         };
@@ -87,6 +90,7 @@ export function useZoomWebinarDetails(webinarId: string | null) {
   return {
     webinar: data,
     isLoading,
-    error
+    error,
+    refetch
   };
 }
