@@ -1,4 +1,6 @@
 
+import { detectWebinarCompletion } from '../../utils/webinarCompletionDetector.ts';
+
 /**
  * Processes and transforms instance data for database storage with proper data inheritance
  */
@@ -35,14 +37,12 @@ export async function processInstanceForDatabase(
       }
     }
     
-    // Determine proper status with enhanced logic
+    // Use completion detection for proper status determination
+    const completionResult = detectWebinarCompletion(webinarData, instance);
     let finalStatus = instance.status;
     if (!finalStatus || finalStatus.trim() === '') {
-      if (actualStartTime && actualDuration) {
-        // If we have actual timing data, determine status based on actual completion
-        const now = new Date();
-        const actualEnd = new Date(new Date(actualStartTime).getTime() + (actualDuration * 60000));
-        finalStatus = now > actualEnd ? 'ended' : 'started';
+      if (completionResult.isCompleted) {
+        finalStatus = 'ended';
       } else if (finalStartTime) {
         const now = new Date();
         const startTime = new Date(finalStartTime);
@@ -68,6 +68,7 @@ export async function processInstanceForDatabase(
     console.log(`[zoom-api][instance-processor]   - status: ${finalStatus}`);
     console.log(`[zoom-api][instance-processor]   - actual_start_time: ${actualStartTime}`);
     console.log(`[zoom-api][instance-processor]   - actual_duration: ${actualDuration}`);
+    console.log(`[zoom-api][instance-processor]   - completion_detected: ${completionResult.isCompleted} (${completionResult.reason})`);
     
     return {
       user_id: userId,
@@ -86,6 +87,7 @@ export async function processInstanceForDatabase(
       raw_data: {
         ...instance,
         _webinar_data: webinarData,
+        _completion_analysis: completionResult,
         _timing_source: {
           topic: instance.topic ? 'instance' : (webinarData.topic ? 'webinar' : 'default'),
           start_time: instance.start_time ? 'instance' : 'webinar',
