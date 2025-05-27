@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -30,12 +30,12 @@ export const UpdateParticipantDataButton: React.FC<UpdateParticipantDataButtonPr
               {isUpdating ? (
                 <>
                   <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                  Updating...
+                  Phase 2 Running...
                 </>
               ) : (
                 <>
-                  <RefreshCw className="mr-2 h-3 w-3" />
-                  Update Data
+                  <Zap className="mr-2 h-3 w-3" />
+                  Phase 2 Enhancement
                 </>
               )}
             </Button>
@@ -43,10 +43,10 @@ export const UpdateParticipantDataButton: React.FC<UpdateParticipantDataButtonPr
         </TooltipTrigger>
         <TooltipContent>
           {isDisabled 
-            ? "Please connect your Zoom account to update participant data" 
+            ? "Please connect your Zoom account to run Phase 2 enhancement" 
             : (isUpdating 
-              ? "Fetching latest participant data from Zoom" 
-              : "Refresh webinar attendance data from Zoom"
+              ? "Running Phase 2: Updating participant data and timing information from Zoom" 
+              : "Phase 2: Update participant data AND enhance with actual timing data"
             )
           }
         </TooltipContent>
