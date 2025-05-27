@@ -13,154 +13,59 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
   try {
     const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
     
-    // Get webinar instances from Zoom API
-    const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/instances`, {
+    // First, get the webinar details to determine its type
+    const webinarResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
     
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('[zoom-api][get-webinar-instances] API error:', errorData);
-      
-      if (errorData.code === 3001) {
-        // This is a normal error for webinars without multiple instances
-        console.log('[zoom-api][get-webinar-instances] Webinar has no instances or is not recurring');
-        return new Response(JSON.stringify({ instances: [] }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      
-      throw new Error(`Failed to fetch webinar instances: ${errorData.message || 'Unknown error'}`);
+    if (!webinarResponse.ok) {
+      const errorData = await webinarResponse.json();
+      console.error('[zoom-api][get-webinar-instances] Failed to fetch webinar details:', errorData);
+      throw new Error(`Failed to fetch webinar details: ${errorData.message || 'Unknown error'}`);
     }
     
-    const data = await response.json();
-    console.log(`[zoom-api][get-webinar-instances] Found ${data.instances?.length || 0} instances`);
+    const webinarData = await webinarResponse.json();
+    const isRecurring = webinarData.type === 6 || webinarData.type === 9;
+    const isCompleted = webinarData.status === 'ended' || webinarData.status === 'aborted';
+    
+    console.log(`[zoom-api][get-webinar-instances] Webinar ${webinarId} analysis: type=${webinarData.type}, status=${webinarData.status}, isRecurring=${isRecurring}, isCompleted=${isCompleted}`);
+    
+    let instances = [];
+    
+    if (isRecurring) {
+      // For recurring webinars, fetch instances
+      console.log(`[zoom-api][get-webinar-instances] Fetching instances for recurring webinar ${webinarId}`);
+      instances = await fetchRecurringWebinarInstances(webinarId, token, webinarData);
+    } else {
+      // For single-occurrence webinars, create a synthetic instance
+      console.log(`[zoom-api][get-webinar-instances] Creating instance data for single-occurrence webinar ${webinarId}`);
+      instances = await createSingleWebinarInstance(webinarId, token, webinarData, isCompleted);
+    }
     
     // Store instances in database
-    if (data.instances && data.instances.length > 0) {
-      // First, get the webinar details to associate with each instance
-      const webinarResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!webinarResponse.ok) {
-        console.warn(`[zoom-api][get-webinar-instances] Could not fetch webinar details for ${webinarId}`);
-      }
-      
-      const webinarData = webinarResponse.ok ? await webinarResponse.json() : null;
-      
-      for (const instance of data.instances) {
-        console.log(`[zoom-api][get-webinar-instances] Processing instance ${instance.uuid}`);
+    if (instances && instances.length > 0) {
+      for (const instance of instances) {
+        console.log(`[zoom-api][get-webinar-instances] Processing instance ${instance.uuid || instance.id}`);
         
-        // For each instance, we need more detailed information like actual participants and duration
-        // We'll use the past_webinar endpoint with the specific instance UUID
-        let instanceDetails = { ...instance };
-        let actualDuration = null;
-        
-        // Only try to get past webinar details if the instance has a uuid and is completed
-        if (instance.uuid && (instance.status === 'ended' || instance.status === 'aborted')) {
-          try {
-            console.log(`[zoom-api][get-webinar-instances] Fetching past webinar details for instance ${instance.uuid}`);
-            const pastWebinarResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${instance.uuid}`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (pastWebinarResponse.ok) {
-              const pastWebinarData = await pastWebinarResponse.json();
-              instanceDetails = { ...instanceDetails, ...pastWebinarData };
-              
-              // Extract actual duration from past webinar data
-              actualDuration = pastWebinarData.duration || null;
-              console.log(`[zoom-api][get-webinar-instances] 🕒 Instance ${instance.uuid} actual duration: ${actualDuration} minutes`);
-            } else {
-              console.warn(`[zoom-api][get-webinar-instances] Could not fetch past webinar data for instance ${instance.uuid}`);
-            }
-          } catch (pastWebinarError) {
-            console.warn(`[zoom-api][get-webinar-instances] Error fetching past webinar details for instance ${instance.uuid}:`, pastWebinarError);
-          }
-        }
-        
-        // Get participant & registrant counts for this instance
-        let registrantsCount = 0;
-        let participantsCount = 0;
-        
-        try {
-          // Only try to get registrants if the instance has an ID
-          if (instance.uuid) {
-            const registrantsResponse = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/registrants?page_size=1&occurrence_id=${instance.uuid}`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (registrantsResponse.ok) {
-              const registrantsData = await registrantsResponse.json();
-              registrantsCount = registrantsData.total_records || 0;
-            }
-          }
-          
-          // Only try to get participants if the instance has a UUID
-          if (instance.uuid) {
-            const participantsResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${instance.uuid}/participants?page_size=1`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (participantsResponse.ok) {
-              const participantsData = await participantsResponse.json();
-              participantsCount = participantsData.total_records || 0;
-            }
-          }
-        } catch (countError) {
-          console.warn(`[zoom-api][get-webinar-instances] Error fetching counts for instance ${instance.uuid}:`, countError);
-        }
-        
-        // Calculate duration with proper priority:
-        // 1. Actual duration from past webinar API (most accurate)
-        // 2. Instance duration from instances API
-        // 3. Fallback to scheduled webinar duration
-        const finalDuration = actualDuration || 
-                             instanceDetails.duration || 
-                             webinarData?.duration || 
-                             null;
-        
-        console.log(`[zoom-api][get-webinar-instances] 📊 Duration calculation for instance ${instance.uuid}:`);
-        console.log(`[zoom-api][get-webinar-instances]   - Actual duration (past API): ${actualDuration}`);
-        console.log(`[zoom-api][get-webinar-instances]   - Instance duration: ${instanceDetails.duration}`);
-        console.log(`[zoom-api][get-webinar-instances]   - Webinar scheduled duration: ${webinarData?.duration}`);
-        console.log(`[zoom-api][get-webinar-instances]   - Final duration used: ${finalDuration}`);
-        
-        // Prepare the instance data for database insertion with fallback topic
+        // Prepare the instance data for database insertion
         const instanceToInsert = {
           user_id: user.id,
           webinar_id: webinarId,
-          webinar_uuid: webinarData?.uuid || '',
-          instance_id: instance.uuid || '',
+          webinar_uuid: webinarData.uuid || '',
+          instance_id: instance.uuid || instance.id || '',
           start_time: instance.start_time || null,
-          end_time: instanceDetails.end_time || null,
-          duration: finalDuration, // This now contains the actual duration
-          topic: webinarData?.topic || instanceDetails.topic || 'Untitled Webinar', // Always provide a topic
+          end_time: instance.end_time || null,
+          duration: instance.duration || null,
+          topic: webinarData.topic || instance.topic || 'Untitled Webinar',
           status: instance.status || null,
-          registrants_count: registrantsCount,
-          participants_count: participantsCount,
+          registrants_count: instance.registrants_count || 0,
+          participants_count: instance.participants_count || 0,
           raw_data: {
-            ...instanceDetails,
-            _duration_source: actualDuration ? 'past_api' : (instanceDetails.duration ? 'instance_api' : 'scheduled'),
-            _actual_duration: actualDuration,
-            _instance_duration: instanceDetails.duration,
-            _scheduled_duration: webinarData?.duration
+            ...instance,
+            _webinar_data: webinarData
           }
         };
         
@@ -169,7 +74,7 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
           .from('zoom_webinar_instances')
           .select('id')
           .eq('webinar_id', webinarId)
-          .eq('instance_id', instance.uuid || '')
+          .eq('instance_id', instance.uuid || instance.id || '')
           .maybeSingle();
         
         if (existingInstance) {
@@ -182,7 +87,7 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
           if (updateError) {
             console.error(`[zoom-api][get-webinar-instances] Error updating instance:`, updateError);
           } else {
-            console.log(`[zoom-api][get-webinar-instances] ✅ Updated instance ${instance.uuid} with duration: ${finalDuration}`);
+            console.log(`[zoom-api][get-webinar-instances] ✅ Updated instance ${instance.uuid || instance.id} with duration: ${instance.duration}`);
           }
         } else {
           // Insert new instance
@@ -193,7 +98,7 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
           if (insertError) {
             console.error(`[zoom-api][get-webinar-instances] Error inserting instance:`, insertError);
           } else {
-            console.log(`[zoom-api][get-webinar-instances] ✅ Inserted instance ${instance.uuid} with duration: ${finalDuration}`);
+            console.log(`[zoom-api][get-webinar-instances] ✅ Inserted instance ${instance.uuid || instance.id} with duration: ${instance.duration}`);
           }
         }
       }
@@ -205,12 +110,12 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
           user_id: user.id,
           sync_type: 'webinar_instances',
           status: 'success',
-          items_synced: data.instances.length,
-          message: `Synced ${data.instances.length} instances for webinar ${webinarId}`
+          items_synced: instances.length,
+          message: `Synced ${instances.length} instances for webinar ${webinarId} (${isRecurring ? 'recurring' : 'single-occurrence'})`
         });
     }
     
-    return new Response(JSON.stringify({ instances: data.instances || [] }), {
+    return new Response(JSON.stringify({ instances: instances || [] }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
@@ -229,4 +134,146 @@ export async function handleGetWebinarInstances(req: Request, supabase: any, use
     
     throw error;
   }
+}
+
+/**
+ * Fetch instances for recurring webinars
+ */
+async function fetchRecurringWebinarInstances(webinarId: string, token: string, webinarData: any): Promise<any[]> {
+  try {
+    const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/instances`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.warn(`[zoom-api][get-webinar-instances] Failed to fetch instances: ${errorData.message}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    const instances = data.instances || [];
+    
+    // Process each instance to get actual completion data if needed
+    const processedInstances = [];
+    for (const instance of instances) {
+      const processedInstance = await processInstance(instance, token, webinarData);
+      processedInstances.push(processedInstance);
+    }
+    
+    return processedInstances;
+    
+  } catch (error) {
+    console.error(`[zoom-api][get-webinar-instances] Error fetching recurring instances:`, error);
+    return [];
+  }
+}
+
+/**
+ * Create instance data for single-occurrence webinars
+ */
+async function createSingleWebinarInstance(webinarId: string, token: string, webinarData: any, isCompleted: boolean): Promise<any[]> {
+  let actualData = null;
+  
+  if (isCompleted) {
+    // For completed single-occurrence webinars, fetch actual data
+    try {
+      console.log(`[zoom-api][get-webinar-instances] Fetching actual data for completed single webinar ${webinarId}`);
+      const pastResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${webinarId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (pastResponse.ok) {
+        actualData = await pastResponse.json();
+        console.log(`[zoom-api][get-webinar-instances] ✅ Got actual data: duration=${actualData.duration}, participants=${actualData.participants_count}`);
+      } else {
+        console.warn(`[zoom-api][get-webinar-instances] Could not fetch past webinar data for ${webinarId}`);
+      }
+    } catch (error) {
+      console.warn(`[zoom-api][get-webinar-instances] Error fetching past webinar data:`, error);
+    }
+  }
+  
+  // Calculate end time for completed webinars
+  let endTime = null;
+  if (isCompleted) {
+    const duration = actualData?.duration || webinarData.duration;
+    if (actualData?.end_time) {
+      endTime = actualData.end_time;
+    } else if ((actualData?.start_time || webinarData.start_time) && duration) {
+      const startDate = new Date(actualData?.start_time || webinarData.start_time);
+      const endDate = new Date(startDate.getTime() + (duration * 60000));
+      endTime = endDate.toISOString();
+    }
+  }
+  
+  // Create synthetic instance
+  const instance = {
+    id: webinarData.uuid || webinarId,
+    uuid: webinarData.uuid || webinarId,
+    start_time: actualData?.start_time || webinarData.start_time,
+    end_time: endTime,
+    duration: actualData?.duration || webinarData.duration,
+    status: isCompleted ? (webinarData.status || 'ended') : (webinarData.status || 'waiting'),
+    topic: webinarData.topic,
+    participants_count: actualData?.participants_count || 0,
+    registrants_count: 0, // Will be updated separately if needed
+    _is_single_occurrence: true,
+    _is_completed: isCompleted,
+    _duration_source: actualData?.duration ? 'past_webinar_api' : 'scheduled',
+    _actual_data: actualData,
+    _webinar_data: webinarData
+  };
+  
+  return [instance];
+}
+
+/**
+ * Process an individual instance to get complete data
+ */
+async function processInstance(instance: any, token: string, webinarData: any): Promise<any> {
+  const isCompleted = instance.status === 'ended' || instance.status === 'aborted';
+  
+  if (isCompleted && instance.uuid) {
+    // For completed instances, fetch actual data
+    try {
+      console.log(`[zoom-api][get-webinar-instances] Fetching actual data for completed instance ${instance.uuid}`);
+      const pastResponse = await fetch(`https://api.zoom.us/v2/past_webinars/${instance.uuid}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (pastResponse.ok) {
+        const actualData = await pastResponse.json();
+        console.log(`[zoom-api][get-webinar-instances] ✅ Got actual data for instance ${instance.uuid}: duration=${actualData.duration}`);
+        
+        return {
+          ...instance,
+          duration: actualData.duration || instance.duration || webinarData.duration,
+          end_time: actualData.end_time || instance.end_time,
+          participants_count: actualData.participants_count || 0,
+          _duration_source: 'past_webinar_api',
+          _actual_data: actualData
+        };
+      }
+    } catch (error) {
+      console.warn(`[zoom-api][get-webinar-instances] Error fetching actual data for instance ${instance.uuid}:`, error);
+    }
+  }
+  
+  // Return instance with scheduled data
+  return {
+    ...instance,
+    duration: instance.duration || webinarData.duration,
+    participants_count: 0,
+    _duration_source: instance.duration ? 'instance_api' : 'scheduled'
+  };
 }
