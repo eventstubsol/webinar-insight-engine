@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { corsHeaders } from './cors.ts'
 import { getZoomCredentials } from './utils/credentialsManager.ts'
+import { handleSaveCredentials, handleCheckCredentialsStatus, handleVerifyCredentials } from './credentials.ts'
 import { handleListWebinars } from './handlers/listWebinars.ts'
 import { handleGetWebinarDetails } from './handlers/getWebinarDetails.ts'
 import { handleGetWebinarParticipants } from './handlers/getWebinarParticipants.ts'
@@ -41,6 +42,30 @@ serve(async (req) => {
       throw new Error('Invalid user token')
     }
 
+    // Handle actions that don't require credentials first
+    switch (action) {
+      case 'save-credentials':
+        return await handleSaveCredentials(req, supabase, user, params)
+      
+      case 'check-credentials-status':
+        return await handleCheckCredentialsStatus(req, supabase, user)
+      
+      case 'verify-credentials':
+        console.log(`Getting Zoom credentials for user ${user.id}`)
+        const verifyCredentials = await getZoomCredentials(supabase, user.id)
+        if (!verifyCredentials) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'No Zoom credentials found' 
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        return await handleVerifyCredentials(req, supabase, user, verifyCredentials)
+    }
+
+    // For other actions, get credentials
     console.log(`Getting Zoom credentials for user ${user.id}`)
     const credentials = await getZoomCredentials(supabase, user.id)
 
