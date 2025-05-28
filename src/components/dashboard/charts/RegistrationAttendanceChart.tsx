@@ -32,17 +32,15 @@ export const RegistrationAttendanceChart = () => {
       (webinar.registrants_count > 0 || webinar.participants_count > 0)
     )
     ?.slice(0, 10) // Show last 10 webinars
-    ?.map(webinar => ({
-      topic: webinar.topic.length > 30 ? `${webinar.topic.substring(0, 30)}...` : webinar.topic,
-      fullTopic: webinar.topic,
-      registrants: webinar.registrants_count || 0,
-      attendees: webinar.participants_count || 0,
-      conversionRate: webinar.registrants_count > 0 
-        ? Math.round(((webinar.participants_count || 0) / webinar.registrants_count) * 100)
-        : 0,
-      date: webinar.start_time ? format(new Date(webinar.start_time), 'MMM d') : 'TBD',
-      month: webinar.start_time ? format(new Date(webinar.start_time), 'MMM yyyy') : 'TBD'
-    }))
+    ?.map(webinar => {
+      const startDate = webinar.start_time ? new Date(webinar.start_time) : new Date();
+      return {
+        month: startDate ? format(startDate, 'MMMyy') : 'TBD',
+        monthDate: startDate,
+        registrants: webinar.registrants_count || 0,
+        attendees: webinar.participants_count || 0,
+      };
+    })
     ?.reverse() || [];
 
   return (
