@@ -1,11 +1,65 @@
 
 import { generateMonthlyDateRanges, fetchWebinarsForMonth } from '../../utils/dateUtils.ts';
+import { fetchAllWebinarsWithProperEndpoints } from './historicalWebinarFetcher.ts';
 
 /**
- * Fetch webinars from Zoom API using 12-month historical approach with improved error handling
+ * FIXED: Use proper API endpoints for historical and upcoming webinars
  */
 export async function fetchWebinarsFromZoomAPI(token: string, userId: string): Promise<any[]> {
-  console.log('[zoom-api][fetchWebinarsFromZoomAPI] Starting 12-month historical fetch');
+  console.log('[zoom-api][fetchWebinarsFromZoomAPI] 🚀 CRITICAL FIX: Using proper API endpoints for webinar data');
+  
+  try {
+    // COMPREHENSIVE FIX: Use dual-endpoint strategy
+    const webinarResult = await fetchAllWebinarsWithProperEndpoints(token, userId);
+    
+    console.log(`[zoom-api][fetchWebinarsFromZoomAPI] 🎉 FIXED ENDPOINT STRATEGY RESULTS:`);
+    console.log(`[zoom-api][fetchWebinarsFromZoomAPI]   - Total webinars retrieved: ${webinarResult.totalRetrieved}`);
+    console.log(`[zoom-api][fetchWebinarsFromZoomAPI]   - API calls made: ${webinarResult.apiCallsMade}`);
+    console.log(`[zoom-api][fetchWebinarsFromZoomAPI]   - Endpoints used: ${webinarResult.sourceEndpoints.join(', ')}`);
+    
+    // Log field mapping debug information
+    webinarResult.fieldMappingDebug.forEach((debug, index) => {
+      console.log(`[zoom-api][fetchWebinarsFromZoomAPI] 🔍 FIELD MAPPING DEBUG ${index + 1}:`);
+      console.log(`[zoom-api][fetchWebinarsFromZoomAPI]   - Source: ${debug.source}`);
+      console.log(`[zoom-api][fetchWebinarsFromZoomAPI]   - Available fields: ${debug.availableFields.join(', ')}`);
+    });
+    
+    // Verify topic field mapping fix
+    const webinarsWithTopics = webinarResult.webinars.filter(w => w.topic && w.topic !== 'Untitled Webinar');
+    const webinarsWithoutTopics = webinarResult.webinars.filter(w => !w.topic || w.topic === 'Untitled Webinar');
+    
+    console.log(`[zoom-api][fetchWebinarsFromZoomAPI] 📊 TOPIC FIELD MAPPING VERIFICATION:`);
+    console.log(`[zoom-api][fetchWebinarsFromZoomAPI]   - Webinars with proper topics: ${webinarsWithTopics.length}`);
+    console.log(`[zoom-api][fetchWebinarsFromZoomAPI]   - Webinars with missing topics: ${webinarsWithoutTopics.length}`);
+    
+    if (webinarsWithoutTopics.length > 0) {
+      console.warn(`[zoom-api][fetchWebinarsFromZoomAPI] ⚠️ Still have ${webinarsWithoutTopics.length} webinars with missing topics`);
+      webinarsWithoutTopics.slice(0, 3).forEach(w => {
+        console.log(`[zoom-api][fetchWebinarsFromZoomAPI] Missing topic debug:`, {
+          id: w.id,
+          originalTopic: w.topic,
+          rawTopicField: w.raw_data?.topic,
+          allTopicFields: Object.keys(w.raw_data || {}).filter(k => k.toLowerCase().includes('topic') || k.toLowerCase().includes('title') || k.toLowerCase().includes('subject'))
+        });
+      });
+    }
+    
+    return webinarResult.webinars;
+    
+  } catch (error) {
+    console.error('[zoom-api][fetchWebinarsFromZoomAPI] ❌ CRITICAL ERROR in fixed endpoint strategy:', error);
+    
+    // FALLBACK: Try old method if new method fails
+    console.log('[zoom-api][fetchWebinarsFromZoomAPI] 🔄 Falling back to old 12-month fetch method');
+    return await fetchWebinarsFromZoomAPIFallback(token, userId);
+  }
+}
+
+/**
+ * Fallback to old method if new endpoints fail
+ */
+async function fetchWebinarsFromZoomAPIFallback(token: string, userId: string): Promise<any[]> {
+  console.log('[zoom-api][fetchWebinarsFromZoomAPI] 🔄 FALLBACK: Using old 12-month historical fetch');
   
   // Generate monthly date ranges for the last 12 months
   const monthlyRanges = generateMonthlyDateRanges(12);
@@ -128,12 +182,26 @@ export async function performNonDestructiveUpsert(
           console.log(`[zoom-api][performNonDestructiveUpsert]   - participants_count: ${participantsCount}`);
         }
 
+        // CRITICAL FIX: Better topic field handling
+        let finalTopic = 'Untitled Webinar';
+        if (webinar.topic && webinar.topic !== 'Untitled Webinar') {
+          finalTopic = webinar.topic;
+        } else if (webinar.title) {
+          finalTopic = webinar.title;
+        } else if (webinar.subject) {
+          finalTopic = webinar.subject;
+        } else if (webinar.webinar_name) {
+          finalTopic = webinar.webinar_name;
+        }
+        
+        console.log(`[zoom-api][performNonDestructiveUpsert] 📝 Topic mapping for ${webinar.id}: "${finalTopic}"`);
+
         // FIXED: Focused field mapping - only fields guaranteed to exist in basic webinar API
         const webinarData = {
           user_id: userId,
           webinar_id: webinar.id,
           webinar_uuid: webinar.uuid ?? null,
-          topic: webinar.topic ?? 'Untitled Webinar',
+          topic: finalTopic, // Use the improved topic mapping
           start_time: webinar.start_time ?? null,
           duration: webinar.duration ?? null,
           timezone: webinar.timezone ?? null,
@@ -200,11 +268,11 @@ export async function performNonDestructiveUpsert(
           const existingWebinar = existingWebinars?.find(w => w.webinar_id === webinar.id.toString());
           if (!existingWebinar) {
             newWebinars++;
-            console.log(`[zoom-api][performNonDestructiveUpsert] ✅ New webinar added: ${webinar.id}`);
+            console.log(`[zoom-api][performNonDestructiveUpsert] ✅ New webinar added: ${webinar.id} - "${finalTopic}"`);
           } else {
             // Check if data actually changed to count as an update
             const hasChanges = 
-              existingWebinar.topic !== webinar.topic ||
+              existingWebinar.topic !== finalTopic ||
               existingWebinar.start_time !== webinar.start_time ||
               existingWebinar.duration !== webinar.duration ||
               existingWebinar.actual_start_time !== actualStartTime ||
@@ -213,7 +281,7 @@ export async function performNonDestructiveUpsert(
             
             if (hasChanges) {
               updatedWebinars++;
-              console.log(`[zoom-api][performNonDestructiveUpsert] ✅ Webinar updated: ${webinar.id}`);
+              console.log(`[zoom-api][performNonDestructiveUpsert] ✅ Webinar updated: ${webinar.id} - "${finalTopic}"`);
               
               // Log specific timing updates
               if (existingWebinar.actual_start_time !== actualStartTime || existingWebinar.actual_duration !== actualDuration) {
