@@ -3,6 +3,7 @@ import { fetchCorrectWebinarData } from '../../../utils/correctZoomApiClient.ts'
 
 /**
  * FIXED handler for single-occurrence webinars using correct Zoom API endpoints
+ * This ensures single webinars create exactly one instance
  */
 export async function handleFixedSingleOccurrenceWebinar(webinar: any, token: string, supabase: any, userId: string, isCompleted: boolean): Promise<number> {
   
@@ -47,11 +48,14 @@ export async function handleFixedSingleOccurrenceWebinar(webinar: any, token: st
   console.log(`[fixed-single-handler]   ⭐ end_time: ${finalEndTime} (source: ${apiResult.dataSource}) ⭐`);
   console.log(`[fixed-single-handler]   ✅ status: ${finalStatus}`);
   
+  // Use webinar UUID as instance_id for single occurrence webinars
+  const instanceId = webinar.uuid || webinar.id;
+  
   const instanceToInsert = {
     user_id: userId,
     webinar_id: webinar.id,
     webinar_uuid: webinar.uuid || '',
-    instance_id: webinar.uuid || webinar.id,
+    instance_id: instanceId, // This will be unique for single occurrence
     start_time: finalStartTime,
     end_time: finalEndTime, // ⭐ CRITICAL: This should now be properly populated
     duration: finalDuration,
@@ -96,5 +100,8 @@ export async function handleFixedSingleOccurrenceWebinar(webinar: any, token: st
   }
   
   const { upsertInstanceRecord } = await import('../databaseOperations/instanceUpsert.ts');
-  return await upsertInstanceRecord(supabase, instanceToInsert, webinar.id, webinar.uuid || webinar.id);
+  const result = await upsertInstanceRecord(supabase, instanceToInsert, webinar.id, instanceId);
+  
+  console.log(`[fixed-single-handler] 🎯 Single webinar ${webinar.id} processed: ${result} instance created`);
+  return result;
 }

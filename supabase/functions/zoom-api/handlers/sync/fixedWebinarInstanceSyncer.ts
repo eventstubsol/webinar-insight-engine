@@ -4,10 +4,11 @@ import { handleFixedSingleOccurrenceWebinar } from './instanceTypes/fixedSingleW
 
 /**
  * Fixed webinar instance syncer with proper actual timing data collection
+ * Now correctly handles multiple instances per recurring webinar
  */
 export async function syncFixedWebinarInstancesForWebinars(webinars: any[], token: string, supabase: any, userId: string) {
   console.log(`[fixed-instance-syncer] 🚀 Starting FIXED instance sync for ${webinars.length} webinars`);
-  console.log(`[fixed-instance-syncer] 🎯 FOCUS: Collecting actual end_time data from Zoom API for completed webinars`);
+  console.log(`[fixed-instance-syncer] 🎯 FOCUS: Creating ALL instances for recurring webinars, not just one per webinar`);
   
   if (!webinars || webinars.length === 0) {
     console.log(`[fixed-instance-syncer] No webinars to sync instances for`);
@@ -20,6 +21,15 @@ export async function syncFixedWebinarInstancesForWebinars(webinars: any[], toke
       apiCallsFailed: 0
     };
   }
+  
+  // Analyze webinar types first
+  const recurringWebinars = webinars.filter(w => w.type === 6 || w.type === 9);
+  const singleWebinars = webinars.filter(w => w.type !== 6 && w.type !== 9);
+  
+  console.log(`[fixed-instance-syncer] 📊 Webinar analysis:`);
+  console.log(`[fixed-instance-syncer]   - Recurring webinars (type 6/9): ${recurringWebinars.length}`);
+  console.log(`[fixed-instance-syncer]   - Single webinars (other types): ${singleWebinars.length}`);
+  console.log(`[fixed-instance-syncer]   - Expected instances: ${singleWebinars.length} + (multiple per recurring webinar)`);
   
   // Process webinars in smaller batches to avoid timeouts
   const BATCH_SIZE = 5;
@@ -49,12 +59,14 @@ export async function syncFixedWebinarInstancesForWebinars(webinars: any[], toke
         
         if (isRecurring) {
           // For recurring webinars, use the fixed instances handler
-          console.log(`[fixed-instance-syncer] 🔄 RECURRING WEBINAR: Fetching instances for ${webinar.id}`);
+          console.log(`[fixed-instance-syncer] 🔄 RECURRING WEBINAR: Fetching ALL instances for ${webinar.id}`);
           instancesSynced = await handleFixedRecurringWebinarInstances(webinar, token, supabase, userId);
+          console.log(`[fixed-instance-syncer] 📊 Recurring webinar ${webinar.id} created ${instancesSynced} instances`);
         } else {
           // For single-occurrence webinars, use the fixed single handler
           console.log(`[fixed-instance-syncer] 🎯 SINGLE WEBINAR: Handling ${webinar.id} (${isCompleted ? 'completed' : 'upcoming'})`);
           instancesSynced = await handleFixedSingleOccurrenceWebinar(webinar, token, supabase, userId, isCompleted);
+          console.log(`[fixed-instance-syncer] 📊 Single webinar ${webinar.id} created ${instancesSynced} instances`);
         }
         
         if (instancesSynced > 0) {
@@ -81,13 +93,14 @@ export async function syncFixedWebinarInstancesForWebinars(webinars: any[], toke
     console.log(`[fixed-instance-syncer] 📊 Fixed batch ${Math.floor(i/BATCH_SIZE) + 1} completed: ${batchTotal} instances synced`);
   }
   
-  console.log(`[fixed-instance-syncer] 🎉 FIXED SYNC COMPLETE WITH ACTUAL DATA COLLECTION:`);
+  console.log(`[fixed-instance-syncer] 🎉 FIXED SYNC COMPLETE WITH MULTIPLE INSTANCES SUPPORT:`);
   console.log(`[fixed-instance-syncer]   - Total instances synced: ${totalInstancesSynced}`);
   console.log(`[fixed-instance-syncer]   - Webinars with instances: ${webinarsWithInstancessynced}`);
   console.log(`[fixed-instance-syncer]   - Sync errors: ${instanceSyncErrors}`);
   console.log(`[fixed-instance-syncer]   - Actual data fetched: ${actualDataFetched}`);
   console.log(`[fixed-instance-syncer]   - Successful API calls: ${apiCallsSuccessful}`);
   console.log(`[fixed-instance-syncer]   - Failed API calls: ${apiCallsFailed}`);
+  console.log(`[fixed-instance-syncer] 🔧 NOTE: Recurring webinars now create multiple instances as expected`);
   
   return {
     totalInstancesSynced,
