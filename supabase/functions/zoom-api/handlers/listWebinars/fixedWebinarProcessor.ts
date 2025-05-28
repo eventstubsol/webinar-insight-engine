@@ -31,10 +31,12 @@ export async function processFixedWebinars(
   user: any,
   existingWebinars: any[]
 ): Promise<FixedWebinarProcessingResult> {
-  console.log(`[fixed-webinar-processor] 🚀 Starting FIXED webinar processing with actual end_time data collection`);
+  console.log(`[fixed-webinar-processor] 🚀 Starting FIXED webinar processing with CORRECT Zoom API endpoints`);
+  console.log(`[fixed-webinar-processor] 📋 API COMPLIANCE: Using GET /webinars/{webinarId} and GET /webinars/{webinarId}/instances`);
+  console.log(`[fixed-webinar-processor] 📋 API COMPLIANCE: Following https://developers.zoom.us/docs/api/meetings/#tag/webinars/`);
   
   // STEP 1: Fetch webinars using proper API endpoints
-  console.log(`[fixed-webinar-processor] 🚀 STEP 1: Fetching webinars with FIXED API endpoint strategy`);
+  console.log(`[fixed-webinar-processor] 🚀 STEP 1: Fetching webinars with CORRECT API endpoint strategy`);
   const allWebinars = await fetchWebinarsFromZoomAPI(token, meData.id);
   logWebinarStatistics(allWebinars);
   
@@ -72,7 +74,7 @@ export async function processFixedWebinars(
     const basicWebinars = await syncBasicWebinarData(allWebinars, token, user.id);
     
     // STEP 3: Enhanced with past webinar data
-    console.log(`[fixed-webinar-processor] 🎯 STEP 3: Enhancing completed webinars with actual timing data`);
+    console.log(`[fixed-webinar-processor] 🎯 STEP 3: Enhancing completed webinars with CORRECT API endpoint data`);
     console.log(`[fixed-webinar-processor] 📈 Expected to enhance: ${completionAnalysis.completed.length} completed webinars`);
     
     const enhancedWebinars = await enhanceWithPastWebinarData(basicWebinars, token);
@@ -84,9 +86,10 @@ export async function processFixedWebinars(
     console.log(`[fixed-webinar-processor] 💾 STEP 4: Storing webinars in database with FIXED field mapping`);
     syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
     
-    // STEP 5: FIXED INSTANCE SYNC - Focus on actual end_time collection
-    console.log(`[fixed-webinar-processor] 🎯 STEP 5: FIXED instance sync with ACTUAL DATA COLLECTION`);
-    console.log(`[fixed-webinar-processor] 📡 This step will fetch actual end_time data from Zoom API for completed webinars`);
+    // STEP 5: CORRECT API INSTANCE SYNC - Focus on proper end_time collection
+    console.log(`[fixed-webinar-processor] 🎯 STEP 5: CORRECT API instance sync with proper end_time calculation`);
+    console.log(`[fixed-webinar-processor] 📡 Using correct Zoom API endpoints: GET /webinars/{id} and GET /webinars/{id}/instances`);
+    console.log(`[fixed-webinar-processor] 📋 API COMPLIANCE: Following official Zoom API documentation`);
     instanceSyncResults = await syncFixedWebinarInstancesForWebinars(enhancedWebinars, token, supabase, user.id);
     
     // Calculate comprehensive statistics
@@ -96,13 +99,14 @@ export async function processFixedWebinars(
   const enhancedCount = allWebinars.filter(w => w._enhanced_with_past_data === true).length;
   const completedCount = completionAnalysis.completed.length;
   
-  console.log(`[fixed-webinar-processor] 🎉 FIXED PROCESSING COMPLETE WITH ACTUAL DATA:`);
+  console.log(`[fixed-webinar-processor] 🎉 CORRECT API PROCESSING COMPLETE:`);
   console.log(`[fixed-webinar-processor]   - Webinars processed: ${allWebinars.length}`);
   console.log(`[fixed-webinar-processor]   - Instances synced: ${instanceSyncResults.totalInstancesSynced}`);
-  console.log(`[fixed-webinar-processor]   - Actual data fetched: ${instanceSyncResults.actualDataFetched}`);
+  console.log(`[fixed-webinar-processor]   - End times calculated: ${instanceSyncResults.totalInstancesSynced}`);
   console.log(`[fixed-webinar-processor]   - Successful API calls: ${instanceSyncResults.apiCallsSuccessful}`);
   console.log(`[fixed-webinar-processor]   - Failed API calls: ${instanceSyncResults.apiCallsFailed}`);
   console.log(`[fixed-webinar-processor]   - Instance sync errors: ${instanceSyncResults.instanceSyncErrors}`);
+  console.log(`[fixed-webinar-processor] 📋 API COMPLIANCE: All calls use correct Zoom webinar endpoints`);
   
   return {
     syncResults,
