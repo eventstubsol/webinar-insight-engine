@@ -2,7 +2,7 @@
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 import { fetchWebinarsFromZoomAPI, performNonDestructiveUpsert } from './sync/nonDestructiveSync.ts';
-import { enhanceWebinarsWithAllData } from './sync/webinarEnhancementOrchestrator.ts';
+import { syncBasicWebinarData, enhanceWithPastWebinarData } from './sync/basicWebinarSyncer.ts';
 import { calculateSyncStats, recordSyncHistory } from './sync/syncStatsCalculator.ts';
 import { checkDatabaseCache } from './sync/databaseCache.ts';
 import { formatListWebinarsResponse, logWebinarStatistics, SyncResults, StatsResult } from './sync/responseFormatter.ts';
@@ -10,10 +10,10 @@ import { fetchUserInfo } from './sync/userInfoFetcher.ts';
 import { handleEmptySync } from './sync/emptySyncHandler.ts';
 import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
-// Handle listing webinars with non-destructive upsert-based sync
+// FIXED: Handle listing webinars with proper data source separation
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
-  console.log(`[zoom-api][list-webinars] Starting ENHANCED non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
-  console.log(`[zoom-api][list-webinars] 🔄 This sync will include webinar instances for complete timing data!`);
+  console.log(`[zoom-api][list-webinars] 🔄 Starting FIXED webinar sync for user: ${user.id}, force_sync: ${force_sync}`);
+  console.log(`[zoom-api][list-webinars] 🎯 CRITICAL FIX: Proper data source separation and past webinar integration`);
   console.log(`[zoom-api][list-webinars] Current timestamp: ${new Date().toISOString()}`);
   
   try {
@@ -32,13 +32,11 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     const meData = await fetchUserInfo(token);
     console.log(`[zoom-api][list-webinars] Got user info for: ${meData.email}, ID: ${meData.id}`);
 
-    // Fetch webinars from Zoom API
+    // STEP 1: Fetch basic webinars from /users/{userId}/webinars (no assumptions about fields)
     const allWebinars = await fetchWebinarsFromZoomAPI(token, meData.id);
-    
-    // Log detailed statistics about the fetched data
     logWebinarStatistics(allWebinars);
     
-    // Get existing webinars for comparison and preservation count
+    // Get existing webinars for comparison
     const { data: existingWebinars, error: existingError } = await supabase
       .from('zoom_webinars')
       .select('*')
@@ -58,35 +56,31 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     
     // Process webinars if any exist
     if (allWebinars && allWebinars.length > 0) {
-      // 🔥 NEW: Enhanced webinars with ALL data including instance syncing
-      // Pass supabase client and user ID for both recording AND instance data storage
-      console.log(`[zoom-api][list-webinars] 🚀 Starting ENHANCED enhancement with instance syncing`);
-      const enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
+      // STEP 2: Process basic webinar data (only fields that exist in basic API)
+      console.log(`[zoom-api][list-webinars] 📊 Processing ${allWebinars.length} basic webinars`);
+      const basicWebinars = await syncBasicWebinarData(allWebinars, token, user.id);
       
-      // Perform non-destructive upsert
+      // STEP 3: FIXED - Enhance with past webinar data for completed webinars
+      console.log(`[zoom-api][list-webinars] 🎯 FIXED: Enhancing completed webinars with actual timing data`);
+      const enhancedWebinars = await enhanceWithPastWebinarData(basicWebinars, token);
+      
+      // STEP 4: Store in database
       syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
       
       // Calculate comprehensive statistics
       statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
       
-      // Get instance sync statistics
-      const { data: instancesData, error: instancesError } = await supabase
-        .from('zoom_webinar_instances')
-        .select('webinar_id')
-        .eq('user_id', user.id);
+      const enhancedCount = enhancedWebinars.filter(w => w._enhanced_with_past_data).length;
+      const completedCount = enhancedWebinars.filter(w => w._completion_analysis?.isCompleted).length;
       
-      const instanceStats = instancesError ? 0 : (instancesData?.length || 0);
-      const completedWebinars = enhancedWebinars.filter(w => w.status === 'ended' || w.status === 'aborted').length;
-      const recordingStats = enhancedWebinars.filter(w => w.has_recordings).length;
-      
-      // Record enhanced sync in history with instance information
+      // Record sync in history with detailed information
       await recordSyncHistory(
         supabase,
         user.id,
         'webinars',
         'success',
         syncResults.newWebinars + syncResults.updatedWebinars,
-        `ENHANCED non-destructive sync with instance data: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${completedWebinars} completed webinars processed. ${instanceStats} instances synced. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+        `FIXED sync with past data integration: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${completedCount} completed webinars identified, ${enhancedCount} enhanced with actual timing data. Total: ${statsResult.totalWebinarsInDB} webinars`
       );
     } else {
       // Handle empty sync result
@@ -99,7 +93,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     return formatListWebinarsResponse(finalWebinarsList, allWebinars, syncResults, statsResult);
     
   } catch (error) {
-    console.error('[zoom-api][list-webinars] Error in enhanced sync action:', error);
+    console.error('[zoom-api][list-webinars] Error in FIXED sync action:', error);
     
     // Record failed sync in history
     await recordSyncHistory(
@@ -108,9 +102,9 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       'webinars',
       'error',
       0,
-      `Enhanced sync error: ${error.message || 'Unknown error'}`
+      `FIXED sync error: ${error.message || 'Unknown error'}`
     );
     
-    throw error; // Let the main error handler format the response
+    throw error;
   }
 }
