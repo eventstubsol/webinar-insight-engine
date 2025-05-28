@@ -1,3 +1,4 @@
+
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { verifyDatabaseSyncHealth } from './debugDatabaseSync';
@@ -87,10 +88,10 @@ export async function refreshWebinarsFromAPI(force: boolean = false): Promise<an
       }
     }
     
-    // Call the enhanced fixed list webinars endpoint
+    // Call the enhanced fixed list webinars endpoint with correct action name
     const { data: response, error } = await supabase.functions.invoke('zoom-api', {
       body: { 
-        action: 'fixedListWebinars',
+        action: 'list-webinars',
         force_sync: force
       }
     });
