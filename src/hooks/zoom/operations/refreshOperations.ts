@@ -31,7 +31,7 @@ export async function refreshWebinarsOperation(
     
     // Make the API call to fetch fresh data from Zoom with enhanced strategy
     const refreshData = await executeWithTimeout(
-      () => refreshWebinarsFromAPI(userId, force),
+      () => refreshWebinarsFromAPI(force),
       OPERATION_TIMEOUT,
       () => {
         timeoutTriggered = true;
