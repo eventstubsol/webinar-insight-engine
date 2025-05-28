@@ -25,7 +25,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
   const { credentialsStatus } = useZoomCredentials();
   const [syncHistory, setSyncHistory] = useState<any[]>([]);
 
-  // Main query to fetch webinars with enhanced strategy
+  // Main query to fetch webinars
   const { data, error, refetch } = useQuery({
     queryKey: ['zoom-webinars', user?.id],
     queryFn: async () => {
@@ -33,7 +33,7 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
       
       try {
         setIsLoading(true);
-        console.log('[useZoomWebinars] Fetching webinars with enhanced strategy');
+        console.log('[useZoomWebinars] Fetching webinars from database or API');
         
         // Try to get webinars from database first
         const dbWebinars = await fetchWebinarsFromDatabase(user.id);
@@ -41,31 +41,11 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
         // If we have webinars in the database, return them immediately
         if (dbWebinars && dbWebinars.length > 0) {
           console.log(`[useZoomWebinars] Returning ${dbWebinars.length} webinars from database`);
-          
-          // Check if we have a good mix of historical and upcoming webinars
-          const historicalCount = dbWebinars.filter(w => 
-            w.status === 'ended' || 
-            (w.actual_start_time && new Date(w.actual_start_time) < new Date())
-          ).length;
-          
-          const upcomingCount = dbWebinars.length - historicalCount;
-          
-          console.log(`[useZoomWebinars] Database contains ${historicalCount} historical and ${upcomingCount} upcoming webinars`);
-          
-          // If we have very few historical webinars, trigger background sync
-          if (historicalCount < 5 && upcomingCount > 0) {
-            console.log('[useZoomWebinars] Low historical webinar count, triggering background enhanced sync');
-            // Trigger background sync without waiting
-            fetchWebinarsFromAPI(false).catch(err => {
-              console.error('[useZoomWebinars] Background enhanced sync failed:', err);
-            });
-          }
-          
           return dbWebinars;
         }
         
-        // If not in database or database fetch failed, use enhanced API strategy
-        console.log('[useZoomWebinars] No webinars in database, fetching from enhanced API');
+        // If not in database or database fetch failed, try API
+        console.log('[useZoomWebinars] No webinars in database, fetching from API');
         return await fetchWebinarsFromAPI();
       } catch (err: any) {
         console.error('[useZoomWebinars] Error fetching webinars:', err);
@@ -91,11 +71,10 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     gcTime: 10 * 60 * 1000 // 10 minutes
   });
 
-  // Enhanced refresh function using the new strategy
+  // Refresh webinars function - just wraps the operation function
   const refreshWebinars = async (force: boolean = false): Promise<void> => {
     setIsRefetching(true);
     try {
-      console.log(`[useZoomWebinars] Starting enhanced refresh with force=${force}`);
       await refreshWebinarsOperation(user?.id, queryClient, force);
       await refetch();
     } finally {
@@ -113,24 +92,13 @@ export function useZoomWebinars(): UseZoomWebinarsResult {
     }
   };
   
-  // Get user's sync history with enhanced logging
+  // Get user's sync history
   useEffect(() => {
     const loadSyncHistory = async () => {
       if (!user) return;
       
       const history = await fetchSyncHistory(user.id);
       setSyncHistory(history);
-      
-      // Log recent sync information
-      if (history.length > 0) {
-        const recentSync = history[0];
-        console.log('[useZoomWebinars] Most recent sync:', {
-          type: recentSync.sync_type,
-          status: recentSync.status,
-          itemsSynced: recentSync.items_synced,
-          timestamp: recentSync.created_at
-        });
-      }
     };
     
     loadSyncHistory();

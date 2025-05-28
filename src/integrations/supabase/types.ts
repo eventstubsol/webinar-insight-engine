@@ -500,12 +500,10 @@ export type Database = {
           actual_duration: number | null
           actual_start_time: string | null
           created_at: string
-          data_source: string | null
           duration: number | null
           end_time: string | null
           id: string
           instance_id: string
-          is_historical: boolean | null
           participants_count: number | null
           raw_data: Json
           registrants_count: number | null
@@ -522,12 +520,10 @@ export type Database = {
           actual_duration?: number | null
           actual_start_time?: string | null
           created_at?: string
-          data_source?: string | null
           duration?: number | null
           end_time?: string | null
           id?: string
           instance_id: string
-          is_historical?: boolean | null
           participants_count?: number | null
           raw_data: Json
           registrants_count?: number | null
@@ -544,12 +540,10 @@ export type Database = {
           actual_duration?: number | null
           actual_start_time?: string | null
           created_at?: string
-          data_source?: string | null
           duration?: number | null
           end_time?: string | null
           id?: string
           instance_id?: string
-          is_historical?: boolean | null
           participants_count?: number | null
           raw_data?: Json
           registrants_count?: number | null
@@ -1033,7 +1027,6 @@ export type Database = {
       zoom_webinars: {
         Row: {
           actual_duration: number | null
-          actual_end_time: string | null
           actual_start_time: string | null
           agenda: string | null
           approval_type: number | null
@@ -1042,9 +1035,7 @@ export type Database = {
           contact_email: string | null
           contact_name: string | null
           created_at: string
-          data_source: string | null
           duration: number | null
-          end_time: string | null
           enforce_login: boolean | null
           hd_video: boolean | null
           host_email: string | null
@@ -1054,18 +1045,15 @@ export type Database = {
           host_name: string | null
           host_video: boolean | null
           id: string
-          is_historical: boolean | null
           is_simulive: boolean | null
           join_url: string | null
           language: string | null
           last_synced_at: string | null
           on_demand: boolean | null
           panelists_video: boolean | null
-          participants_count: number | null
           password: string | null
           practice_session: boolean | null
           raw_data: Json
-          registrants_count: number | null
           registration_type: number | null
           registration_url: string | null
           start_time: string | null
@@ -1083,7 +1071,6 @@ export type Database = {
         }
         Insert: {
           actual_duration?: number | null
-          actual_end_time?: string | null
           actual_start_time?: string | null
           agenda?: string | null
           approval_type?: number | null
@@ -1092,9 +1079,7 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
-          data_source?: string | null
           duration?: number | null
-          end_time?: string | null
           enforce_login?: boolean | null
           hd_video?: boolean | null
           host_email?: string | null
@@ -1104,18 +1089,15 @@ export type Database = {
           host_name?: string | null
           host_video?: boolean | null
           id?: string
-          is_historical?: boolean | null
           is_simulive?: boolean | null
           join_url?: string | null
           language?: string | null
           last_synced_at?: string | null
           on_demand?: boolean | null
           panelists_video?: boolean | null
-          participants_count?: number | null
           password?: string | null
           practice_session?: boolean | null
           raw_data: Json
-          registrants_count?: number | null
           registration_type?: number | null
           registration_url?: string | null
           start_time?: string | null
@@ -1133,7 +1115,6 @@ export type Database = {
         }
         Update: {
           actual_duration?: number | null
-          actual_end_time?: string | null
           actual_start_time?: string | null
           agenda?: string | null
           approval_type?: number | null
@@ -1142,9 +1123,7 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
-          data_source?: string | null
           duration?: number | null
-          end_time?: string | null
           enforce_login?: boolean | null
           hd_video?: boolean | null
           host_email?: string | null
@@ -1154,18 +1133,15 @@ export type Database = {
           host_name?: string | null
           host_video?: boolean | null
           id?: string
-          is_historical?: boolean | null
           is_simulive?: boolean | null
           join_url?: string | null
           language?: string | null
           last_synced_at?: string | null
           on_demand?: boolean | null
           panelists_video?: boolean | null
-          participants_count?: number | null
           password?: string | null
           practice_session?: boolean | null
           raw_data?: Json
-          registrants_count?: number | null
           registration_type?: number | null
           registration_url?: string | null
           start_time?: string | null

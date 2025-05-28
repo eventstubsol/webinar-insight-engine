@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -5,7 +6,7 @@ import { corsHeaders } from './cors.ts';
 import { getZoomCredentials, handleSaveCredentials, handleCheckCredentialsStatus, handleVerifyCredentials } from './credentials.ts';
 import { getZoomJwtToken } from './auth.ts';
 
-import { handleListWebinars } from './handlers/listWebinars/index.ts';
+import { handleListWebinars } from './handlers/listWebinars.ts';
 import { handleGetWebinar } from './handlers/getWebinar.ts';
 import { handleGetParticipants } from './handlers/getParticipants.ts';
 import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
@@ -13,7 +14,6 @@ import { handleGetInstanceParticipants } from './handlers/getInstanceParticipant
 import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
 import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
-import { handleDebugAPI } from './debug/apiResponseDebugger.ts';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -106,10 +106,6 @@ async function handleRequest(req: Request): Promise<Response> {
       case 'get-webinar-recordings':
         const recordingsCredentials = await getZoomCredentials(supabase, user.id);
         return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials, params.webinar_id);
-      
-      case 'debug-api':
-        const debugCredentials = await getZoomCredentials(supabase, user.id);
-        return await handleDebugAPI(req, supabase, user, debugCredentials);
       
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {

@@ -9,23 +9,12 @@ export {
 
 export {
   fetchWebinarsFromAPI,
-  fetchWebinarsFromAPILegacy,
-  refreshWebinarsFromAPI
-} from './coreWebinarOperations';
-
-export {
+  refreshWebinarsFromAPI,
   updateParticipantDataAPI,
   fetchWebinarInstancesAPI,
-  fetchInstanceParticipantsAPI
-} from './participantOperations';
-
-export {
+  fetchInstanceParticipantsAPI,
   fetchWebinarRecordingsAPI
-} from './recordingOperations';
-
-export {
-  debugAPIResponses
-} from './debugOperations';
+} from './apiOperations';
 
 export {
   fetchSyncHistory

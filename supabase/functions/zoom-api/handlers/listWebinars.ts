@@ -1,72 +1,116 @@
 
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
+import { fetchWebinarsFromZoomAPI, performNonDestructiveUpsert } from './sync/nonDestructiveSync.ts';
+import { enhanceWebinarsWithAllData } from './sync/webinarEnhancementOrchestrator.ts';
+import { calculateSyncStats, recordSyncHistory } from './sync/syncStatsCalculator.ts';
+import { checkDatabaseCache } from './sync/databaseCache.ts';
+import { formatListWebinarsResponse, logWebinarStatistics, SyncResults, StatsResult } from './sync/responseFormatter.ts';
+import { fetchUserInfo } from './sync/userInfoFetcher.ts';
+import { handleEmptySync } from './sync/emptySyncHandler.ts';
+import { getFinalWebinarsList } from './sync/finalWebinarsListFetcher.ts';
 
-// Re-export the main handler for backward compatibility
-export { handleListWebinars } from './listWebinars/index.ts';
-
-// Replace the main handler function to use enhanced processing with debugging
-export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any): Promise<Response> {
-  console.log(`[zoom-api][list-webinars] 🚀 Starting ENHANCED webinar list with DEBUGGING`);
-  console.log(`[zoom-api][list-webinars] 🎯 CRITICAL FIX: Implementing comprehensive instance creation debugging`);
+// Handle listing webinars with non-destructive upsert-based sync
+export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
+  console.log(`[zoom-api][list-webinars] Starting ENHANCED non-destructive sync for user: ${user.id}, force_sync: ${force_sync}`);
+  console.log(`[zoom-api][list-webinars] 🔄 This sync will include webinar instances for complete timing data!`);
+  console.log(`[zoom-api][list-webinars] Current timestamp: ${new Date().toISOString()}`);
   
   try {
-    const { force_sync = false } = await req.json().catch(() => ({}));
-    
-    const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
-    
-    // Get user data for API calls
-    const meResponse = await fetch('https://api.zoom.us/v2/users/me', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!meResponse.ok) {
-      throw new Error('Failed to fetch user data from Zoom API');
+    // Check database cache first if not forcing sync
+    const cacheResult = await checkDatabaseCache(supabase, user.id, force_sync);
+    if (cacheResult.shouldUseCachedData) {
+      return new Response(JSON.stringify(cacheResult.cacheResponse), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
     
-    const meData = await meResponse.json();
+    // Get token and fetch user info
+    const token = await getZoomJwtToken(credentials.account_id, credentials.client_id, credentials.client_secret);
+    console.log('[zoom-api][list-webinars] Got Zoom token, fetching user info and webinars');
     
-    // Get existing webinars for comparison
-    const { data: existingWebinars } = await supabase
+    const meData = await fetchUserInfo(token);
+    console.log(`[zoom-api][list-webinars] Got user info for: ${meData.email}, ID: ${meData.id}`);
+
+    // Fetch webinars from Zoom API
+    const allWebinars = await fetchWebinarsFromZoomAPI(token, meData.id);
+    
+    // Log detailed statistics about the fetched data
+    logWebinarStatistics(allWebinars);
+    
+    // Get existing webinars for comparison and preservation count
+    const { data: existingWebinars, error: existingError } = await supabase
       .from('zoom_webinars')
-      .select('webinar_id, topic, updated_at')
+      .select('*')
       .eq('user_id', user.id);
+      
+    if (existingError) {
+      console.error('[zoom-api][list-webinars] Error fetching existing webinars:', existingError);
+    }
     
-    // Use the enhanced processor with comprehensive debugging
-    const { processEnhancedWebinars } = await import('./listWebinars/enhancedWebinarProcessor.ts');
-    const processingResult = await processEnhancedWebinars(token, meData, supabase, user, existingWebinars || []);
+    let syncResults: SyncResults = { newWebinars: 0, updatedWebinars: 0, preservedWebinars: 0 };
+    let statsResult: StatsResult = {
+      totalWebinarsInDB: 0,
+      oldestPreservedDate: null,
+      newestWebinarDate: null,
+      dataRange: { oldest: null, newest: null }
+    };
     
-    // Format response with enhanced metrics
-    const { formatListWebinarsResponse } = await import('./sync/responseFormatter.ts');
-    const response = formatListWebinarsResponse(
-      processingResult.allWebinars,
-      processingResult.syncResults,
-      processingResult.statsResult,
-      processingResult.enhancedCount,
-      processingResult.completedCount,
-      processingResult.historicalCount,
-      processingResult.upcomingCount,
-      processingResult.instanceSyncResults
-    );
+    // Process webinars if any exist
+    if (allWebinars && allWebinars.length > 0) {
+      // 🔥 NEW: Enhanced webinars with ALL data including instance syncing
+      // Pass supabase client and user ID for both recording AND instance data storage
+      console.log(`[zoom-api][list-webinars] 🚀 Starting ENHANCED enhancement with instance syncing`);
+      const enhancedWebinars = await enhanceWebinarsWithAllData(allWebinars, token, supabase, user.id);
+      
+      // Perform non-destructive upsert
+      syncResults = await performNonDestructiveUpsert(supabase, user.id, enhancedWebinars, existingWebinars || []);
+      
+      // Calculate comprehensive statistics
+      statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
+      
+      // Get instance sync statistics
+      const { data: instancesData, error: instancesError } = await supabase
+        .from('zoom_webinar_instances')
+        .select('webinar_id')
+        .eq('user_id', user.id);
+      
+      const instanceStats = instancesError ? 0 : (instancesData?.length || 0);
+      const completedWebinars = enhancedWebinars.filter(w => w.status === 'ended' || w.status === 'aborted').length;
+      const recordingStats = enhancedWebinars.filter(w => w.has_recordings).length;
+      
+      // Record enhanced sync in history with instance information
+      await recordSyncHistory(
+        supabase,
+        user.id,
+        'webinars',
+        'success',
+        syncResults.newWebinars + syncResults.updatedWebinars,
+        `ENHANCED non-destructive sync with instance data: ${syncResults.newWebinars} new, ${syncResults.updatedWebinars} updated, ${syncResults.preservedWebinars} preserved. ${completedWebinars} completed webinars processed. ${instanceStats} instances synced. ${recordingStats} webinars with recordings. Total: ${statsResult.totalWebinarsInDB} webinars (${statsResult.oldestPreservedDate ? `from ${statsResult.oldestPreservedDate.split('T')[0]}` : 'all recent'})`
+      );
+    } else {
+      // Handle empty sync result
+      await handleEmptySync(supabase, user.id, syncResults, statsResult);
+    }
     
-    console.log(`[zoom-api][list-webinars] ✅ Enhanced sync completed successfully`);
-    console.log(`[zoom-api][list-webinars] 📊 CRITICAL INSTANCE RESULTS:`);
-    console.log(`[zoom-api][list-webinars]   - Total instances created: ${processingResult.instanceSyncResults.totalInstancesSynced}`);
-    console.log(`[zoom-api][list-webinars]   - Instance creation errors: ${processingResult.instanceSyncResults.instanceSyncErrors}`);
-    console.log(`[zoom-api][list-webinars]   - Database insert success: ${processingResult.instanceSyncResults.totalInstancesSynced > 0 ? 'YES' : 'NO'}`);
+    // Get final webinar list to return
+    const finalWebinarsList = await getFinalWebinarsList(supabase, user.id);
     
-    return new Response(JSON.stringify(response), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return formatListWebinarsResponse(finalWebinarsList, allWebinars, syncResults, statsResult);
     
   } catch (error) {
-    console.error('[zoom-api][list-webinars] ❌ Error in enhanced handleListWebinars:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    console.error('[zoom-api][list-webinars] Error in enhanced sync action:', error);
+    
+    // Record failed sync in history
+    await recordSyncHistory(
+      supabase,
+      user.id,
+      'webinars',
+      'error',
+      0,
+      `Enhanced sync error: ${error.message || 'Unknown error'}`
+    );
+    
+    throw error; // Let the main error handler format the response
   }
 }
