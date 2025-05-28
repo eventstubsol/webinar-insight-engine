@@ -1,7 +1,7 @@
 
-import { handleEnhancedListWebinars } from './enhancedIndex.ts';
+import { handleFixedListWebinars } from './fixedIndex.ts';
 
-// Use the enhanced handler for better end_time calculation
+// Use the fixed handler for proper actual end_time data collection
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any, force_sync: boolean) {
-  return await handleEnhancedListWebinars(req, supabase, user, credentials, force_sync);
+  return await handleFixedListWebinars(req, supabase, user, credentials, force_sync);
 }
