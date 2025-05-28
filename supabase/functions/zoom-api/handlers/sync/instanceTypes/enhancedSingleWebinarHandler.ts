@@ -1,131 +1,113 @@
 
-import { detectWebinarCompletion } from '../../../utils/webinarCompletionDetector.ts';
-import { fetchEnhancedPastWebinarData } from '../../../utils/enhancedPastWebinarApiClient.ts';
+import { fetchComprehensivePastWebinarData } from '../../../utils/enhancedPastWebinarClient.ts';
+import { mapWebinarToInstanceData } from '../../../utils/enhancedInstanceDataMapper.ts';
 
 /**
- * Enhanced handler for single-occurrence webinars with improved end_time calculation
+ * Enhanced handler for single-occurrence webinars with comprehensive data population
  */
-export async function handleEnhancedSingleOccurrenceWebinar(webinar: any, token: string, supabase: any, userId: string, isCompleted: boolean): Promise<number> {
+export async function handleEnhancedSingleOccurrenceWebinar(webinar: any, token: string, supabase: any, userId: string): Promise<number> {
   
-  console.log(`[enhanced-single-handler] 📊 Processing single webinar ${webinar.id} (${webinar.topic})`);
-  console.log(`[enhanced-single-handler] 📊 Input data: start_time=${webinar.start_time}, duration=${webinar.duration}, status=${webinar.status}`);
+  console.log(`[enhanced-single-handler] 🎯 Processing single webinar ${webinar.id} (${webinar.topic})`);
+  console.log(`[enhanced-single-handler] 📊 Using ENHANCED data extraction for complete field population`);
   
-  // Use proper completion detection
-  const completionResult = detectWebinarCompletion(webinar);
-  console.log(`[enhanced-single-handler] 📊 Completion analysis: ${completionResult.reason} (confidence: ${completionResult.confidenceLevel})`);
+  // Step 1: Fetch comprehensive webinar data from main API
+  const webinarApiResult = await fetchWebinarData(token, webinar.id);
+  const enhancedWebinarData = webinarApiResult.success ? webinarApiResult.data : webinar;
   
-  // Fetch enhanced timing data
-  const pastDataResult = await fetchEnhancedPastWebinarData(token, webinar, null, completionResult);
+  // Step 2: Fetch comprehensive past webinar data if webinar appears completed
+  const isCompleted = isWebinarCompleted(enhancedWebinarData);
+  console.log(`[enhanced-single-handler] 📊 Webinar completion status: ${isCompleted}`);
   
-  // Determine final values with enhanced logic
-  const finalTopic = webinar.topic && webinar.topic.trim() !== '' ? webinar.topic : 'Untitled Webinar';
-  const finalStartTime = pastDataResult.actualStartTime || webinar.start_time;
-  const scheduledDuration = webinar.duration || null;
-  const finalDuration = pastDataResult.actualDuration || scheduledDuration;
-  
-  // CRITICAL: Enhanced end_time calculation with multiple fallback strategies
-  let finalEndTime = pastDataResult.actualEndTime;
-  
-  if (!finalEndTime && finalStartTime && finalDuration) {
-    try {
-      const startDate = new Date(finalStartTime);
-      const endDate = new Date(startDate.getTime() + (finalDuration * 60000));
-      finalEndTime = endDate.toISOString();
-      console.log(`[enhanced-single-handler] 🧮 Calculated end_time from start + duration: ${finalEndTime}`);
-    } catch (error) {
-      console.warn(`[enhanced-single-handler] ⚠️ Error calculating end_time:`, error);
-    }
+  let pastDataResult = null;
+  if (isCompleted) {
+    console.log(`[enhanced-single-handler] 🔄 Fetching past webinar data for completed webinar`);
+    pastDataResult = await fetchComprehensivePastWebinarData(token, enhancedWebinarData);
+    console.log(`[enhanced-single-handler] 📊 Past data fetch result: success=${pastDataResult.success}`);
   }
   
-  // Additional fallback: if we still don't have end_time but webinar is completed, estimate based on typical duration
-  if (!finalEndTime && completionResult.isCompleted && finalStartTime) {
-    try {
-      const estimatedDuration = finalDuration || 60; // Default to 60 minutes if no duration
-      const startDate = new Date(finalStartTime);
-      const endDate = new Date(startDate.getTime() + (estimatedDuration * 60000));
-      finalEndTime = endDate.toISOString();
-      console.log(`[enhanced-single-handler] 🔄 Estimated end_time for completed webinar: ${finalEndTime}`);
-    } catch (error) {
-      console.warn(`[enhanced-single-handler] ⚠️ Error estimating end_time:`, error);
-    }
-  }
+  // Step 3: Map all data to enhanced instance structure
+  const instanceData = mapWebinarToInstanceData(
+    enhancedWebinarData,
+    null, // No separate instance for single occurrence
+    pastDataResult?.pastData || null,
+    userId
+  );
   
-  // Determine proper status
-  let finalStatus = webinar.status;
-  if (!finalStatus || finalStatus.trim() === '') {
-    if (completionResult.isCompleted) {
-      finalStatus = 'ended';
-    } else if (finalStartTime) {
-      const now = new Date();
-      const startTime = new Date(finalStartTime);
-      if (now > startTime) {
-        if (finalEndTime && now > new Date(finalEndTime)) {
-          finalStatus = 'ended';
-        } else {
-          finalStatus = 'started';
-        }
-      } else {
-        finalStatus = 'waiting';
+  console.log(`[enhanced-single-handler] 📊 ENHANCED MAPPED DATA:`);
+  console.log(`[enhanced-single-handler]   ✅ webinar_id: ${instanceData.webinar_id}`);
+  console.log(`[enhanced-single-handler]   ✅ instance_id: ${instanceData.instance_id}`);
+  console.log(`[enhanced-single-handler]   ✅ topic: ${instanceData.topic}`);
+  console.log(`[enhanced-single-handler]   ✅ start_time: ${instanceData.start_time}`);
+  console.log(`[enhanced-single-handler]   ✅ end_time: ${instanceData.end_time}`);
+  console.log(`[enhanced-single-handler]   ✅ duration: ${instanceData.duration}`);
+  console.log(`[enhanced-single-handler]   ✅ actual_start_time: ${instanceData.actual_start_time}`);
+  console.log(`[enhanced-single-handler]   ✅ actual_duration: ${instanceData.actual_duration}`);
+  console.log(`[enhanced-single-handler]   ✅ status: ${instanceData.status}`);
+  console.log(`[enhanced-single-handler]   ✅ participants_count: ${instanceData.participants_count}`);
+  console.log(`[enhanced-single-handler]   ✅ registrants_count: ${instanceData.registrants_count}`);
+  console.log(`[enhanced-single-handler]   ✅ is_historical: ${instanceData.is_historical}`);
+  console.log(`[enhanced-single-handler]   ✅ data_source: ${instanceData.data_source}`);
+  
+  // Step 4: Upsert to database with enhanced data
+  const { upsertEnhancedInstanceRecord } = await import('../databaseOperations/enhancedInstanceUpsert.ts');
+  const result = await upsertEnhancedInstanceRecord(supabase, instanceData);
+  
+  console.log(`[enhanced-single-handler] 🎯 Enhanced single webinar ${webinar.id} processed: ${result} instance created with complete data`);
+  return result;
+}
+
+/**
+ * Fetch detailed webinar data from the main webinars API
+ */
+async function fetchWebinarData(token: string, webinarId: string) {
+  console.log(`[enhanced-single-handler] 📡 Fetching detailed webinar data for ${webinarId}`);
+  
+  try {
+    const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`[enhanced-single-handler] ✅ Successfully fetched webinar data`);
+      return { success: true, data };
     } else {
-      finalStatus = 'waiting';
+      const errorText = await response.text();
+      console.warn(`[enhanced-single-handler] ⚠️ Webinar API failed: ${response.status} - ${errorText}`);
+      return { success: false, data: null };
+    }
+  } catch (error) {
+    console.error(`[enhanced-single-handler] ❌ Error fetching webinar data:`, error);
+    return { success: false, data: null };
+  }
+}
+
+/**
+ * Determine if webinar is completed based on various indicators
+ */
+function isWebinarCompleted(webinar: any): boolean {
+  // Check explicit status
+  if (webinar.status === 'ended' || webinar.status === 'aborted' || webinar.status === 'finished') {
+    return true;
+  }
+  
+  // Check if start time is in the past and we have duration
+  if (webinar.start_time && webinar.duration) {
+    try {
+      const startTime = new Date(webinar.start_time);
+      const endTime = new Date(startTime.getTime() + (webinar.duration * 60000));
+      const now = new Date();
+      
+      if (now > endTime) {
+        return true;
+      }
+    } catch (error) {
+      console.warn(`[enhanced-single-handler] ⚠️ Error checking completion by time:`, error);
     }
   }
   
-  console.log(`[enhanced-single-handler] 📊 Final calculated data:`);
-  console.log(`[enhanced-single-handler]   - topic: ${finalTopic}`);
-  console.log(`[enhanced-single-handler]   - start_time: ${finalStartTime}`);
-  console.log(`[enhanced-single-handler]   - duration: ${finalDuration} (actual: ${pastDataResult.actualDuration}, scheduled: ${scheduledDuration})`);
-  console.log(`[enhanced-single-handler]   - end_time: ${finalEndTime} ⭐ CRITICAL FIELD`);
-  console.log(`[enhanced-single-handler]   - status: ${finalStatus}`);
-  console.log(`[enhanced-single-handler]   - actual_start_time: ${pastDataResult.actualStartTime}`);
-  console.log(`[enhanced-single-handler]   - actual_duration: ${pastDataResult.actualDuration}`);
-  console.log(`[enhanced-single-handler]   - API success: ${pastDataResult.success}`);
-  
-  const instanceToInsert = {
-    user_id: userId,
-    webinar_id: webinar.id,
-    webinar_uuid: webinar.uuid || '',
-    instance_id: webinar.uuid || webinar.id,
-    start_time: finalStartTime,
-    end_time: finalEndTime, // ⭐ CRITICAL: Ensure this is always populated
-    duration: finalDuration,
-    actual_start_time: pastDataResult.actualStartTime,
-    actual_duration: pastDataResult.actualDuration,
-    topic: finalTopic,
-    status: finalStatus,
-    registrants_count: 0,
-    participants_count: pastDataResult.participantsCount,
-    raw_data: {
-      webinar_data: webinar,
-      actual_data: pastDataResult.actualData,
-      completion_analysis: completionResult,
-      past_data_result: pastDataResult,
-      enhanced_calculation: {
-        final_end_time: finalEndTime,
-        calculation_method: finalEndTime ? (pastDataResult.actualEndTime ? 'api_actual' : 'calculated') : 'none',
-        timing_source: {
-          start_time: pastDataResult.actualStartTime ? 'api' : 'webinar_data',
-          duration: pastDataResult.actualDuration ? 'api' : 'webinar_data',
-          end_time: pastDataResult.actualEndTime ? 'api_actual' : (finalEndTime ? 'calculated' : 'none')
-        }
-      },
-      _is_single_occurrence: true,
-      _is_completed: completionResult.isCompleted,
-      _identifiers_tried: pastDataResult.identifiersUsed,
-      _api_calls_made: pastDataResult.apiCallsMade,
-      _api_errors: pastDataResult.errorDetails
-    }
-  };
-  
-  // Validate that we have end_time before inserting
-  if (!instanceToInsert.end_time) {
-    console.warn(`[enhanced-single-handler] ⚠️ WARNING: No end_time calculated for webinar ${webinar.id}!`);
-    console.warn(`[enhanced-single-handler] ⚠️ Input data: start_time=${finalStartTime}, duration=${finalDuration}`);
-  } else {
-    console.log(`[enhanced-single-handler] ✅ Successfully calculated end_time: ${instanceToInsert.end_time}`);
-  }
-  
-  const { upsertInstanceRecord } = await import('../databaseOperations/instanceUpsert.ts');
-  return await upsertInstanceRecord(supabase, instanceToInsert, webinar.id, webinar.uuid || webinar.id);
+  return false;
 }

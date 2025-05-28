@@ -1,15 +1,20 @@
 
-import { detectWebinarCompletion } from '../../../utils/webinarCompletionDetector.ts';
-import { fetchEnhancedPastWebinarData } from '../../../utils/enhancedPastWebinarApiClient.ts';
+import { fetchComprehensivePastWebinarData } from '../../../utils/enhancedPastWebinarClient.ts';
+import { mapWebinarToInstanceData } from '../../../utils/enhancedInstanceDataMapper.ts';
 
 /**
- * Enhanced handler for recurring webinar instances with improved end_time calculation
+ * Enhanced handler for recurring webinar instances with comprehensive data population
  */
 export async function handleEnhancedRecurringWebinarInstances(webinar: any, token: string, supabase: any, userId: string): Promise<number> {
   console.log(`[enhanced-recurring-handler] 📡 Fetching instances for recurring webinar ${webinar.id} (${webinar.topic})`);
+  console.log(`[enhanced-recurring-handler] 📊 Using ENHANCED data extraction for complete field population`);
   
   try {
-    const response = await fetch(`https://api.zoom.us/v2/webinars/${webinar.id}/instances`, {
+    // Step 1: Fetch all instances for this recurring webinar
+    const instancesUrl = `https://api.zoom.us/v2/webinars/${webinar.id}/instances`;
+    console.log(`[enhanced-recurring-handler] 📡 Calling: ${instancesUrl}`);
+    
+    const response = await fetch(instancesUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -18,7 +23,7 @@ export async function handleEnhancedRecurringWebinarInstances(webinar: any, toke
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      console.warn(`[enhanced-recurring-handler] ⚠️ Failed to fetch instances for recurring webinar ${webinar.id}: ${errorData.message}`);
+      console.warn(`[enhanced-recurring-handler] ⚠️ Failed to fetch instances: ${response.status} - ${errorData.message}`);
       return 0;
     }
     
@@ -27,17 +32,26 @@ export async function handleEnhancedRecurringWebinarInstances(webinar: any, toke
     
     console.log(`[enhanced-recurring-handler] 📊 Found ${instances.length} instances for recurring webinar ${webinar.id}`);
     
+    if (instances.length === 0) {
+      console.log(`[enhanced-recurring-handler] ℹ️ No instances found for webinar ${webinar.id}`);
+      return 0;
+    }
+    
     let instancesProcessed = 0;
     
+    // Step 2: Process EACH instance with enhanced data extraction
     for (const instance of instances) {
       try {
+        console.log(`[enhanced-recurring-handler] 🔄 Processing instance ${instance.uuid || instance.instance_id} of ${instances.length}`);
         const processedCount = await processEnhancedRecurringInstance(webinar, instance, token, supabase, userId);
         instancesProcessed += processedCount;
       } catch (error) {
         console.error(`[enhanced-recurring-handler] ❌ Error processing instance ${instance.uuid}:`, error);
+        // Continue with other instances even if one fails
       }
     }
     
+    console.log(`[enhanced-recurring-handler] ✅ Successfully processed ${instancesProcessed}/${instances.length} instances for webinar ${webinar.id}`);
     return instancesProcessed;
     
   } catch (error) {
@@ -47,130 +61,108 @@ export async function handleEnhancedRecurringWebinarInstances(webinar: any, toke
 }
 
 /**
- * Process a single instance of a recurring webinar with enhanced end_time calculation
+ * Process a single instance of a recurring webinar with enhanced data extraction
  */
 async function processEnhancedRecurringInstance(webinar: any, instance: any, token: string, supabase: any, userId: string): Promise<number> {
-  console.log(`[enhanced-recurring-handler] 🔍 Processing recurring instance ${instance.uuid} - Status: ${instance.status}`);
+  const instanceId = instance.uuid || instance.instance_id || 'unknown';
+  console.log(`[enhanced-recurring-handler] 🔍 Processing instance ${instanceId}, status: ${instance.status}`);
   
-  // Use proper completion detection for the instance
-  const completionResult = detectWebinarCompletion(webinar, instance);
-  console.log(`[enhanced-recurring-handler] 📊 Instance completion analysis: ${completionResult.reason} (confidence: ${completionResult.confidenceLevel})`);
+  // Step 1: Fetch enhanced webinar data from main API
+  const webinarApiResult = await fetchWebinarData(token, webinar.id);
+  const enhancedWebinarData = webinarApiResult.success ? webinarApiResult.data : webinar;
   
-  // Fetch enhanced timing data
-  const pastDataResult = await fetchEnhancedPastWebinarData(token, webinar, instance, completionResult);
+  // Step 2: Determine if this instance is completed
+  const isCompleted = isInstanceCompleted(instance);
+  console.log(`[enhanced-recurring-handler] 📊 Instance completion status: ${isCompleted}`);
   
-  // Determine final values with proper inheritance: instance → webinar → defaults
-  const finalTopic = (instance.topic && instance.topic.trim() !== '') ? instance.topic : 
-                    (webinar.topic && webinar.topic.trim() !== '') ? webinar.topic : 'Untitled Webinar';
-  
-  const finalStartTime = pastDataResult.actualStartTime || instance.start_time || webinar.start_time;
-  const scheduledDuration = instance.duration || webinar.duration || null;
-  const finalDuration = pastDataResult.actualDuration || scheduledDuration;
-  
-  // CRITICAL: Enhanced end_time calculation with multiple fallback strategies
-  let finalEndTime = pastDataResult.actualEndTime;
-  
-  if (!finalEndTime && finalStartTime && finalDuration) {
-    try {
-      const startDate = new Date(finalStartTime);
-      const endDate = new Date(startDate.getTime() + (finalDuration * 60000));
-      finalEndTime = endDate.toISOString();
-      console.log(`[enhanced-recurring-handler] 🧮 Calculated end_time from start + duration: ${finalEndTime}`);
-    } catch (error) {
-      console.warn(`[enhanced-recurring-handler] ⚠️ Error calculating end_time:`, error);
-    }
+  // Step 3: Fetch comprehensive past webinar data if instance appears completed
+  let pastDataResult = null;
+  if (isCompleted) {
+    console.log(`[enhanced-recurring-handler] 🔄 Fetching past webinar data for completed instance`);
+    pastDataResult = await fetchComprehensivePastWebinarData(token, enhancedWebinarData, instance);
+    console.log(`[enhanced-recurring-handler] 📊 Past data fetch result: success=${pastDataResult?.success || false}`);
   }
   
-  // Additional fallback for completed instances without end_time
-  if (!finalEndTime && completionResult.isCompleted && finalStartTime) {
-    try {
-      const estimatedDuration = finalDuration || 60; // Default to 60 minutes
-      const startDate = new Date(finalStartTime);
-      const endDate = new Date(startDate.getTime() + (estimatedDuration * 60000));
-      finalEndTime = endDate.toISOString();
-      console.log(`[enhanced-recurring-handler] 🔄 Estimated end_time for completed instance: ${finalEndTime}`);
-    } catch (error) {
-      console.warn(`[enhanced-recurring-handler] ⚠️ Error estimating end_time:`, error);
-    }
-  }
+  // Step 4: Map all data to enhanced instance structure
+  const instanceData = mapWebinarToInstanceData(
+    enhancedWebinarData,
+    instance,
+    pastDataResult?.pastData || null,
+    userId
+  );
   
-  // Determine proper status with enhanced logic
-  let finalStatus = instance.status;
-  if (!finalStatus || finalStatus.trim() === '') {
-    if (completionResult.isCompleted) {
-      finalStatus = 'ended';
-    } else if (finalStartTime) {
-      const now = new Date();
-      const startTime = new Date(finalStartTime);
-      if (now > startTime) {
-        if (finalEndTime && now > new Date(finalEndTime)) {
-          finalStatus = 'ended';
-        } else {
-          finalStatus = 'started';
-        }
-      } else {
-        finalStatus = 'waiting';
+  console.log(`[enhanced-recurring-handler] 📊 ENHANCED MAPPED DATA for instance ${instanceId}:`);
+  console.log(`[enhanced-recurring-handler]   ✅ webinar_id: ${instanceData.webinar_id}`);
+  console.log(`[enhanced-recurring-handler]   ✅ instance_id: ${instanceData.instance_id}`);
+  console.log(`[enhanced-recurring-handler]   ✅ topic: ${instanceData.topic}`);
+  console.log(`[enhanced-recurring-handler]   ✅ start_time: ${instanceData.start_time}`);
+  console.log(`[enhanced-recurring-handler]   ✅ end_time: ${instanceData.end_time}`);
+  console.log(`[enhanced-recurring-handler]   ✅ duration: ${instanceData.duration}`);
+  console.log(`[enhanced-recurring-handler]   ✅ actual_start_time: ${instanceData.actual_start_time}`);
+  console.log(`[enhanced-recurring-handler]   ✅ actual_duration: ${instanceData.actual_duration}`);
+  console.log(`[enhanced-recurring-handler]   ✅ status: ${instanceData.status}`);
+  console.log(`[enhanced-recurring-handler]   ✅ participants_count: ${instanceData.participants_count}`);
+  console.log(`[enhanced-recurring-handler]   ✅ registrants_count: ${instanceData.registrants_count}`);
+  console.log(`[enhanced-recurring-handler]   ✅ is_historical: ${instanceData.is_historical}`);
+  console.log(`[enhanced-recurring-handler]   ✅ data_source: ${instanceData.data_source}`);
+  
+  // Step 5: Upsert to database with enhanced data
+  const { upsertEnhancedInstanceRecord } = await import('../databaseOperations/enhancedInstanceUpsert.ts');
+  return await upsertEnhancedInstanceRecord(supabase, instanceData);
+}
+
+/**
+ * Fetch detailed webinar data from the main webinars API
+ */
+async function fetchWebinarData(token: string, webinarId: string) {
+  console.log(`[enhanced-recurring-handler] 📡 Fetching detailed webinar data for ${webinarId}`);
+  
+  try {
+    const response = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`[enhanced-recurring-handler] ✅ Successfully fetched webinar data`);
+      return { success: true, data };
     } else {
-      finalStatus = 'waiting';
+      const errorText = await response.text();
+      console.warn(`[enhanced-recurring-handler] ⚠️ Webinar API failed: ${response.status} - ${errorText}`);
+      return { success: false, data: null };
+    }
+  } catch (error) {
+    console.error(`[enhanced-recurring-handler] ❌ Error fetching webinar data:`, error);
+    return { success: false, data: null };
+  }
+}
+
+/**
+ * Determine if instance is completed based on various indicators
+ */
+function isInstanceCompleted(instance: any): boolean {
+  // Check explicit status
+  if (instance.status === 'ended' || instance.status === 'aborted' || instance.status === 'finished') {
+    return true;
+  }
+  
+  // Check if start time is in the past and we have duration
+  if (instance.start_time && instance.duration) {
+    try {
+      const startTime = new Date(instance.start_time);
+      const endTime = new Date(startTime.getTime() + (instance.duration * 60000));
+      const now = new Date();
+      
+      if (now > endTime) {
+        return true;
+      }
+    } catch (error) {
+      console.warn(`[enhanced-recurring-handler] ⚠️ Error checking completion by time:`, error);
     }
   }
   
-  console.log(`[enhanced-recurring-handler] 📊 Final calculated data for instance ${instance.uuid}:`);
-  console.log(`[enhanced-recurring-handler]   - topic: ${finalTopic}`);
-  console.log(`[enhanced-recurring-handler]   - start_time: ${finalStartTime}`);
-  console.log(`[enhanced-recurring-handler]   - duration: ${finalDuration} (actual: ${pastDataResult.actualDuration}, scheduled: ${scheduledDuration})`);
-  console.log(`[enhanced-recurring-handler]   - end_time: ${finalEndTime} ⭐ CRITICAL FIELD`);
-  console.log(`[enhanced-recurring-handler]   - status: ${finalStatus}`);
-  console.log(`[enhanced-recurring-handler]   - actual_start_time: ${pastDataResult.actualStartTime}`);
-  console.log(`[enhanced-recurring-handler]   - actual_duration: ${pastDataResult.actualDuration}`);
-  console.log(`[enhanced-recurring-handler]   - API success: ${pastDataResult.success}`);
-  
-  const instanceToInsert = {
-    user_id: userId,
-    webinar_id: webinar.id,
-    webinar_uuid: webinar.uuid || '',
-    instance_id: instance.uuid || '',
-    start_time: finalStartTime,
-    end_time: finalEndTime, // ⭐ CRITICAL: Ensure this is always populated
-    duration: finalDuration,
-    actual_start_time: pastDataResult.actualStartTime,
-    actual_duration: pastDataResult.actualDuration,
-    topic: finalTopic,
-    status: finalStatus,
-    registrants_count: 0,
-    participants_count: pastDataResult.participantsCount,
-    raw_data: {
-      webinar_data: webinar,
-      instance_data: instance,
-      actual_data: pastDataResult.actualData,
-      completion_analysis: completionResult,
-      past_data_result: pastDataResult,
-      enhanced_calculation: {
-        final_end_time: finalEndTime,
-        calculation_method: finalEndTime ? (pastDataResult.actualEndTime ? 'api_actual' : 'calculated') : 'none',
-        timing_source: {
-          start_time: pastDataResult.actualStartTime ? 'api' : (instance.start_time ? 'instance' : 'webinar_data'),
-          duration: pastDataResult.actualDuration ? 'api' : (instance.duration ? 'instance' : 'webinar_data'),
-          end_time: pastDataResult.actualEndTime ? 'api_actual' : (finalEndTime ? 'calculated' : 'none')
-        }
-      },
-      _is_recurring_instance: true,
-      _is_completed: completionResult.isCompleted,
-      _identifiers_tried: pastDataResult.identifiersUsed,
-      _api_calls_made: pastDataResult.apiCallsMade,
-      _api_errors: pastDataResult.errorDetails
-    }
-  };
-  
-  // Validate that we have end_time before inserting
-  if (!instanceToInsert.end_time) {
-    console.warn(`[enhanced-recurring-handler] ⚠️ WARNING: No end_time calculated for instance ${instance.uuid}!`);
-    console.warn(`[enhanced-recurring-handler] ⚠️ Input data: start_time=${finalStartTime}, duration=${finalDuration}`);
-  } else {
-    console.log(`[enhanced-recurring-handler] ✅ Successfully calculated end_time: ${instanceToInsert.end_time}`);
-  }
-  
-  const { upsertInstanceRecord } = await import('../databaseOperations/instanceUpsert.ts');
-  return await upsertInstanceRecord(supabase, instanceToInsert, webinar.id, instance.uuid || '');
+  return false;
 }
