@@ -152,3 +152,25 @@ export function isValidZoomUUID(uuid: string): boolean {
   const validPattern = /^[a-zA-Z0-9\-_=+/]+$/;
   return validPattern.test(cleaned);
 }
+
+/**
+ * Get the best identifier for past webinar API calls
+ */
+export function getBestPastWebinarIdentifier(webinarData: any, instanceData?: any): string | null {
+  // For recurring webinars with instance data, prefer instance UUID
+  if (instanceData && instanceData.uuid && (webinarData.type === 6 || webinarData.type === 9)) {
+    return instanceData.uuid;
+  }
+  
+  // For single webinars, prefer webinar UUID
+  if (webinarData.uuid && webinarData.type === 5) {
+    return webinarData.uuid;
+  }
+  
+  // Fallback to webinar ID
+  if (webinarData.id) {
+    return webinarData.id;
+  }
+  
+  return null;
+}

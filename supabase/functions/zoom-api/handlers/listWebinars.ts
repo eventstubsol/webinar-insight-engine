@@ -1,3 +1,7 @@
+
+import { corsHeaders } from '../cors.ts';
+import { getZoomJwtToken } from '../auth.ts';
+
 // Re-export the main handler for backward compatibility
 export { handleListWebinars } from './listWebinars/index.ts';
 
