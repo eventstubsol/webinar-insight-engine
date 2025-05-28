@@ -6,7 +6,7 @@ import { updateParticipantDataOperation } from './participantOperations';
 import { executeWithTimeout, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
 
 /**
- * Refresh webinars operation with non-destructive sync and improved error handling
+ * Enhanced refresh webinars operation with historical data fetching
  */
 export async function refreshWebinarsOperation(
   userId: string | undefined,
@@ -27,16 +27,16 @@ export async function refreshWebinarsOperation(
   let participantsUpdated = 0;
   
   try {
-    console.log(`[refreshWebinarsOperation] Starting non-destructive refresh with force=${force} for user ${userId}`);
+    console.log(`[refreshWebinarsOperation] Starting enhanced refresh with force=${force} for user ${userId}`);
     
-    // Make the API call to fetch fresh data from Zoom with timeout protection
+    // Make the API call to fetch fresh data from Zoom with enhanced strategy
     const refreshData = await executeWithTimeout(
       () => refreshWebinarsFromAPI(userId, force),
       OPERATION_TIMEOUT,
       () => {
         timeoutTriggered = true;
         toast({
-          title: 'Sync taking longer than expected',
+          title: 'Enhanced sync taking longer than expected',
           description: 'The operation is still running in the background. Historical data will be preserved.',
           variant: 'default'
         });
@@ -57,8 +57,31 @@ export async function refreshWebinarsOperation(
     // Invalidate the query cache to force a refresh
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
     
-    // Show enhanced notification with non-destructive sync results
-    if (refreshData.syncResults) {
+    // Show enhanced notification with detailed sync results
+    if (refreshData.summary) {
+      const { 
+        totalCollected = 0, 
+        uniqueWebinars = 0, 
+        successfulUpserts = 0, 
+        historicalWebinars = 0,
+        upcomingWebinars = 0,
+        webinarsBySource 
+      } = refreshData.summary;
+      
+      const sourceBreakdown = webinarsBySource ? 
+        `Sources: ${webinarsBySource.regular || 0} upcoming, ${webinarsBySource.reporting || 0} historical, ${webinarsBySource.account || 0} account` :
+        '';
+      
+      const syncMessage = `${successfulUpserts} webinars synced (${historicalWebinars} historical, ${upcomingWebinars} upcoming)`;
+      const participantMessage = participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : '';
+      
+      toast({
+        title: 'Enhanced sync completed',
+        description: `${syncMessage}${participantMessage}. ${sourceBreakdown}`,
+        variant: 'default'
+      });
+    } else if (refreshData.syncResults) {
+      // Fallback for legacy sync results format
       const { 
         newWebinars = 0, 
         updatedWebinars = 0, 
@@ -72,33 +95,33 @@ export async function refreshWebinarsOperation(
       const participantMessage = participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : '';
       
       toast({
-        title: 'Non-destructive sync completed',
+        title: 'Enhanced sync completed',
         description: `${syncMessage}. ${totalMessage}${participantMessage}`,
         variant: 'default'
       });
     } else {
-      // Fallback for backward compatibility
+      // Basic fallback notification
       toast({
         title: 'Webinars synced',
-        description: 'Webinar data has been updated from Zoom',
+        description: 'Enhanced webinar data has been updated from Zoom',
         variant: 'default'
       });
     }
   } catch (err: any) {
     isCompleted = true;
     
-    console.error('[refreshWebinarsOperation] Error during refresh:', err);
+    console.error('[refreshWebinarsOperation] Error during enhanced refresh:', err);
     
     // Different error handling based on error type
     if (timeoutTriggered) {
       toast({
-        title: 'Sync may be incomplete',
+        title: 'Enhanced sync may be incomplete',
         description: 'The operation took too long. Historical data has been preserved.',
         variant: 'warning'
       });
     } else {
       // Enhanced error handling
-      let errorMessage = 'An unexpected error occurred';
+      let errorMessage = 'An unexpected error occurred during enhanced sync';
       
       if (err?.message) {
         errorMessage = err.message;
@@ -121,7 +144,7 @@ export async function refreshWebinarsOperation(
         });
       } else {
         toast({
-          title: 'Non-destructive sync failed',
+          title: 'Enhanced sync failed',
           description: errorMessage,
           variant: 'destructive'
         });
@@ -132,6 +155,6 @@ export async function refreshWebinarsOperation(
   } finally {
     // Ensure that even if there's an uncaught exception, we set isCompleted
     // This flag can be used by the calling code to reset UI states
-    console.log(`[refreshWebinarsOperation] Non-destructive operation completed: ${isCompleted}`);
+    console.log(`[refreshWebinarsOperation] Enhanced operation completed: ${isCompleted}`);
   }
 }
