@@ -86,7 +86,7 @@ export async function fetchWebinarsFromZoomAPI(token: string, userId: string): P
 }
 
 /**
- * Perform non-destructive upsert of webinars into database with comprehensive field mapping
+ * FIXED: Perform focused upsert with proper field validation and no assumptions
  */
 export async function performNonDestructiveUpsert(
   supabase: any, 
@@ -94,25 +94,16 @@ export async function performNonDestructiveUpsert(
   webinars: any[], 
   existingWebinars: any[]
 ): Promise<{ newWebinars: number; updatedWebinars: number; preservedWebinars: number }> {
-  console.log(`[zoom-api][performNonDestructiveUpsert] Starting comprehensive upsert for ${webinars.length} webinars...`);
+  console.log(`[zoom-api][performNonDestructiveUpsert] 🔧 FIXED: Starting focused upsert for ${webinars.length} webinars`);
+  console.log(`[zoom-api][performNonDestructiveUpsert] 🎯 CRITICAL FIX: Proper field validation, no field assumptions`);
   
   let newWebinars = 0;
   let updatedWebinars = 0;
   const currentTimestamp = new Date().toISOString();
   
-  // Log detailed info about actual timing data before upserting
-  const webinarsWithActualTiming = webinars.filter(w => w.actual_start_time || w.actual_duration);
-  console.log(`[zoom-api][performNonDestructiveUpsert] 🕒 TIMING DATA CHECK:`);
-  console.log(`[zoom-api][performNonDestructiveUpsert] - Total webinars to upsert: ${webinars.length}`);
-  console.log(`[zoom-api][performNonDestructiveUpsert] - Webinars with actual timing data: ${webinarsWithActualTiming.length}`);
-  
-  // Log sample of webinars with timing data
-  if (webinarsWithActualTiming.length > 0) {
-    console.log(`[zoom-api][performNonDestructiveUpsert] Sample webinars with timing data:`);
-    webinarsWithActualTiming.slice(0, 3).forEach(w => {
-      console.log(`[zoom-api][performNonDestructiveUpsert] - Webinar ${w.id}: actual_start_time=${w.actual_start_time}, actual_duration=${w.actual_duration}`);
-    });
-  }
+  // Track enhanced data separately
+  const webinarsWithActualTiming = webinars.filter(w => w._enhanced_with_past_data === true);
+  console.log(`[zoom-api][performNonDestructiveUpsert] 📊 Enhanced webinars: ${webinarsWithActualTiming.length}/${webinars.length}`);
   
   // Process webinars in smaller batches to avoid timeouts
   const batchSize = 10;
@@ -122,89 +113,77 @@ export async function performNonDestructiveUpsert(
     
     for (const webinar of batch) {
       try {
-        // Extract actual timing data from webinar response
-        const actualStartTime = webinar.actual_start_time || 
-                                webinar.start_time_actual || 
-                                webinar.actualStartTime || 
-                                null;
-                                
-        const actualDuration = webinar.actual_duration || 
-                               webinar.duration_actual || 
-                               webinar.actualDuration || 
-                               null;
+        // FIXED: Strict field validation - only use data that's explicitly set
+        const actualStartTime = webinar.actual_start_time ?? null;
+        const actualDuration = webinar.actual_duration ?? null;
+        const actualEndTime = webinar.actual_end_time ?? null;
+        const participantsCount = webinar.participants_count ?? null;
 
-        // Log timing data for each webinar that has it
-        if (actualStartTime || actualDuration) {
-          console.log(`[zoom-api][performNonDestructiveUpsert] 🎯 Webinar ${webinar.id} has timing data: start=${actualStartTime}, duration=${actualDuration}`);
+        // Log enhanced data properly
+        if (webinar._enhanced_with_past_data) {
+          console.log(`[zoom-api][performNonDestructiveUpsert] 🎯 Enhanced webinar ${webinar.id}:`);
+          console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_start_time: ${actualStartTime}`);
+          console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_duration: ${actualDuration}`);
+          console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_end_time: ${actualEndTime}`);
+          console.log(`[zoom-api][performNonDestructiveUpsert]   - participants_count: ${participantsCount}`);
         }
 
-        // Comprehensive field mapping - extracting all available data
+        // FIXED: Focused field mapping - only fields guaranteed to exist in basic webinar API
         const webinarData = {
           user_id: userId,
           webinar_id: webinar.id,
-          webinar_uuid: webinar.uuid,
-          topic: webinar.topic,
-          start_time: webinar.start_time,
-          duration: webinar.duration,
+          webinar_uuid: webinar.uuid ?? null,
+          topic: webinar.topic ?? 'Untitled Webinar',
+          start_time: webinar.start_time ?? null,
+          duration: webinar.duration ?? null,
+          timezone: webinar.timezone ?? null,
+          agenda: webinar.agenda ?? null,
+          host_email: webinar.host_email ?? null,
+          status: webinar.status ?? null,
+          type: webinar.type ?? null,
+          
+          // Enhanced timing data (only if enhanced)
           actual_start_time: actualStartTime,
           actual_duration: actualDuration,
-          timezone: webinar.timezone,
-          agenda: webinar.agenda || '',
-          host_email: webinar.host_email,
-          status: webinar.status,
-          type: webinar.type,
+          actual_end_time: actualEndTime,
+          participants_count: participantsCount,
           
-          // URL FIELDS - Available in raw_data but previously not mapped
-          join_url: webinar.join_url,
-          registration_url: webinar.registration_url,
-          start_url: webinar.start_url,
-          password: webinar.password,
+          // Basic URL fields (only if they exist)
+          join_url: webinar.join_url ?? null,
+          registration_url: webinar.registration_url ?? null,
+          start_url: webinar.start_url ?? null,
+          password: webinar.password ?? null,
           
-          // TIMESTAMP FIELDS - Available in raw_data but previously not mapped  
-          webinar_created_at: webinar.created_at,
+          // Basic host info (only if it exists)
+          host_id: webinar.host_id ?? null,
+          host_name: webinar.host_name ?? null,
           
-          // HOST FIELDS - Enhanced host info but previously not mapped
-          host_id: webinar.host_info?.id || webinar.host_id,
-          host_name: webinar.host_info?.display_name || webinar.host_name,
-          host_first_name: webinar.host_info?.first_name || webinar.host_first_name,
-          host_last_name: webinar.host_info?.last_name || webinar.host_last_name,
+          // Timestamps
+          webinar_created_at: webinar.created_at ?? null,
           
-          // CONFIGURATION FIELDS - Available in raw_data but previously not mapped
-          is_simulive: webinar.is_simulive !== undefined ? webinar.is_simulive : false,
+          // FIXED: No assumptions about settings structure
+          approval_type: webinar.approval_type ?? null,
+          registration_type: webinar.registration_type ?? null,
+          auto_recording_type: webinar.auto_recording ?? null,
           
-          // Settings fields (from enhanced data or basic webinar data)
-          approval_type: webinar.settings?.approval_type || webinar.approval_type,
-          registration_type: webinar.settings?.registration_type || webinar.registration_type,
-          auto_recording_type: webinar.settings?.auto_recording || webinar.auto_recording,
+          // FIXED: Safe boolean field handling
+          is_simulive: webinar.is_simulive === true,
+          enforce_login: webinar.enforce_login === true,
+          on_demand: webinar.on_demand === true,
+          practice_session: webinar.practice_session === true,
+          hd_video: webinar.hd_video === true,
+          host_video: webinar.host_video !== false, // Default true
+          panelists_video: webinar.panelists_video !== false, // Default true
           
-          // Boolean settings with defaults
-          enforce_login: webinar.settings?.enforce_login !== undefined ? webinar.settings.enforce_login : false,
-          on_demand: webinar.settings?.on_demand !== undefined ? webinar.settings.on_demand : false,
-          practice_session: webinar.settings?.practice_session !== undefined ? webinar.settings.practice_session : false,
-          hd_video: webinar.settings?.hd_video !== undefined ? webinar.settings.hd_video : false,
-          host_video: webinar.settings?.host_video !== undefined ? webinar.settings.host_video : true,
-          panelists_video: webinar.settings?.panelists_video !== undefined ? webinar.settings.panelists_video : true,
+          // Safe string fields with defaults
+          audio_type: webinar.audio ?? 'both',
+          language: webinar.language ?? 'en-US',
           
-          // Audio and language settings
-          audio_type: webinar.settings?.audio || webinar.audio || 'both',
-          language: webinar.language || 'en-US',
-          
-          // Contact info (if available)
-          contact_name: webinar.settings?.contact_name || webinar.contact_name,
-          contact_email: webinar.settings?.contact_email || webinar.contact_email,
-          
-          // Raw data and timestamps
+          // Metadata and tracking
           raw_data: webinar,
           last_synced_at: currentTimestamp,
           updated_at: currentTimestamp
         };
-        
-        // Log the actual data being upserted for webinars with timing
-        if (webinarData.actual_start_time || webinarData.actual_duration) {
-          console.log(`[zoom-api][performNonDestructiveUpsert] 📝 Upserting timing data for webinar ${webinar.id}:`);
-          console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_start_time: ${webinarData.actual_start_time}`);
-          console.log(`[zoom-api][performNonDestructiveUpsert]   - actual_duration: ${webinarData.actual_duration}`);
-        }
         
         // Use UPSERT with ON CONFLICT to either insert new or update existing
         const { error: upsertError } = await supabase
@@ -230,11 +209,7 @@ export async function performNonDestructiveUpsert(
               existingWebinar.duration !== webinar.duration ||
               existingWebinar.actual_start_time !== actualStartTime ||
               existingWebinar.actual_duration !== actualDuration ||
-              existingWebinar.agenda !== webinar.agenda ||
-              existingWebinar.status !== webinar.status ||
-              existingWebinar.join_url !== webinar.join_url ||
-              existingWebinar.host_name !== (webinar.host_info?.display_name || webinar.host_name) ||
-              JSON.stringify(existingWebinar.raw_data) !== JSON.stringify(webinar);
+              existingWebinar.status !== webinar.status;
             
             if (hasChanges) {
               updatedWebinars++;
@@ -261,11 +236,11 @@ export async function performNonDestructiveUpsert(
   const preservedWebinarsList = existingWebinars?.filter(w => !apiWebinarIds.has(w.webinar_id)) || [];
   const preservedWebinars = preservedWebinarsList.length;
   
-  console.log(`[zoom-api][performNonDestructiveUpsert] 🎉 Comprehensive upsert completed: ${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`);
+  console.log(`[zoom-api][performNonDestructiveUpsert] 🎉 FIXED upsert completed: ${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`);
   
   // Final timing data summary
-  const finalTimingCount = webinars.filter(w => w.actual_start_time || w.actual_duration).length;
-  console.log(`[zoom-api][performNonDestructiveUpsert] 📊 Final timing data summary: ${finalTimingCount}/${webinars.length} webinars have actual timing data`);
+  const finalTimingCount = webinars.filter(w => w._enhanced_with_past_data === true).length;
+  console.log(`[zoom-api][performNonDestructiveUpsert] 📊 Enhanced timing data: ${finalTimingCount}/${webinars.length} webinars`);
   
   return { newWebinars, updatedWebinars, preservedWebinars };
 }

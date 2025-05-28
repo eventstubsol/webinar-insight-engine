@@ -1,48 +1,65 @@
 
 /**
- * NEW: Basic webinar syncer that only handles data from /users/{userId}/webinars
- * Separates concerns and only maps fields that actually exist in the basic API response
+ * FIXED: Simplified basic webinar syncer with proper data source separation
+ * Only handles data from /users/{userId}/webinars endpoint
  */
 
 /**
- * Syncs basic webinar data from /users/{userId}/webinars endpoint
- * Only maps fields that are guaranteed to exist in the basic webinar response
+ * Process basic webinar data with strict field validation
  */
 export async function syncBasicWebinarData(webinars: any[], token: string, userId: string) {
-  console.log(`[basic-webinar-syncer] 🔄 Processing ${webinars.length} basic webinars`);
+  console.log(`[basic-webinar-syncer] 🔄 FIXED: Processing ${webinars.length} basic webinars with strict validation`);
   
   const processedWebinars = webinars.map(webinar => {
-    // Only map fields that exist in the basic /users/{userId}/webinars response
+    // FIXED: Only map fields that are guaranteed to exist in basic webinar response
+    // No assumptions about nested structures or alternative field names
     const basicWebinar = {
-      // Core identifiers
+      // Core identifiers (required)
       id: webinar.id,
-      uuid: webinar.uuid,
+      uuid: webinar.uuid ?? null,
       
-      // Basic information (guaranteed fields)
-      topic: webinar.topic || 'Untitled Webinar',
-      start_time: webinar.start_time,
-      duration: webinar.duration,
-      timezone: webinar.timezone,
-      type: webinar.type,
-      status: webinar.status,
+      // Basic information with safe defaults
+      topic: webinar.topic ?? 'Untitled Webinar',
+      start_time: webinar.start_time ?? null,
+      duration: webinar.duration ?? null,
+      timezone: webinar.timezone ?? null,
+      type: webinar.type ?? null,
+      status: webinar.status ?? null,
       
-      // Host information (if available in basic response)
-      host_id: webinar.host_id,
-      host_email: webinar.host_email,
+      // Host information (basic only)
+      host_id: webinar.host_id ?? null,
+      host_email: webinar.host_email ?? null,
       
       // URLs (if available)
-      join_url: webinar.join_url,
-      start_url: webinar.start_url,
-      registration_url: webinar.registration_url,
+      join_url: webinar.join_url ?? null,
+      start_url: webinar.start_url ?? null,
+      registration_url: webinar.registration_url ?? null,
       
-      // Basic settings (only if they exist in basic response)
-      agenda: webinar.agenda,
-      password: webinar.password,
+      // Content
+      agenda: webinar.agenda ?? null,
+      password: webinar.password ?? null,
       
-      // Creation timestamp
-      created_at: webinar.created_at,
+      // Timestamps
+      created_at: webinar.created_at ?? null,
       
-      // Store the raw response for debugging
+      // FIXED: No assumptions about settings structure
+      // Only access top-level fields that are documented
+      approval_type: webinar.approval_type ?? null,
+      registration_type: webinar.registration_type ?? null,
+      auto_recording: webinar.auto_recording ?? null,
+      audio: webinar.audio ?? 'both',
+      language: webinar.language ?? 'en-US',
+      
+      // Safe boolean handling
+      is_simulive: webinar.is_simulive === true,
+      enforce_login: webinar.enforce_login === true,
+      on_demand: webinar.on_demand === true,
+      practice_session: webinar.practice_session === true,
+      hd_video: webinar.hd_video === true,
+      host_video: webinar.host_video !== false, // Default true
+      panelists_video: webinar.panelists_video !== false, // Default true
+      
+      // Store the raw response for debugging and future enhancement
       raw_data: webinar,
       
       // Mark data source for clarity
@@ -58,80 +75,26 @@ export async function syncBasicWebinarData(webinars: any[], token: string, userI
     return basicWebinar;
   });
   
-  console.log(`[basic-webinar-syncer] ✅ Processed ${processedWebinars.length} basic webinars`);
+  console.log(`[basic-webinar-syncer] ✅ Processed ${processedWebinars.length} basic webinars with strict validation`);
   return processedWebinars;
 }
 
 /**
- * Enhances basic webinars with actual timing data from past_webinars API
- * This is a separate step that only runs for completed webinars
+ * FIXED: Simplified enhancement that only handles past webinar data
  */
 export async function enhanceWithPastWebinarData(basicWebinars: any[], token: string) {
-  console.log(`[past-webinar-enhancer] 🔄 Enhancing ${basicWebinars.length} webinars with actual timing data`);
+  console.log(`[past-webinar-enhancer] 🔄 FIXED: Enhancing ${basicWebinars.length} webinars with actual timing data`);
   
-  const enhancedWebinars = [];
+  // Import the focused enhancement processor
+  const { enhanceWithPastWebinarData } = await import('./enhancementProcessor.ts');
   
-  for (const webinar of basicWebinars) {
-    try {
-      // Import the fixed completion detector
-      const { detectWebinarCompletion } = await import('../utils/webinarCompletionDetector.ts');
-      const { fetchPastWebinarData } = await import('../utils/pastWebinarApiClient.ts');
-      
-      // Check if webinar is completed using fixed detector
-      const completionResult = detectWebinarCompletion(webinar);
-      
-      // Only try to fetch past data for completed webinars
-      if (completionResult.shouldFetchActualData) {
-        console.log(`[past-webinar-enhancer] 🎯 Fetching past data for completed webinar: ${webinar.id}`);
-        
-        const pastDataResult = await fetchPastWebinarData(token, webinar, null, completionResult);
-        
-        if (pastDataResult.success) {
-          // Enhance with actual timing data
-          const enhancedWebinar = {
-            ...webinar,
-            actual_start_time: pastDataResult.actualStartTime,
-            actual_duration: pastDataResult.actualDuration,
-            actual_end_time: pastDataResult.actualEndTime,
-            participants_count: pastDataResult.participantsCount,
-            _enhanced_with_past_data: true,
-            _past_data_source: 'past_webinar_api',
-            _past_data_calls: pastDataResult.apiCallsMade,
-            _completion_analysis: completionResult
-          };
-          
-          console.log(`[past-webinar-enhancer] ✅ Enhanced webinar ${webinar.id} with actual timing data`);
-          enhancedWebinars.push(enhancedWebinar);
-        } else {
-          console.log(`[past-webinar-enhancer] ⚠️ Could not get past data for ${webinar.id}: ${pastDataResult.error}`);
-          enhancedWebinars.push({
-            ...webinar,
-            _enhanced_with_past_data: false,
-            _past_data_error: pastDataResult.error,
-            _completion_analysis: completionResult
-          });
-        }
-      } else {
-        console.log(`[past-webinar-enhancer] ⏭️ Skipping past data for ${webinar.id}: ${completionResult.reason}`);
-        enhancedWebinars.push({
-          ...webinar,
-          _enhanced_with_past_data: false,
-          _skip_reason: completionResult.reason,
-          _completion_analysis: completionResult
-        });
-      }
-    } catch (error) {
-      console.error(`[past-webinar-enhancer] ❌ Error enhancing webinar ${webinar.id}:`, error);
-      enhancedWebinars.push({
-        ...webinar,
-        _enhanced_with_past_data: false,
-        _enhancement_error: error.message
-      });
-    }
-  }
+  // Process past webinar enhancement
+  const result = await enhanceWithPastWebinarData(basicWebinars, token);
   
-  const successCount = enhancedWebinars.filter(w => w._enhanced_with_past_data).length;
-  console.log(`[past-webinar-enhancer] ✅ Enhanced ${successCount}/${basicWebinars.length} webinars with past data`);
+  console.log(`[past-webinar-enhancer] ✅ FIXED enhancement completed:`);
+  console.log(`[past-webinar-enhancer]   - Enhanced: ${result.successCount}/${basicWebinars.length}`);
+  console.log(`[past-webinar-enhancer]   - Errors: ${result.errorCount}`);
+  console.log(`[past-webinar-enhancer]   - Processing time: ${result.processingTime}ms`);
   
-  return enhancedWebinars;
+  return result.enhanced;
 }
