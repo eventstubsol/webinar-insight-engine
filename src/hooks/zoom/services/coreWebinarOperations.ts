@@ -1,15 +1,14 @@
-
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { verifyDatabaseSyncHealth } from './debugDatabaseSync';
 import { ZoomWebinar } from '../types';
 
 /**
- * Fetch webinars from API using fixed strategy (now default)
+ * Fetch webinars from API using comprehensive strategy (now default)
  */
 export async function fetchWebinarsFromAPI(forceSync: boolean = false): Promise<ZoomWebinar[]> {
-  console.log(`[fetchWebinarsFromAPI] Using fixed strategy with force_sync=${forceSync}`);
-  console.log(`[fetchWebinarsFromAPI] 🎯 This will fetch ACTUAL end_time data from Zoom API for completed webinars`);
+  console.log(`[fetchWebinarsFromAPI] Using comprehensive strategy with force_sync=${forceSync}`);
+  console.log(`[fetchWebinarsFromAPI] 🎯 This will fetch ALL data and update ALL tables`);
   
   const { data, error } = await supabase.functions.invoke('zoom-api', {
     body: { 
@@ -28,7 +27,7 @@ export async function fetchWebinarsFromAPI(forceSync: boolean = false): Promise<
     throw new Error(data.error);
   }
   
-  console.log(`[fetchWebinarsFromAPI] Fixed strategy returned ${data.webinars?.length || 0} webinars`);
+  console.log(`[fetchWebinarsFromAPI] Comprehensive strategy returned ${data.webinars?.length || 0} webinars`);
   if (data.summary) {
     console.log('[fetchWebinarsFromAPI] Sync summary:', data.summary);
     if (data.summary.instanceSync) {
@@ -44,37 +43,11 @@ export async function fetchWebinarsFromAPI(forceSync: boolean = false): Promise<
 }
 
 /**
- * Fetch webinars using the legacy API endpoint strategy (fallback)
- */
-export async function fetchWebinarsFromAPILegacy(forceSync: boolean = false): Promise<ZoomWebinar[]> {
-  console.log(`[fetchWebinarsFromAPILegacy] Using legacy strategy with force_sync=${forceSync}`);
-  
-  const { data, error } = await supabase.functions.invoke('zoom-api', {
-    body: { 
-      action: 'list-webinars-enhanced',
-      force_sync: forceSync 
-    }
-  });
-  
-  if (error) {
-    console.error('[fetchWebinarsFromAPILegacy] Function invocation error:', error);
-    throw new Error(error.message || 'Failed to invoke Zoom API function');
-  }
-  
-  if (data.error) {
-    console.error('[fetchWebinarsFromAPILegacy] API error:', data.error);
-    throw new Error(data.error);
-  }
-  
-  return data.webinars || [];
-}
-
-/**
- * Enhanced refresh webinars from API with database health verification
+ * Enhanced refresh webinars from API with comprehensive database updates
  */
 export async function refreshWebinarsFromAPI(force: boolean = false): Promise<any> {
-  console.log('[refreshWebinarsFromAPI] Starting FIXED refresh with force=' + force);
-  console.log('[refreshWebinarsFromAPI] 🎯 This will collect ACTUAL end_time data from Zoom API');
+  console.log('[refreshWebinarsFromAPI] Starting COMPREHENSIVE refresh with force=' + force);
+  console.log('[refreshWebinarsFromAPI] 🎯 This will update ALL database tables');
   
   try {
     // First, verify database health
@@ -88,7 +61,7 @@ export async function refreshWebinarsFromAPI(force: boolean = false): Promise<an
       }
     }
     
-    // Call the enhanced fixed list webinars endpoint with correct action name
+    // Call the comprehensive sync endpoint
     const { data: response, error } = await supabase.functions.invoke('zoom-api', {
       body: { 
         action: 'list-webinars',
@@ -97,16 +70,16 @@ export async function refreshWebinarsFromAPI(force: boolean = false): Promise<an
     });
     
     if (error) {
-      console.error('[refreshWebinarsFromAPI] Error calling fixed API:', error);
+      console.error('[refreshWebinarsFromAPI] Error calling comprehensive API:', error);
       throw error;
     }
     
-    console.log('[refreshWebinarsFromAPI] Fixed sync completed successfully:', response);
-    console.log('[refreshWebinarsFromAPI] Fixed sync summary:', response.summary);
+    console.log('[refreshWebinarsFromAPI] Comprehensive sync completed successfully:', response);
+    console.log('[refreshWebinarsFromAPI] Comprehensive sync summary:', response.summary);
     
-    // Log ACTUAL data collection results
-    console.log('[refreshWebinarsFromAPI] 📊 ACTUAL DATA COLLECTION RESULTS:');
-    console.log('[refreshWebinarsFromAPI]   - Total collected:', response.summary?.totalCollected || 0);
+    // Log comprehensive data collection results
+    console.log('[refreshWebinarsFromAPI] 📊 COMPREHENSIVE DATABASE UPDATE RESULTS:');
+    console.log('[refreshWebinarsFromAPI]   - Total webinars:', response.summary?.totalCollected || 0);
     console.log('[refreshWebinarsFromAPI]   - Successful upserts:', response.summary?.successfulUpserts || 0);
     console.log('[refreshWebinarsFromAPI]   - Errors:', response.summary?.errors || 0);
     console.log('[refreshWebinarsFromAPI]   - Historical webinars:', response.summary?.historicalWebinars || 0);
@@ -124,17 +97,17 @@ export async function refreshWebinarsFromAPI(force: boolean = false): Promise<an
         console.log('[refreshWebinarsFromAPI] Post-sync health check:', postSyncHealthCheck);
       }
     } else {
-      console.log('[refreshWebinarsFromAPI] ✅ SUCCESS: Database sync completed with', response.summary?.successfulUpserts, 'webinars saved');
+      console.log('[refreshWebinarsFromAPI] ✅ SUCCESS: Comprehensive database sync completed with', response.summary?.successfulUpserts, 'webinars saved');
     }
     
     return response;
     
   } catch (error) {
-    console.error('[refreshWebinarsFromAPI] FIXED refresh error:', error);
+    console.error('[refreshWebinarsFromAPI] Comprehensive refresh error:', error);
     
     toast({
       title: 'Sync failed',
-      description: error.message || 'Failed to refresh webinars from Zoom API',
+      description: error.message || 'Failed to refresh data from Zoom API',
       variant: 'destructive'
     });
     
@@ -143,29 +116,9 @@ export async function refreshWebinarsFromAPI(force: boolean = false): Promise<an
 }
 
 /**
- * Legacy refresh function (fallback)
+ * Fetch webinars using the legacy API endpoint strategy (fallback)
  */
-async function refreshWebinarsFromAPILegacy(userId: string, force: boolean = false): Promise<any> {
-  console.log(`[refreshWebinarsFromAPILegacy] Starting legacy refresh with force=${force}`);
-  
-  const { data: refreshData, error: refreshError } = await supabase.functions.invoke('zoom-api', {
-    body: { 
-      action: 'list-webinars-enhanced',
-      force_sync: force 
-    }
-  });
-  
-  if (refreshError) {
-    console.error('[refreshWebinarsFromAPILegacy] Error during refresh:', refreshError);
-    throw refreshError;
-  }
-  
-  if (refreshData.error) {
-    console.error('[refreshWebinarsFromAPILegacy] API returned error:', refreshData.error);
-    throw new Error(refreshData.error);
-  }
-  
-  console.log('[refreshWebinarsFromAPILegacy] Legacy sync completed successfully:', refreshData);
-  
-  return refreshData;
+export async function fetchWebinarsFromAPILegacy(forceSync: boolean = false): Promise<ZoomWebinar[]> {
+  console.warn('[fetchWebinarsFromAPILegacy] DEPRECATED: Use fetchWebinarsFromAPI instead');
+  return fetchWebinarsFromAPI(forceSync);
 }

@@ -1,124 +1,54 @@
 
 import React from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from "@/components/ui/checkbox";
-import { WebinarStatusBadge } from './WebinarStatusBadge';
+import { WebinarCard } from '../WebinarCard';
+import { WebinarLoading } from './WebinarLoading';
 import { WebinarEmptyState } from './WebinarEmptyState';
-import { WebinarSyncButton } from '@/components/webinars/WebinarSyncButton';
-import { getWebinarStatus } from './webinarHelpers';
-import { ZoomWebinar } from '@/hooks/useZoomApi';
-import { format } from 'date-fns';
-import { Calendar, Clock, Users, Eye, Download, ChartBar } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { formatWebinarId } from '@/lib/utils';
+import { WebinarError } from './WebinarError';
+import { ZoomWebinar } from '@/hooks/zoom';
 
 interface WebinarGridViewProps {
   webinars: ZoomWebinar[];
-  selectedWebinars: string[];
-  handleWebinarSelection: (webinarId: string) => void;
+  isLoading: boolean;
+  error: Error | null;
+  errorDetails: any;
+  onDismissError: () => void;
+  errorBannerDismissed: boolean;
 }
 
-export const WebinarGridView: React.FC<WebinarGridViewProps> = ({ 
-  webinars, 
-  selectedWebinars,
-  handleWebinarSelection
+export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
+  webinars,
+  isLoading,
+  error,
+  errorDetails,
+  onDismissError,
+  errorBannerDismissed
 }) => {
-  const navigate = useNavigate();
-
-  if (webinars.length === 0) {
-    return <WebinarEmptyState isEmpty={true} isFiltered={false} />;
+  if (isLoading) {
+    return <WebinarLoading />;
   }
 
-  const handleViewWebinar = (webinarId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigate(`/webinars/${webinarId}`);
-  };
+  if (error && !errorBannerDismissed) {
+    return (
+      <WebinarError 
+        error={error}
+        errorDetails={errorDetails}
+        onDismiss={onDismissError}
+      />
+    );
+  }
+
+  if (!webinars || webinars.length === 0) {
+    return <WebinarEmptyState />;
+  }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {webinars.map((webinar) => {
-        const status = getWebinarStatus(webinar);
-        const webinarDate = new Date(webinar.start_time);
-        
-        return (
-          <Card 
-            key={webinar.id} 
-            className="relative h-full cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => navigate(`/webinars/${webinar.id}`)}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between">
-                <Checkbox 
-                  checked={selectedWebinars.includes(webinar.id)}
-                  onCheckedChange={() => handleWebinarSelection(webinar.id)}
-                  className="mr-2 mt-1"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <div className="ml-auto">
-                  <WebinarStatusBadge status={status} />
-                </div>
-              </div>
-              <CardTitle className="text-lg mt-2 line-clamp-2">
-                {webinar.topic}
-              </CardTitle>
-              <CardDescription className="text-xs mt-1">
-                Webinar ID: {formatWebinarId(webinar.id)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pb-2">
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center">
-                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <span>{format(webinarDate, 'MMM d, yyyy • h:mm a')}</span>
-                </div>
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <span>{webinar.duration} mins</span>
-                </div>
-                <div className="flex items-center">
-                  <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <span>{webinar.raw_data?.registrants_count || 0} registrants</span>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="pt-2 flex justify-between">
-              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                <WebinarSyncButton 
-                  webinarId={webinar.id} 
-                  size="icon" 
-                  variant="ghost"
-                />
-                {status.value === 'ended' && (
-                  <>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <ChartBar className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 w-8 p-0"
-                onClick={(e) => handleViewWebinar(webinar.id, e)}
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-            </CardFooter>
-          </Card>
-        );
-      })}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {webinars.map((webinar) => (
+        <WebinarCard
+          key={webinar.webinar_id}
+          webinar={webinar}
+        />
+      ))}
     </div>
   );
 };

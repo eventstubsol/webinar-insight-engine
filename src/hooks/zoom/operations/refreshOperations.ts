@@ -6,7 +6,8 @@ import { updateParticipantDataOperation } from './participantOperations';
 import { executeWithTimeout, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
 
 /**
- * Enhanced refresh webinars operation with historical data fetching
+ * COMPREHENSIVE MASTER SYNC OPERATION - Updates ALL database tables
+ * This is the single point of sync for the entire application
  */
 export async function refreshWebinarsOperation(
   userId: string | undefined,
@@ -16,7 +17,7 @@ export async function refreshWebinarsOperation(
   if (!userId) {
     toast({
       title: 'Authentication Required',
-      description: 'You must be logged in to refresh webinars',
+      description: 'You must be logged in to sync data',
       variant: 'destructive'
     });
     return;
@@ -27,37 +28,42 @@ export async function refreshWebinarsOperation(
   let participantsUpdated = 0;
   
   try {
-    console.log(`[refreshWebinarsOperation] Starting enhanced refresh with force=${force} for user ${userId}`);
+    console.log(`[MASTER SYNC] Starting comprehensive database sync with force=${force} for user ${userId}`);
+    console.log(`[MASTER SYNC] This will update ALL tables: webinars, instances, participants, recordings, etc.`);
     
-    // Make the API call to fetch fresh data from Zoom with enhanced strategy
+    // STEP 1: Main webinars and instances sync (this also syncs instances now)
     const refreshData = await executeWithTimeout(
       () => refreshWebinarsFromAPI(force),
       OPERATION_TIMEOUT,
       () => {
         timeoutTriggered = true;
         toast({
-          title: 'Enhanced sync taking longer than expected',
-          description: 'The operation is still running in the background. Historical data will be preserved.',
+          title: 'Comprehensive sync taking longer than expected',
+          description: 'The operation is still running in the background. All data will be updated.',
           variant: 'default'
         });
       }
     );
     
-    isCompleted = true;
-
-    // Also update participant data for completed webinars (silently)
+    // STEP 2: Participant data sync for all webinars
+    console.log(`[MASTER SYNC] Syncing participant data for all webinars`);
     try {
       const participantData = await updateParticipantDataOperation(userId, queryClient, true);
       participantsUpdated = participantData?.updated || 0;
+      console.log(`[MASTER SYNC] Participant data sync completed: ${participantsUpdated} webinars updated`);
     } catch (err) {
-      console.error('[refreshWebinarsOperation] Error updating participant data:', err);
+      console.error('[MASTER SYNC] Error updating participant data:', err);
       // Don't throw here, as we want the main sync to succeed even if participant data fails
     }
 
-    // Invalidate the query cache to force a refresh
+    isCompleted = true;
+
+    // Invalidate ALL query caches to force refresh of all data
     await queryClient.invalidateQueries({ queryKey: ['zoom-webinars', userId] });
+    await queryClient.invalidateQueries({ queryKey: ['zoom-webinar-instances'] });
+    await queryClient.invalidateQueries({ queryKey: ['zoom-webinar-participants'] });
     
-    // Show enhanced notification with detailed sync results
+    // Show comprehensive sync notification
     if (refreshData.summary) {
       const { 
         totalCollected = 0, 
@@ -65,63 +71,40 @@ export async function refreshWebinarsOperation(
         successfulUpserts = 0, 
         historicalWebinars = 0,
         upcomingWebinars = 0,
-        webinarsBySource 
+        instanceSync
       } = refreshData.summary;
       
-      const sourceBreakdown = webinarsBySource ? 
-        `Sources: ${webinarsBySource.regular || 0} upcoming, ${webinarsBySource.reporting || 0} historical, ${webinarsBySource.account || 0} account` :
-        '';
-      
-      const syncMessage = `${successfulUpserts} webinars synced (${historicalWebinars} historical, ${upcomingWebinars} upcoming)`;
-      const participantMessage = participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : '';
+      const instancesMessage = instanceSync ? ` and ${instanceSync.totalInstancesSynced} instances` : '';
+      const participantMessage = participantsUpdated ? `, participant data for ${participantsUpdated} webinars` : '';
       
       toast({
-        title: 'Enhanced sync completed',
-        description: `${syncMessage}${participantMessage}. ${sourceBreakdown}`,
-        variant: 'default'
-      });
-    } else if (refreshData.syncResults) {
-      // Fallback for legacy sync results format
-      const { 
-        newWebinars = 0, 
-        updatedWebinars = 0, 
-        preservedWebinars = 0, 
-        totalWebinars = 0,
-        dataRange 
-      } = refreshData.syncResults;
-      
-      const syncMessage = `${newWebinars} new, ${updatedWebinars} updated, ${preservedWebinars} preserved`;
-      const totalMessage = `Total: ${totalWebinars} webinars${dataRange?.oldest ? ` (from ${new Date(dataRange.oldest).toLocaleDateString()})` : ''}`;
-      const participantMessage = participantsUpdated ? ` and participant data for ${participantsUpdated} webinars` : '';
-      
-      toast({
-        title: 'Enhanced sync completed',
-        description: `${syncMessage}. ${totalMessage}${participantMessage}`,
+        title: 'Complete database sync finished',
+        description: `Updated ${successfulUpserts} webinars${instancesMessage}${participantMessage}. All tables refreshed.`,
         variant: 'default'
       });
     } else {
       // Basic fallback notification
       toast({
-        title: 'Webinars synced',
-        description: 'Enhanced webinar data has been updated from Zoom',
+        title: 'Database sync completed',
+        description: `All webinar data has been updated from Zoom${participantsUpdated ? ` (${participantsUpdated} webinars with participant data)` : ''}`,
         variant: 'default'
       });
     }
   } catch (err: any) {
     isCompleted = true;
     
-    console.error('[refreshWebinarsOperation] Error during enhanced refresh:', err);
+    console.error('[MASTER SYNC] Error during comprehensive sync:', err);
     
     // Different error handling based on error type
     if (timeoutTriggered) {
       toast({
-        title: 'Enhanced sync may be incomplete',
-        description: 'The operation took too long. Historical data has been preserved.',
+        title: 'Sync may be incomplete',
+        description: 'The operation took too long. Some data may still be processing in the background.',
         variant: 'warning'
       });
     } else {
       // Enhanced error handling
-      let errorMessage = 'An unexpected error occurred during enhanced sync';
+      let errorMessage = 'An unexpected error occurred during database sync';
       
       if (err?.message) {
         errorMessage = err.message;
@@ -144,7 +127,7 @@ export async function refreshWebinarsOperation(
         });
       } else {
         toast({
-          title: 'Enhanced sync failed',
+          title: 'Database sync failed',
           description: errorMessage,
           variant: 'destructive'
         });
@@ -153,8 +136,6 @@ export async function refreshWebinarsOperation(
     
     throw err;
   } finally {
-    // Ensure that even if there's an uncaught exception, we set isCompleted
-    // This flag can be used by the calling code to reset UI states
-    console.log(`[refreshWebinarsOperation] Enhanced operation completed: ${isCompleted}`);
+    console.log(`[MASTER SYNC] Comprehensive database sync completed: ${isCompleted}`);
   }
 }
