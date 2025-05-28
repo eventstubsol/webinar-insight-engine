@@ -1061,9 +1061,11 @@ export type Database = {
           last_synced_at: string | null
           on_demand: boolean | null
           panelists_video: boolean | null
+          participants_count: number | null
           password: string | null
           practice_session: boolean | null
           raw_data: Json
+          registrants_count: number | null
           registration_type: number | null
           registration_url: string | null
           start_time: string | null
@@ -1109,9 +1111,11 @@ export type Database = {
           last_synced_at?: string | null
           on_demand?: boolean | null
           panelists_video?: boolean | null
+          participants_count?: number | null
           password?: string | null
           practice_session?: boolean | null
           raw_data: Json
+          registrants_count?: number | null
           registration_type?: number | null
           registration_url?: string | null
           start_time?: string | null
@@ -1157,9 +1161,11 @@ export type Database = {
           last_synced_at?: string | null
           on_demand?: boolean | null
           panelists_video?: boolean | null
+          participants_count?: number | null
           password?: string | null
           practice_session?: boolean | null
           raw_data?: Json
+          registrants_count?: number | null
           registration_type?: number | null
           registration_url?: string | null
           start_time?: string | null

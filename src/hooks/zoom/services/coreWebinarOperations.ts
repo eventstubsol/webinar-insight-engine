@@ -1,5 +1,6 @@
-
+import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { verifyDatabaseSyncHealth } from './debugDatabaseSync';
 import { ZoomWebinar } from '../types';
 
 /**
@@ -68,64 +69,75 @@ export async function fetchWebinarsFromAPILegacy(forceSync: boolean = false): Pr
 }
 
 /**
- * Refresh webinars from API with fixed strategy and fallback
+ * Enhanced refresh webinars from API with database health verification
  */
-export async function refreshWebinarsFromAPI(userId: string, force: boolean = false): Promise<any> {
-  console.log(`[refreshWebinarsFromAPI] Starting fixed refresh with force=${force}`);
-  console.log(`[refreshWebinarsFromAPI] 🎯 This will collect ACTUAL end_time data from Zoom API`);
+export async function refreshWebinarsFromAPI(force: boolean = false): Promise<any> {
+  console.log('[refreshWebinarsFromAPI] Starting FIXED refresh with force=' + force);
+  console.log('[refreshWebinarsFromAPI] 🎯 This will collect ACTUAL end_time data from Zoom API');
   
   try {
-    // Try fixed strategy first
-    const { data: refreshData, error: refreshError } = await supabase.functions.invoke('zoom-api', {
+    // First, verify database health
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (userId) {
+      const healthCheck = await verifyDatabaseSyncHealth(userId);
+      console.log('[refreshWebinarsFromAPI] Database health check:', healthCheck);
+      
+      if (!healthCheck.isHealthy) {
+        throw new Error(`Database health check failed: ${healthCheck.details.message}`);
+      }
+    }
+    
+    // Call the enhanced fixed list webinars endpoint
+    const { data: response, error } = await supabase.functions.invoke('zoom-api', {
       body: { 
-        action: 'list-webinars',
-        force_sync: force 
+        action: 'fixedListWebinars',
+        force_sync: force
       }
     });
     
-    if (refreshError) {
-      console.error('[refreshWebinarsFromAPI] Fixed strategy error:', refreshError);
-      // Fall back to legacy strategy
-      console.log('[refreshWebinarsFromAPI] Falling back to legacy strategy');
-      return await refreshWebinarsFromAPILegacy(userId, force);
+    if (error) {
+      console.error('[refreshWebinarsFromAPI] Error calling fixed API:', error);
+      throw error;
     }
     
-    if (refreshData.error) {
-      console.error('[refreshWebinarsFromAPI] Fixed API returned error:', refreshData.error);
-      // Fall back to legacy strategy
-      console.log('[refreshWebinarsFromAPI] Falling back to legacy strategy');
-      return await refreshWebinarsFromAPILegacy(userId, force);
-    }
+    console.log('[refreshWebinarsFromAPI] Fixed sync completed successfully:', response);
+    console.log('[refreshWebinarsFromAPI] Fixed sync summary:', response.summary);
     
-    console.log('[refreshWebinarsFromAPI] Fixed sync completed successfully:', refreshData);
+    // Log ACTUAL data collection results
+    console.log('[refreshWebinarsFromAPI] 📊 ACTUAL DATA COLLECTION RESULTS:');
+    console.log('[refreshWebinarsFromAPI]   - Total collected:', response.summary?.totalCollected || 0);
+    console.log('[refreshWebinarsFromAPI]   - Successful upserts:', response.summary?.successfulUpserts || 0);
+    console.log('[refreshWebinarsFromAPI]   - Errors:', response.summary?.errors || 0);
+    console.log('[refreshWebinarsFromAPI]   - Historical webinars:', response.summary?.historicalWebinars || 0);
+    console.log('[refreshWebinarsFromAPI]   - Upcoming webinars:', response.summary?.upcomingWebinars || 0);
+    console.log('[refreshWebinarsFromAPI]   - Instances synced:', response.summary?.instanceSync?.totalInstancesSynced || 0);
+    console.log('[refreshWebinarsFromAPI]   - API compliance:', response.summary?.api_compliance || 'Unknown');
     
-    // Log summary with actual data collection info
-    if (refreshData.summary) {
-      console.log('[refreshWebinarsFromAPI] Fixed sync summary:', {
-        totalCollected: refreshData.summary.totalCollected,
-        uniqueWebinars: refreshData.summary.uniqueWebinars,
-        successfulUpserts: refreshData.summary.successfulUpserts,
-        historicalWebinars: refreshData.summary.historicalWebinars,
-        upcomingWebinars: refreshData.summary.upcomingWebinars,
-        webinarsBySource: refreshData.summary.webinarsBySource,
-        instanceSync: refreshData.summary.instanceSync
-      });
+    // Verify sync was successful
+    if (response.summary?.successfulUpserts === 0) {
+      console.warn('[refreshWebinarsFromAPI] ⚠️ WARNING: No webinars were successfully upserted to database');
       
-      if (refreshData.summary.instanceSync) {
-        console.log('[refreshWebinarsFromAPI] 📊 ACTUAL DATA COLLECTION RESULTS:');
-        console.log(`[refreshWebinarsFromAPI]   - Instances synced: ${refreshData.summary.instanceSync.totalInstancesSynced}`);
-        console.log(`[refreshWebinarsFromAPI]   - Actual data fetched: ${refreshData.summary.instanceSync.actualDataFetched}`);
-        console.log(`[refreshWebinarsFromAPI]   - Successful API calls: ${refreshData.summary.instanceSync.apiCallsSuccessful}`);
-        console.log(`[refreshWebinarsFromAPI]   - Failed API calls: ${refreshData.summary.instanceSync.apiCallsFailed}`);
+      // Run another health check to see what's wrong
+      if (userId) {
+        const postSyncHealthCheck = await verifyDatabaseSyncHealth(userId);
+        console.log('[refreshWebinarsFromAPI] Post-sync health check:', postSyncHealthCheck);
       }
+    } else {
+      console.log('[refreshWebinarsFromAPI] ✅ SUCCESS: Database sync completed with', response.summary?.successfulUpserts, 'webinars saved');
     }
     
-    return refreshData;
+    return response;
+    
   } catch (error) {
-    console.error('[refreshWebinarsFromAPI] Fixed strategy failed:', error);
-    // Fall back to legacy strategy
-    console.log('[refreshWebinarsFromAPI] Falling back to legacy strategy');
-    return await refreshWebinarsFromAPILegacy(userId, force);
+    console.error('[refreshWebinarsFromAPI] FIXED refresh error:', error);
+    
+    toast({
+      title: 'Sync failed',
+      description: error.message || 'Failed to refresh webinars from Zoom API',
+      variant: 'destructive'
+    });
+    
+    throw error;
   }
 }
 
