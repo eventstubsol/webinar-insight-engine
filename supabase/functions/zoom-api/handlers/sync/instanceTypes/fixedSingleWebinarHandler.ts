@@ -2,7 +2,7 @@
 import { fetchCorrectWebinarData } from '../../../utils/correctZoomApiClient.ts';
 
 /**
- * Fixed handler for single-occurrence webinars using correct Zoom API endpoints
+ * FIXED handler for single-occurrence webinars using correct Zoom API endpoints
  */
 export async function handleFixedSingleOccurrenceWebinar(webinar: any, token: string, supabase: any, userId: string, isCompleted: boolean): Promise<number> {
   
@@ -16,7 +16,6 @@ export async function handleFixedSingleOccurrenceWebinar(webinar: any, token: st
   console.log(`[fixed-single-handler]   - success: ${apiResult.success}`);
   console.log(`[fixed-single-handler]   - status: ${apiResult.status}`);
   console.log(`[fixed-single-handler]   - dataSource: ${apiResult.dataSource}`);
-  console.log(`[fixed-single-handler]   - actualEndTime: ${apiResult.actualEndTime}`);
   console.log(`[fixed-single-handler]   - calculatedEndTime: ${apiResult.calculatedEndTime}`);
   console.log(`[fixed-single-handler]   - apiCallsMade: ${apiResult.apiCallsMade.length}`);
   console.log(`[fixed-single-handler]   - errorDetails: ${apiResult.errorDetails.length}`);
@@ -37,10 +36,9 @@ export async function handleFixedSingleOccurrenceWebinar(webinar: any, token: st
   const finalStatus = apiResult.status !== 'unknown' ? apiResult.status : webinar.status;
   
   // CRITICAL: Set end_time with proper priority:
-  // 1. Actual end_time from Zoom API (for completed webinars)
-  // 2. Calculated end_time (start_time + duration)
-  // 3. Leave null if no calculation possible
-  const finalEndTime = apiResult.actualEndTime || apiResult.calculatedEndTime;
+  // 1. Calculated end_time (start_time + duration)
+  // 2. Leave null if no calculation possible
+  const finalEndTime = apiResult.calculatedEndTime;
   
   console.log(`[fixed-single-handler] 📊 FINAL CALCULATED VALUES:`);
   console.log(`[fixed-single-handler]   ✅ topic: ${finalTopic}`);
@@ -68,7 +66,6 @@ export async function handleFixedSingleOccurrenceWebinar(webinar: any, token: st
       api_result: {
         success: apiResult.success,
         webinarData: apiResult.webinarData,
-        actualEndTime: apiResult.actualEndTime,
         calculatedEndTime: apiResult.calculatedEndTime,
         dataSource: apiResult.dataSource,
         apiCallsMade: apiResult.apiCallsMade,
@@ -93,7 +90,6 @@ export async function handleFixedSingleOccurrenceWebinar(webinar: any, token: st
   if (!instanceToInsert.end_time) {
     console.error(`[fixed-single-handler] ❌ CRITICAL: No end_time calculated for webinar ${webinar.id}!`);
     console.error(`[fixed-single-handler] ❌ Debug info: start_time=${finalStartTime}, duration=${finalDuration}`);
-    console.error(`[fixed-single-handler] ❌ API result: ${JSON.stringify(apiResult, null, 2)}`);
   } else {
     console.log(`[fixed-single-handler] ✅ SUCCESS: end_time calculated: ${instanceToInsert.end_time}`);
     console.log(`[fixed-single-handler] ✅ Data source: ${apiResult.dataSource}`);

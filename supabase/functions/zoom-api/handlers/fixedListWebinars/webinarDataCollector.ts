@@ -2,14 +2,16 @@
 import { processWebinarData, WebinarFieldMapping } from '../../utils/enhancedFieldMapper.ts';
 
 export async function collectWebinarsFromAllSources(token: string, userId: string): Promise<WebinarFieldMapping[]> {
-  console.log('🚀 Starting webinar data collection from all sources');
+  console.log('🚀 Starting CORRECT webinar data collection following Zoom API documentation');
   
   const allWebinars: WebinarFieldMapping[] = [];
   
-  // Strategy 1: Get recent/upcoming webinars
-  console.log('📋 Fetching upcoming webinars...');
+  // Strategy 1: Get recent/upcoming webinars using CORRECT endpoint
+  console.log('📋 Fetching upcoming webinars using correct API endpoint...');
   try {
     const upcomingUrl = `https://api.zoom.us/v2/users/${userId}/webinars?page_size=300`;
+    console.log(`📡 Calling correct upcoming API: ${upcomingUrl}`);
+    
     const upcomingResponse = await fetch(upcomingUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -24,20 +26,23 @@ export async function collectWebinarsFromAllSources(token: string, userId: strin
       if (upcomingData.webinars?.length > 0) {
         const processedUpcoming = await processWebinarData(upcomingData.webinars, 'regular');
         allWebinars.push(...processedUpcoming);
+        console.log(`✅ Successfully processed ${processedUpcoming.length} upcoming webinars`);
       }
     } else {
-      console.error('❌ Upcoming webinars API error:', upcomingResponse.status, await upcomingResponse.text());
+      const errorText = await upcomingResponse.text();
+      console.error(`❌ Upcoming webinars API error: ${upcomingResponse.status} - ${errorText}`);
     }
   } catch (error) {
     console.error('❌ Error fetching upcoming webinars:', error);
   }
   
-  // Strategy 2: Get historical webinars using reporting API
-  console.log('📊 Fetching historical webinars...');
+  // Strategy 2: Get historical webinars using CORRECT reporting API (if user has reporting access)
+  console.log('📊 Fetching historical webinars using correct reporting API...');
   try {
     const fromDate = '2023-01-01';
     const toDate = new Date().toISOString().split('T')[0];
     const historicalUrl = `https://api.zoom.us/v2/report/users/${userId}/webinars?from=${fromDate}&to=${toDate}&page_size=300`;
+    console.log(`📡 Calling correct reporting API: ${historicalUrl}`);
     
     const historicalResponse = await fetch(historicalUrl, {
       headers: {
@@ -53,39 +58,22 @@ export async function collectWebinarsFromAllSources(token: string, userId: strin
       if (historicalData.webinars?.length > 0) {
         const processedHistorical = await processWebinarData(historicalData.webinars, 'reporting');
         allWebinars.push(...processedHistorical);
+        console.log(`✅ Successfully processed ${processedHistorical.length} historical webinars`);
       }
     } else {
-      console.error('❌ Historical webinars API error:', historicalResponse.status, await historicalResponse.text());
+      const errorText = await historicalResponse.text();
+      console.error(`❌ Historical webinars API error: ${historicalResponse.status} - ${errorText}`);
+      
+      // Check if it's a scope issue
+      if (historicalResponse.status === 403) {
+        console.warn('⚠️ Missing reporting scope - this is expected for basic Zoom apps');
+      }
     }
   } catch (error) {
     console.error('❌ Error fetching historical webinars:', error);
   }
   
-  // Strategy 3: Try account-level webinars
-  console.log('🏢 Fetching account webinars...');
-  try {
-    const accountUrl = `https://api.zoom.us/v2/accounts/me/webinars?page_size=300`;
-    const accountResponse = await fetch(accountUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (accountResponse.ok) {
-      const accountData = await accountResponse.json();
-      console.log(`📊 Account API returned ${accountData.webinars?.length || 0} webinars`);
-      
-      if (accountData.webinars?.length > 0) {
-        const processedAccount = await processWebinarData(accountData.webinars, 'account');
-        allWebinars.push(...processedAccount);
-      }
-    } else {
-      console.error('❌ Account webinars API error:', accountResponse.status, await accountResponse.text());
-    }
-  } catch (error) {
-    console.error('❌ Error fetching account webinars:', error);
-  }
+  // REMOVED: The incorrect /v2/accounts/me/webinars endpoint that doesn't exist in Zoom API
   
   console.log(`📊 Total webinars collected: ${allWebinars.length}`);
   return allWebinars;

@@ -1,47 +1,44 @@
 
 /**
- * Upsert instance record in database
+ * Database operations for upserting webinar instances
  */
-export async function upsertInstanceRecord(supabase: any, instanceData: any, webinarId: string, instanceId: string): Promise<number> {
+
+export async function upsertInstanceRecord(
+  supabase: any, 
+  instanceData: any, 
+  webinarId: string, 
+  instanceId: string
+): Promise<number> {
+  
+  console.log(`[instance-upsert] 💾 Upserting instance ${instanceId} for webinar ${webinarId}`);
+  
   try {
-    // Check if instance already exists
-    const { data: existingInstance } = await supabase
-      .from('zoom_webinar_instances')
-      .select('id')
-      .eq('webinar_id', webinarId)
-      .eq('instance_id', instanceId)
-      .maybeSingle();
+    // Ensure raw_data is never null
+    const rawData = instanceData.raw_data || {
+      fallback_data: true,
+      created_at: new Date().toISOString()
+    };
     
-    if (existingInstance) {
-      // Update existing instance
-      const { error: updateError } = await supabase
-        .from('zoom_webinar_instances')
-        .update(instanceData)
-        .eq('id', existingInstance.id);
-        
-      if (updateError) {
-        console.error(`[zoom-api][instance-upsert] ❌ Error updating instance:`, updateError);
-        return 0;
-      } else {
-        console.log(`[zoom-api][instance-upsert] ✅ Updated instance ${instanceId} with duration: ${instanceData.duration}, status: ${instanceData.status}`);
-        return 1;
-      }
-    } else {
-      // Insert new instance
-      const { error: insertError } = await supabase
-        .from('zoom_webinar_instances')
-        .insert(instanceData);
-        
-      if (insertError) {
-        console.error(`[zoom-api][instance-upsert] ❌ Error inserting instance:`, insertError);
-        return 0;
-      } else {
-        console.log(`[zoom-api][instance-upsert] ✅ Inserted instance ${instanceId} with duration: ${instanceData.duration}, status: ${instanceData.status}`);
-        return 1;
-      }
+    const { error: upsertError } = await supabase
+      .from('zoom_webinar_instances')
+      .upsert({
+        ...instanceData,
+        raw_data: rawData // Ensure this is never null
+      }, {
+        onConflict: 'user_id,webinar_id,instance_id',
+        ignoreDuplicates: false
+      });
+    
+    if (upsertError) {
+      console.error(`[instance-upsert] ❌ Error upserting instance ${instanceId}:`, upsertError);
+      return 0;
     }
+    
+    console.log(`[instance-upsert] ✅ Successfully upserted instance ${instanceId}`);
+    return 1;
+    
   } catch (error) {
-    console.error(`[zoom-api][instance-upsert] ❌ Error upserting instance ${instanceId}:`, error);
+    console.error(`[instance-upsert] ❌ Error in upsertInstanceRecord:`, error);
     return 0;
   }
 }

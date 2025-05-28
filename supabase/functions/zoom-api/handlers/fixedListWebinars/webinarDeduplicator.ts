@@ -1,22 +1,23 @@
+
 import { WebinarFieldMapping } from '../../utils/enhancedFieldMapper.ts';
 
 export function deduplicateWebinars(webinars: WebinarFieldMapping[]): WebinarFieldMapping[] {
-  console.log(`📊 Starting deduplication of ${webinars.length} webinars`);
+  console.log(`🔄 Deduplicating ${webinars.length} webinars`);
   
-  const uniqueWebinars = webinars.reduce((acc, current) => {
-    const existing = acc.find(w => w.id === current.id);
-    if (!existing) {
-      acc.push(current);
+  const seen = new Set<string>();
+  const deduplicated: WebinarFieldMapping[] = [];
+  
+  for (const webinar of webinars) {
+    const key = webinar.id;
+    
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(webinar);
     } else {
-      // Keep the one with more complete data
-      if (current.topic !== 'Untitled Webinar' && existing.topic === 'Untitled Webinar') {
-        const index = acc.findIndex(w => w.id === current.id);
-        acc[index] = current;
-      }
+      console.log(`🔄 Skipping duplicate webinar: ${key}`);
     }
-    return acc;
-  }, [] as WebinarFieldMapping[]);
+  }
   
-  console.log(`📊 Unique webinars after deduplication: ${uniqueWebinars.length}`);
-  return uniqueWebinars;
+  console.log(`🔄 Deduplicated: ${webinars.length} → ${deduplicated.length} webinars`);
+  return deduplicated;
 }
