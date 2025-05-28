@@ -6,8 +6,8 @@ import { corsHeaders } from './cors.ts';
 import { getZoomCredentials, handleSaveCredentials, handleCheckCredentialsStatus, handleVerifyCredentials } from './credentials.ts';
 import { getZoomJwtToken } from './auth.ts';
 
-import { handleListWebinars } from './handlers/listWebinars.ts';
-import { handleListWebinarsFixed } from './handlers/fixedListWebinars.ts';
+import { handleListWebinars } from './handlers/listWebinars/index.ts';
+import { handleListWebinarsFixed } from './handlers/fixedListWebinars/index.ts';
 import { handleGetWebinar } from './handlers/getWebinar.ts';
 import { handleGetParticipants } from './handlers/getParticipants.ts';
 import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
