@@ -20,7 +20,7 @@ export async function syncWebinarsToDatabase(
         webinar_uuid: webinar.uuid,
         topic: webinar.topic,
         start_time: webinar.start_time,
-        end_time: webinar.end_time,
+        end_time: webinar.end_time, // Now properly mapped to the new column
         duration: webinar.duration,
         actual_duration: webinar.actual_duration,
         status: webinar.status,

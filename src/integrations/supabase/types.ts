@@ -1044,6 +1044,7 @@ export type Database = {
           created_at: string
           data_source: string | null
           duration: number | null
+          end_time: string | null
           enforce_login: boolean | null
           hd_video: boolean | null
           host_email: string | null
@@ -1091,6 +1092,7 @@ export type Database = {
           created_at?: string
           data_source?: string | null
           duration?: number | null
+          end_time?: string | null
           enforce_login?: boolean | null
           hd_video?: boolean | null
           host_email?: string | null
@@ -1138,6 +1140,7 @@ export type Database = {
           created_at?: string
           data_source?: string | null
           duration?: number | null
+          end_time?: string | null
           enforce_login?: boolean | null
           hd_video?: boolean | null
           host_email?: string | null
