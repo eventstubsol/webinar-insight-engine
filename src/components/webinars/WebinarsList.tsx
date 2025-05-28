@@ -69,15 +69,20 @@ export const WebinarsList: React.FC<WebinarsListProps> = ({
       {viewMode === 'grid' ? (
         <WebinarGridView 
           webinars={paginatedWebinars} 
-          selectedWebinars={selectedWebinars}
-          handleWebinarSelection={handleWebinarSelection}
+          isLoading={false}
+          error={error || null}
+          errorDetails={{}}
+          onDismissError={() => {}}
+          errorBannerDismissed={true}
         />
       ) : (
         <WebinarListView 
           webinars={paginatedWebinars} 
-          selectedWebinars={selectedWebinars}
-          handleWebinarSelection={handleWebinarSelection}
-          handleSelectAll={handleSelectAll}
+          isLoading={false}
+          error={error || null}
+          errorDetails={{}}
+          onDismissError={() => {}}
+          errorBannerDismissed={true}
         />
       )}
       

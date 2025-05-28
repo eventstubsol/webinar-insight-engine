@@ -31,14 +31,12 @@ export const WebinarGridView: React.FC<WebinarGridViewProps> = ({
     return (
       <WebinarError 
         error={error}
-        errorDetails={errorDetails}
-        onDismiss={onDismissError}
       />
     );
   }
 
   if (!webinars || webinars.length === 0) {
-    return <WebinarEmptyState />;
+    return <WebinarEmptyState isEmpty={true} isFiltered={false} />;
   }
 
   return (

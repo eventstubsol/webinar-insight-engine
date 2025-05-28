@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { WebinarStatusBadge } from './WebinarStatusBadge';
+import { WebinarStatusBadge, statusMap } from './WebinarStatusBadge';
 import { WebinarLoading } from './WebinarLoading';
 import { WebinarEmptyState } from './WebinarEmptyState';
 import { WebinarError } from './WebinarError';
@@ -33,14 +33,12 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
     return (
       <WebinarError 
         error={error}
-        errorDetails={errorDetails}
-        onDismiss={onDismissError}
       />
     );
   }
 
   if (!webinars || webinars.length === 0) {
-    return <WebinarEmptyState />;
+    return <WebinarEmptyState isEmpty={true} isFiltered={false} />;
   }
 
   return (
@@ -57,28 +55,32 @@ export const WebinarListView: React.FC<WebinarListViewProps> = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {webinars.map((webinar) => (
-            <TableRow key={webinar.webinar_id} className="cursor-pointer hover:bg-muted/50">
-              <TableCell className="font-medium">
-                {webinar.topic}
-              </TableCell>
-              <TableCell>
-                {webinar.start_time ? format(new Date(webinar.start_time), 'MMM d, yyyy h:mm a') : 'TBD'}
-              </TableCell>
-              <TableCell>
-                {webinar.duration ? `${webinar.duration} min` : 'TBD'}
-              </TableCell>
-              <TableCell>
-                <WebinarStatusBadge status={webinar.status} />
-              </TableCell>
-              <TableCell>
-                {webinar.participants_count || 0}
-              </TableCell>
-              <TableCell>
-                {webinar.registrants_count || 0}
-              </TableCell>
-            </TableRow>
-          ))}
+          {webinars.map((webinar) => {
+            const status = statusMap[webinar.status || 'available'] || statusMap['available'];
+            
+            return (
+              <TableRow key={webinar.webinar_id} className="cursor-pointer hover:bg-muted/50">
+                <TableCell className="font-medium">
+                  {webinar.topic}
+                </TableCell>
+                <TableCell>
+                  {webinar.start_time ? format(new Date(webinar.start_time), 'MMM d, yyyy h:mm a') : 'TBD'}
+                </TableCell>
+                <TableCell>
+                  {webinar.duration ? `${webinar.duration} min` : 'TBD'}
+                </TableCell>
+                <TableCell>
+                  <WebinarStatusBadge status={status} />
+                </TableCell>
+                <TableCell>
+                  {webinar.participants_count || 0}
+                </TableCell>
+                <TableCell>
+                  {webinar.registrants_count || 0}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

@@ -26,7 +26,7 @@ export const RegistrationAttendanceChart = () => {
   }
 
   // Filter and process webinars with both registration and attendance data
-  const chartData = webinars
+  const webinarStats = webinars
     ?.filter(webinar => 
       webinar.status === 'ended' && 
       (webinar.registrants_count > 0 || webinar.participants_count > 0)
@@ -40,7 +40,8 @@ export const RegistrationAttendanceChart = () => {
       conversionRate: webinar.registrants_count > 0 
         ? Math.round(((webinar.participants_count || 0) / webinar.registrants_count) * 100)
         : 0,
-      date: webinar.start_time ? format(new Date(webinar.start_time), 'MMM d') : 'TBD'
+      date: webinar.start_time ? format(new Date(webinar.start_time), 'MMM d') : 'TBD',
+      month: webinar.start_time ? format(new Date(webinar.start_time), 'MMM yyyy') : 'TBD'
     }))
     ?.reverse() || [];
 
@@ -53,7 +54,7 @@ export const RegistrationAttendanceChart = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <RegistrationAttendanceContent chartData={chartData} />
+        <RegistrationAttendanceContent webinarStats={webinarStats} isLoading={isLoading} />
       </CardContent>
     </Card>
   );
