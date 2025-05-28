@@ -7,6 +7,7 @@ import { getZoomCredentials, handleSaveCredentials, handleCheckCredentialsStatus
 import { getZoomJwtToken } from './auth.ts';
 
 import { handleListWebinars } from './handlers/listWebinars.ts';
+import { handleListWebinarsFixed } from './handlers/fixedListWebinars.ts';
 import { handleGetWebinar } from './handlers/getWebinar.ts';
 import { handleGetParticipants } from './handlers/getParticipants.ts';
 import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
@@ -79,6 +80,10 @@ async function handleRequest(req: Request): Promise<Response> {
       case 'list-webinars':
         const listCredentials = await getZoomCredentials(supabase, user.id);
         return await handleListWebinars(req, supabase, user, listCredentials, params.force_sync || false);
+      
+      case 'list-webinars-fixed':
+        const listFixedCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleListWebinarsFixed(req, supabase, user, listFixedCredentials, params.force_sync || false);
       
       case 'get-webinar':
         const getWebinarCredentials = await getZoomCredentials(supabase, user.id);

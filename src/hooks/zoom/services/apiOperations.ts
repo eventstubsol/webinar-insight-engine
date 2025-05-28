@@ -29,6 +29,32 @@ export async function fetchWebinarsFromAPI(forceSync: boolean = false): Promise<
 }
 
 /**
+ * Fetch webinars using the fixed API endpoint strategy
+ */
+export async function fetchWebinarsFromAPIFixed(forceSync: boolean = false): Promise<ZoomWebinar[]> {
+  console.log(`[fetchWebinarsFromAPIFixed] Fetching webinars using fixed endpoint strategy with force_sync=${forceSync}`);
+  
+  const { data, error } = await supabase.functions.invoke('zoom-api', {
+    body: { 
+      action: 'list-webinars-fixed',
+      force_sync: forceSync 
+    }
+  });
+  
+  if (error) {
+    console.error('[fetchWebinarsFromAPIFixed] Function invocation error:', error);
+    throw new Error(error.message || 'Failed to invoke Zoom API function');
+  }
+  
+  if (data.error) {
+    console.error('[fetchWebinarsFromAPIFixed] API error:', data.error);
+    throw new Error(data.error);
+  }
+  
+  return data.webinars || [];
+}
+
+/**
  * Debug API responses - helps identify API endpoint issues
  */
 export async function debugAPIResponses(): Promise<any> {
