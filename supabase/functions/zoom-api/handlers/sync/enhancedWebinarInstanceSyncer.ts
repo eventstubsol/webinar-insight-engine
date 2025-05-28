@@ -1,9 +1,9 @@
 
-import { handleEnhancedSingleOccurrenceWebinar } from './instanceTypes/enhancedSingleWebinarHandler.ts';
-import { handleRecurringWebinarInstances } from './instanceTypes/recurringWebinarHandler.ts';
+import { logInstanceSyncDebug, verifyInstancesInDatabase } from './debugInstanceSync.ts';
+import { createInstancesFromWebinarBatch } from './fixedInstanceCreator.ts';
 
 /**
- * Enhanced webinar instance syncer with comprehensive data population
+ * Enhanced webinar instance syncer with comprehensive debugging and fallback creation
  */
 export async function syncEnhancedWebinarInstancesForWebinars(
   webinars: any[], 
@@ -11,11 +11,14 @@ export async function syncEnhancedWebinarInstancesForWebinars(
   supabase: any, 
   userId: string
 ) {
-  console.log(`[enhanced-instance-syncer] 🔄 Starting ENHANCED instance sync for ${webinars.length} webinars`);
-  console.log(`[enhanced-instance-syncer] 🎯 GOAL: Complete zoom_webinar_instances table with ALL fields populated`);
+  logInstanceSyncDebug(`🔄 Starting ENHANCED instance sync for ${webinars.length} webinars`);
+  
+  // First, check current state of instances table
+  const initialState = await verifyInstancesInDatabase(supabase, userId);
+  logInstanceSyncDebug(`Initial instances in database: ${initialState.count}`);
   
   if (!webinars || webinars.length === 0) {
-    console.log(`[enhanced-instance-syncer] No webinars to sync instances for`);
+    logInstanceSyncDebug('No webinars to sync instances for');
     return {
       totalInstancesSynced: 0,
       webinarsWithInstancessynced: 0,
@@ -27,86 +30,59 @@ export async function syncEnhancedWebinarInstancesForWebinars(
     };
   }
   
-  // Process webinars in smaller batches to avoid timeouts
-  const BATCH_SIZE = 3;
-  let totalInstancesSynced = 0;
-  let webinarsWithInstancessynced = 0;
-  let instanceSyncErrors = 0;
-  let fieldsPopulated = 0;
-  let actualDataFetched = 0;
-  let apiCallsSuccessful = 0;
-  let apiCallsFailed = 0;
+  // Use the fixed instance creator as primary method
+  logInstanceSyncDebug('Using fixed instance creator for reliable instance creation');
   
-  for (let i = 0; i < webinars.length; i += BATCH_SIZE) {
-    const batch = webinars.slice(i, i + BATCH_SIZE);
-    console.log(`[enhanced-instance-syncer] Processing ENHANCED batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(webinars.length/BATCH_SIZE)} (${batch.length} webinars)`);
-    
-    const batchPromises = batch.map(async (webinar) => {
-      try {
-        console.log(`[enhanced-instance-syncer] 🎯 ENHANCED processing: ${webinar.id} (${webinar.topic}) - Status: ${webinar.status}, Type: ${webinar.type}`);
-        
-        // Determine if this is a recurring webinar (type 6 or 9) or single occurrence (type 5)
-        const isRecurring = webinar.type === 6 || webinar.type === 9;
-        const isCompleted = webinar.status === 'ended' || webinar.status === 'aborted' || webinar._enhanced_with_past_data;
-        
-        console.log(`[enhanced-instance-syncer] 📊 ENHANCED analysis: isRecurring=${isRecurring}, isCompleted=${isCompleted}, enhanced=${webinar._enhanced_with_past_data}`);
-        
-        let instancesProcessed = 0;
-        
-        if (isRecurring) {
-          // For recurring webinars, use the instances API with enhanced processing
-          console.log(`[enhanced-instance-syncer] 🔄 ENHANCED RECURRING: Fetching instances for ${webinar.id}`);
-          instancesProcessed = await handleRecurringWebinarInstances(webinar, token, supabase, userId);
-        } else {
-          // For single-occurrence webinars, use enhanced single handler
-          console.log(`[enhanced-instance-syncer] 🎯 ENHANCED SINGLE: Handling ${webinar.id} (${isCompleted ? 'completed' : 'upcoming'})`);
-          instancesProcessed = await handleEnhancedSingleOccurrenceWebinar(webinar, token, supabase, userId);
-        }
-        
-        if (instancesProcessed > 0) {
-          webinarsWithInstancessynced++;
-          totalInstancesSynced += instancesProcessed;
-          fieldsPopulated += instancesProcessed; // Each instance gets full field population
-          
-          if (webinar._enhanced_with_past_data) {
-            actualDataFetched++;
-            apiCallsSuccessful++;
-          }
-        }
-        
-        return instancesProcessed;
-        
-      } catch (error) {
-        console.error(`[enhanced-instance-syncer] ❌ Error in ENHANCED sync for webinar ${webinar.id}:`, error);
-        instanceSyncErrors++;
-        apiCallsFailed++;
-        return 0;
-      }
+  const creationResult = await createInstancesFromWebinarBatch(webinars, userId, supabase);
+  
+  // Verify instances were actually created
+  const finalState = await verifyInstancesInDatabase(supabase, userId);
+  const actualInstancesCreated = finalState.count - initialState.count;
+  
+  logInstanceSyncDebug(`Instance creation results`, {
+    expectedToCreate: webinars.length,
+    reportedCreated: creationResult.totalCreated,
+    actuallyInDatabase: finalState.count,
+    actuallyCreated: actualInstancesCreated,
+    errors: creationResult.errors
+  });
+  
+  // Log any discrepancies
+  if (actualInstancesCreated !== creationResult.totalCreated) {
+    logInstanceSyncDebug('⚠️ DISCREPANCY DETECTED', {
+      reportedCreated: creationResult.totalCreated,
+      actuallyCreated: actualInstancesCreated,
+      message: 'Some instances may have failed to persist to database'
     });
-    
-    const batchResults = await Promise.all(batchPromises);
-    const batchTotal = batchResults.reduce((sum, count) => sum + count, 0);
-    
-    console.log(`[enhanced-instance-syncer] 📊 ENHANCED batch ${Math.floor(i/BATCH_SIZE) + 1} completed: ${batchTotal} instances synced with complete data`);
   }
   
-  console.log(`[enhanced-instance-syncer] 🎉 ENHANCED SYNC COMPLETE WITH COMPREHENSIVE DATA:`);
-  console.log(`[enhanced-instance-syncer]   - Total instances synced: ${totalInstancesSynced}`);
-  console.log(`[enhanced-instance-syncer]   - Webinars with instances synced: ${webinarsWithInstancessynced}`);
-  console.log(`[enhanced-instance-syncer]   - Instance sync errors: ${instanceSyncErrors}`);
-  console.log(`[enhanced-instance-syncer]   - Instances with complete field data: ${fieldsPopulated}`);
-  console.log(`[enhanced-instance-syncer]   - Actual data fetched from past API: ${actualDataFetched}`);
-  console.log(`[enhanced-instance-syncer]   - Successful API calls: ${apiCallsSuccessful}`);
-  console.log(`[enhanced-instance-syncer]   - Failed API calls: ${apiCallsFailed}`);
-  console.log(`[enhanced-instance-syncer] 📋 ALL zoom_webinar_instances columns now populated with comprehensive data`);
+  // If no instances were created, log detailed error information
+  if (actualInstancesCreated === 0 && webinars.length > 0) {
+    logInstanceSyncDebug('🚨 CRITICAL ERROR: No instances created despite having webinars', {
+      webinarCount: webinars.length,
+      sampleWebinar: webinars[0],
+      errors: creationResult.errors,
+      userId
+    });
+  }
+  
+  logInstanceSyncDebug(`🎉 ENHANCED SYNC COMPLETE`, {
+    totalInstancesSynced: actualInstancesCreated,
+    webinarsWithInstancessynced: actualInstancesCreated,
+    instanceSyncErrors: creationResult.errors.length,
+    fieldsPopulated: actualInstancesCreated,
+    actualDataFetched: actualInstancesCreated,
+    apiCallsSuccessful: actualInstancesCreated,
+    apiCallsFailed: creationResult.errors.length
+  });
   
   return {
-    totalInstancesSynced,
-    webinarsWithInstancessynced,
-    instanceSyncErrors,
-    fieldsPopulated,
-    actualDataFetched,
-    apiCallsSuccessful,
-    apiCallsFailed
+    totalInstancesSynced: actualInstancesCreated,
+    webinarsWithInstancessynced: actualInstancesCreated > 0 ? 1 : 0,
+    instanceSyncErrors: creationResult.errors.length,
+    fieldsPopulated: actualInstancesCreated,
+    actualDataFetched: actualInstancesCreated,
+    apiCallsSuccessful: actualInstancesCreated,
+    apiCallsFailed: creationResult.errors.length
   };
 }

@@ -5,9 +5,10 @@ import { getZoomJwtToken } from '../auth.ts';
 // Re-export the main handler for backward compatibility
 export { handleListWebinars } from './listWebinars/index.ts';
 
-// Replace the main handler function to use enhanced processing
+// Replace the main handler function to use enhanced processing with debugging
 export async function handleListWebinars(req: Request, supabase: any, user: any, credentials: any): Promise<Response> {
-  console.log(`[zoom-api][list-webinars] 🚀 Starting ENHANCED webinar list with comprehensive field population`);
+  console.log(`[zoom-api][list-webinars] 🚀 Starting ENHANCED webinar list with DEBUGGING`);
+  console.log(`[zoom-api][list-webinars] 🎯 CRITICAL FIX: Implementing comprehensive instance creation debugging`);
   
   try {
     const { force_sync = false } = await req.json().catch(() => ({}));
@@ -34,7 +35,7 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
       .select('webinar_id, topic, updated_at')
       .eq('user_id', user.id);
     
-    // Use the enhanced processor for comprehensive field population
+    // Use the enhanced processor with comprehensive debugging
     const { processEnhancedWebinars } = await import('./listWebinars/enhancedWebinarProcessor.ts');
     const processingResult = await processEnhancedWebinars(token, meData, supabase, user, existingWebinars || []);
     
@@ -52,9 +53,10 @@ export async function handleListWebinars(req: Request, supabase: any, user: any,
     );
     
     console.log(`[zoom-api][list-webinars] ✅ Enhanced sync completed successfully`);
-    console.log(`[zoom-api][list-webinars] 📊 FIELD POPULATION RESULTS:`);
-    console.log(`[zoom-api][list-webinars]   - Total instances with complete data: ${processingResult.instanceSyncResults.fieldsPopulated}`);
-    console.log(`[zoom-api][list-webinars]   - All zoom_webinar_instances columns populated: YES`);
+    console.log(`[zoom-api][list-webinars] 📊 CRITICAL INSTANCE RESULTS:`);
+    console.log(`[zoom-api][list-webinars]   - Total instances created: ${processingResult.instanceSyncResults.totalInstancesSynced}`);
+    console.log(`[zoom-api][list-webinars]   - Instance creation errors: ${processingResult.instanceSyncResults.instanceSyncErrors}`);
+    console.log(`[zoom-api][list-webinars]   - Database insert success: ${processingResult.instanceSyncResults.totalInstancesSynced > 0 ? 'YES' : 'NO'}`);
     
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
