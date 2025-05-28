@@ -5,11 +5,12 @@ export async function syncWebinarsToDatabase(
   supabase: any, 
   userId: string, 
   webinars: WebinarFieldMapping[]
-): Promise<{ successCount: number; errorCount: number }> {
+): Promise<{ successCount: number; errorCount: number; syncedWebinars: WebinarFieldMapping[] }> {
   console.log(`💾 Starting database sync for ${webinars.length} webinars`);
   
   let successCount = 0;
   let errorCount = 0;
+  const syncedWebinars: WebinarFieldMapping[] = [];
   
   for (const webinar of webinars) {
     try {
@@ -49,6 +50,8 @@ export async function syncWebinarsToDatabase(
       } else {
         console.log(`✅ Successfully upserted webinar: ${webinar.id} - "${webinar.topic}"`);
         successCount++;
+        // Add to synced webinars list for instance syncing
+        syncedWebinars.push(webinar);
       }
     } catch (error) {
       console.error(`❌ Error processing webinar ${webinar.id}:`, error);
@@ -57,5 +60,5 @@ export async function syncWebinarsToDatabase(
   }
   
   console.log(`💾 Database sync completed: ${successCount} success, ${errorCount} errors`);
-  return { successCount, errorCount };
+  return { successCount, errorCount, syncedWebinars };
 }
