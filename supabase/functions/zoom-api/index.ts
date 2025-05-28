@@ -1,109 +1,124 @@
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { corsHeaders } from './cors.ts'
-import { getZoomCredentials } from './utils/credentialsManager.ts'
-import { handleSaveCredentials, handleCheckCredentialsStatus, handleVerifyCredentials } from './credentials.ts'
-import { handleListWebinars } from './handlers/listWebinars.ts'
-import { handleGetWebinarDetails } from './handlers/getWebinarDetails.ts'
-import { handleGetWebinarParticipants } from './handlers/getWebinarParticipants.ts'
-import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts'
-import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts'
-import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts'
-import { handleEnhanceWebinarInstances } from './handlers/enhanceWebinarInstances.ts'
+import { corsHeaders } from './cors.ts';
+import { getZoomCredentials, handleSaveCredentials, handleCheckCredentialsStatus, handleVerifyCredentials } from './credentials.ts';
+import { getZoomJwtToken } from './auth.ts';
+
+import { handleListWebinars } from './handlers/listWebinars/index.ts';
+import { handleGetWebinar } from './handlers/getWebinar.ts';
+import { handleGetParticipants } from './handlers/getParticipants.ts';
+import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
+import { handleGetInstanceParticipants } from './handlers/getInstanceParticipants.ts';
+import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
+import { handleSyncSingleWebinar } from './handlers/syncSingleWebinar.ts';
+import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
+import { handleDebugAPI } from './debug/apiResponseDebugger.ts';
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
+  // Apply 50-second timeout to all operations (increased from 30s)
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Operation timed out after 50000ms')), 50000);
+  });
+
   try {
-    const { action, ...params } = await req.json()
-    console.log(`[zoom-api] Received action: ${action}`)
-
-    // Get authenticated user
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('No authorization header')
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.39.3')
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false }
-    })
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
-
-    if (userError || !user) {
-      throw new Error('Invalid user token')
-    }
-
-    // Handle actions that don't require credentials first
-    switch (action) {
-      case 'save-credentials':
-        return await handleSaveCredentials(req, supabase, user, params)
-      
-      case 'check-credentials-status':
-        return await handleCheckCredentialsStatus(req, supabase, user)
-      
-      case 'verify-credentials':
-        console.log(`Getting Zoom credentials for user ${user.id}`)
-        const verifyCredentials = await getZoomCredentials(supabase, user.id)
-        if (!verifyCredentials) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'No Zoom credentials found' 
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
-        }
-        return await handleVerifyCredentials(req, supabase, user, verifyCredentials)
-    }
-
-    // For other actions, get credentials
-    console.log(`Getting Zoom credentials for user ${user.id}`)
-    const credentials = await getZoomCredentials(supabase, user.id)
-
-    // Route to appropriate handler
-    switch (action) {
-      case 'list-webinars':
-        return await handleListWebinars(req, supabase, user, credentials)
-      
-      case 'get-webinar-details':
-        return await handleGetWebinarDetails(req, supabase, user, credentials, params.id)
-      
-      case 'get-participants':
-        return await handleGetWebinarParticipants(req, supabase, user, credentials, params.id)
-      
-      case 'get-webinar-instances':
-        return await handleGetWebinarInstances(req, supabase, user, credentials, params.id)
-      
-      case 'update-webinar-participants':
-        return await handleUpdateWebinarParticipants(req, supabase, user, credentials)
-      
-      case 'get-webinar-recordings':
-        return await handleGetWebinarRecordings(req, supabase, user, credentials, params.id)
-      
-      case 'enhance-webinar-instances':
-        return await handleEnhanceWebinarInstances(req, supabase, user, credentials)
-      
-      default:
-        return new Response(JSON.stringify({ error: 'Unknown action' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-    }
-
+    const result = await Promise.race([
+      handleRequest(req),
+      timeoutPromise
+    ]);
+    return result as Response;
   } catch (error) {
-    console.error('[zoom-api] Error:', error)
+    console.error('[zoom-api] Error in index:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+    });
   }
-})
+});
+
+async function handleRequest(req: Request): Promise<Response> {
+  try {
+    const { action, ...params } = await req.json();
+    console.log(`[zoom-api] Received action: ${action}`);
+
+    // Get authenticated user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header');
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      throw new Error('Authentication failed');
+    }
+
+    // Route to appropriate handler
+    switch (action) {
+      case 'check-credentials-status':
+        return await handleCheckCredentialsStatus(req, supabase, user);
+      
+      case 'save-credentials':
+        return await handleSaveCredentials(req, supabase, user, { action, ...params });
+      
+      case 'verify-credentials':
+        const verifyCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleVerifyCredentials(req, supabase, user, verifyCredentials);
+      
+      case 'list-webinars':
+        const listCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleListWebinars(req, supabase, user, listCredentials, params.force_sync || false);
+      
+      case 'get-webinar':
+        const getWebinarCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetWebinar(req, supabase, user, getWebinarCredentials);
+      
+      case 'get-participants':
+        const getParticipantsCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetParticipants(req, supabase, user, getParticipantsCredentials);
+      
+      case 'get-webinar-instances':
+        const getInstancesCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetWebinarInstances(req, supabase, user, getInstancesCredentials);
+      
+      case 'get-instance-participants':
+        const getInstanceParticipantsCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetInstanceParticipants(req, supabase, user, getInstanceParticipantsCredentials);
+      
+      case 'update-webinar-participants':
+        const updateParticipantsCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleUpdateWebinarParticipants(req, supabase, user, updateParticipantsCredentials);
+      
+      case 'sync-single-webinar':
+        const syncCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleSyncSingleWebinar(req, supabase, user, syncCredentials, params.webinar_id);
+      
+      case 'get-webinar-recordings':
+        const recordingsCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleGetWebinarRecordings(req, supabase, user, recordingsCredentials, params.webinar_id);
+      
+      case 'debug-api':
+        const debugCredentials = await getZoomCredentials(supabase, user.id);
+        return await handleDebugAPI(req, supabase, user, debugCredentials);
+      
+      default:
+        return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+    }
+  } catch (error) {
+    console.error('[zoom-api] Error handling request:', error);
+    throw error;
+  }
+}

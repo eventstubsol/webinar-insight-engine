@@ -1,6 +1,7 @@
 
 import { corsHeaders } from './cors.ts';
 import { getZoomJwtToken } from './auth.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8'
 
 // Handle saving zoom credentials
 export async function handleSaveCredentials(req: Request, supabase: any, user: any, body: any) {
@@ -73,33 +74,20 @@ export async function handleSaveCredentials(req: Request, supabase: any, user: a
 
 // Handle checking credentials status
 export async function handleCheckCredentialsStatus(req: Request, supabase: any, user: any) {
-  try {
-    const { data: credentials, error: credentialsError } = await supabase
-      .from('zoom_credentials')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+  const { data: credentials, error: credentialsError } = await supabase
+    .from('zoom_credentials')
+    .select('*')
+    .eq('user_id', user.id)
+    .single();
 
-    return new Response(JSON.stringify({
-      hasCredentials: !!credentials,
-      isVerified: credentials?.is_verified || false,
-      lastVerified: credentials?.last_verified_at || null
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('[check-credentials-status] Error:', error);
-    return new Response(JSON.stringify({
-      hasCredentials: false,
-      isVerified: false,
-      lastVerified: null,
-      error: error.message
-    }), {
-      status: 200, // Return 200 even on error for this check
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
+  return new Response(JSON.stringify({
+    hasCredentials: !!credentials,
+    isVerified: credentials?.is_verified || false,
+    lastVerified: credentials?.last_verified_at || null
+  }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
 }
 
 // Handle verifying credentials
