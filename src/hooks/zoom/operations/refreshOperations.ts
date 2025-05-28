@@ -1,7 +1,7 @@
 
 import { QueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
-import { refreshWebinarsFromAPI } from '../services/webinarApiService';
+import { refreshWebinarsFromAPI } from '../services/coreWebinarOperations';
 import { updateParticipantDataOperation } from './participantOperations';
 import { executeWithTimeout, OPERATION_TIMEOUT } from '../utils/timeoutUtils';
 

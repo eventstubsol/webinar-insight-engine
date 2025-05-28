@@ -20,7 +20,10 @@ export * from './utils/timeoutUtils';
 // Export services and operations for direct access
 export * from './services/webinarApiService';
 export * from './services/databaseQueries';
-export * from './services/apiOperations';
+export * from './services/coreWebinarOperations';
+export * from './services/participantOperations';
+export * from './services/recordingOperations';
+export * from './services/debugOperations';
 export * from './services/syncHistoryService';
 export * from './operations';
 export * from './webinarOperations';
