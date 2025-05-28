@@ -5,6 +5,7 @@ import { calculateSyncStats, recordSyncHistory } from '../sync/syncStatsCalculat
 import { formatListWebinarsResponse, logWebinarStatistics, SyncResults, StatsResult } from '../sync/responseFormatter.ts';
 import { logCompletionAnalysis, logEnhancementResults } from './debugLogger.ts';
 import { syncFixedWebinarInstancesForWebinars } from '../sync/fixedWebinarInstanceSyncer.ts';
+import { collectWebinarsFromAllSources } from '../fixedListWebinars/webinarDataCollector.ts';
 
 export interface FixedWebinarProcessingResult {
   syncResults: SyncResults;
@@ -32,12 +33,23 @@ export async function processFixedWebinars(
   existingWebinars: any[]
 ): Promise<FixedWebinarProcessingResult> {
   console.log(`[fixed-webinar-processor] 🚀 Starting FIXED webinar processing with CORRECT Zoom API endpoints`);
-  console.log(`[fixed-webinar-processor] 📋 API COMPLIANCE: Using GET /webinars/{webinarId} and GET /webinars/{webinarId}/instances`);
-  console.log(`[fixed-webinar-processor] 📋 API COMPLIANCE: Following https://developers.zoom.us/docs/api/meetings/#tag/webinars/`);
+  console.log(`[fixed-webinar-processor] 📋 Following: https://developers.zoom.us/docs/api/meetings/#tag/webinars/`);
   
-  // STEP 1: Fetch webinars using proper API endpoints
-  console.log(`[fixed-webinar-processor] 🚀 STEP 1: Fetching webinars with CORRECT API endpoint strategy`);
-  const allWebinars = await fetchWebinarsFromZoomAPI(token, meData.id);
+  // STEP 1: Fetch webinars using the corrected data collector
+  console.log(`[fixed-webinar-processor] 🚀 STEP 1: Fetching webinars from Zoom API`);
+  const allWebinars = await collectWebinarsFromAllSources(token, meData.id);
+  
+  console.log(`[fixed-webinar-processor] 📊 API COLLECTION RESULTS:`);
+  console.log(`[fixed-webinar-processor]   - Total webinars from API: ${allWebinars.length}`);
+  
+  if (allWebinars.length === 0) {
+    console.warn(`[fixed-webinar-processor] ⚠️ WARNING: No webinars fetched from Zoom API!`);
+    console.warn(`[fixed-webinar-processor] This could indicate:`);
+    console.warn(`[fixed-webinar-processor]   - API credentials issues`);
+    console.warn(`[fixed-webinar-processor]   - Missing OAuth scopes`);
+    console.warn(`[fixed-webinar-processor]   - No webinars exist in Zoom account`);
+  }
+  
   logWebinarStatistics(allWebinars);
   
   // STEP 1.5: Comprehensive completion analysis
@@ -94,18 +106,19 @@ export async function processFixedWebinars(
     
     // Calculate comprehensive statistics
     statsResult = await calculateSyncStats(supabase, user.id, syncResults, allWebinars.length);
+  } else {
+    console.warn(`[fixed-webinar-processor] ⚠️ No webinars to process - skipping database operations`);
   }
   
   const enhancedCount = allWebinars.filter(w => w._enhanced_with_past_data === true).length;
   const completedCount = completionAnalysis.completed.length;
   
   console.log(`[fixed-webinar-processor] 🎉 CORRECT API PROCESSING COMPLETE:`);
-  console.log(`[fixed-webinar-processor]   - Webinars processed: ${allWebinars.length}`);
+  console.log(`[fixed-webinar-processor]   - Webinars collected from API: ${allWebinars.length}`);
+  console.log(`[fixed-webinar-processor]   - Webinars synced to DB: ${syncResults.newWebinars + syncResults.updatedWebinars}`);
   console.log(`[fixed-webinar-processor]   - Instances synced: ${instanceSyncResults.totalInstancesSynced}`);
-  console.log(`[fixed-webinar-processor]   - End times calculated: ${instanceSyncResults.totalInstancesSynced}`);
   console.log(`[fixed-webinar-processor]   - Successful API calls: ${instanceSyncResults.apiCallsSuccessful}`);
   console.log(`[fixed-webinar-processor]   - Failed API calls: ${instanceSyncResults.apiCallsFailed}`);
-  console.log(`[fixed-webinar-processor]   - Instance sync errors: ${instanceSyncResults.instanceSyncErrors}`);
   console.log(`[fixed-webinar-processor] 📋 API COMPLIANCE: All calls use correct Zoom webinar endpoints`);
   
   return {

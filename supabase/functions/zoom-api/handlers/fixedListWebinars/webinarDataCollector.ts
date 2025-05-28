@@ -3,14 +3,15 @@ import { processWebinarData, WebinarFieldMapping } from '../../utils/enhancedFie
 
 export async function collectWebinarsFromAllSources(token: string, userId: string): Promise<WebinarFieldMapping[]> {
   console.log('🚀 Starting CORRECT webinar data collection following Zoom API documentation');
+  console.log('📋 API Documentation: https://developers.zoom.us/docs/api/meetings/#tag/webinars/');
   
   const allWebinars: WebinarFieldMapping[] = [];
   
-  // Strategy 1: Get recent/upcoming webinars using CORRECT endpoint
-  console.log('📋 Fetching upcoming webinars using correct API endpoint...');
+  // Strategy 1: Get upcoming/scheduled webinars using CORRECT endpoint
+  console.log('📋 Fetching upcoming webinars using GET /users/{userId}/webinars');
   try {
     const upcomingUrl = `https://api.zoom.us/v2/users/${userId}/webinars?page_size=300`;
-    console.log(`📡 Calling correct upcoming API: ${upcomingUrl}`);
+    console.log(`📡 Calling upcoming API: ${upcomingUrl}`);
     
     const upcomingResponse = await fetch(upcomingUrl, {
       headers: {
@@ -24,7 +25,7 @@ export async function collectWebinarsFromAllSources(token: string, userId: strin
       console.log(`📊 Upcoming API returned ${upcomingData.webinars?.length || 0} webinars`);
       
       if (upcomingData.webinars?.length > 0) {
-        const processedUpcoming = await processWebinarData(upcomingData.webinars, 'regular');
+        const processedUpcoming = await processWebinarData(upcomingData.webinars, 'standard_api');
         allWebinars.push(...processedUpcoming);
         console.log(`✅ Successfully processed ${processedUpcoming.length} upcoming webinars`);
       }
@@ -36,13 +37,13 @@ export async function collectWebinarsFromAllSources(token: string, userId: strin
     console.error('❌ Error fetching upcoming webinars:', error);
   }
   
-  // Strategy 2: Get historical webinars using CORRECT reporting API (if user has reporting access)
-  console.log('📊 Fetching historical webinars using correct reporting API...');
+  // Strategy 2: Get historical webinars using CORRECT reporting API
+  console.log('📊 Fetching historical webinars using GET /report/users/{userId}/webinars');
   try {
     const fromDate = '2023-01-01';
     const toDate = new Date().toISOString().split('T')[0];
     const historicalUrl = `https://api.zoom.us/v2/report/users/${userId}/webinars?from=${fromDate}&to=${toDate}&page_size=300`;
-    console.log(`📡 Calling correct reporting API: ${historicalUrl}`);
+    console.log(`📡 Calling reporting API: ${historicalUrl}`);
     
     const historicalResponse = await fetch(historicalUrl, {
       headers: {
@@ -56,7 +57,7 @@ export async function collectWebinarsFromAllSources(token: string, userId: strin
       console.log(`📊 Historical API returned ${historicalData.webinars?.length || 0} webinars`);
       
       if (historicalData.webinars?.length > 0) {
-        const processedHistorical = await processWebinarData(historicalData.webinars, 'reporting');
+        const processedHistorical = await processWebinarData(historicalData.webinars, 'reporting_api');
         allWebinars.push(...processedHistorical);
         console.log(`✅ Successfully processed ${processedHistorical.length} historical webinars`);
       }
@@ -64,7 +65,6 @@ export async function collectWebinarsFromAllSources(token: string, userId: strin
       const errorText = await historicalResponse.text();
       console.error(`❌ Historical webinars API error: ${historicalResponse.status} - ${errorText}`);
       
-      // Check if it's a scope issue
       if (historicalResponse.status === 403) {
         console.warn('⚠️ Missing reporting scope - this is expected for basic Zoom apps');
       }
@@ -73,8 +73,6 @@ export async function collectWebinarsFromAllSources(token: string, userId: strin
     console.error('❌ Error fetching historical webinars:', error);
   }
   
-  // REMOVED: The incorrect /v2/accounts/me/webinars endpoint that doesn't exist in Zoom API
-  
-  console.log(`📊 Total webinars collected: ${allWebinars.length}`);
+  console.log(`📊 Total webinars collected from Zoom API: ${allWebinars.length}`);
   return allWebinars;
 }
