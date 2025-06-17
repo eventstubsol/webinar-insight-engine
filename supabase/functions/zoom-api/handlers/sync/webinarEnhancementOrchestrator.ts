@@ -10,11 +10,11 @@ import { syncWebinarInstancesForWebinars } from './webinarInstanceSyncer.ts';
 
 /**
  * Orchestrates the comprehensive enhancement of webinar data with all available information sources
- * ENHANCED: Now includes registrant data syncing in the main flow
+ * ENHANCED: Now includes batch-processed registrant data syncing with graceful degradation
  */
 export async function enhanceWebinarsWithAllData(webinars: any[], token: string, supabase?: any, userId?: string) {
   console.log(`[zoom-api][enhancement-orchestrator] Starting ENHANCED enhancement process for ${webinars.length} webinars`);
-  console.log(`[zoom-api][enhancement-orchestrator] 🎯 NEW FEATURE: Now includes registrant data syncing in main flow!`);
+  console.log(`[zoom-api][enhancement-orchestrator] 🎯 OPTIMIZED: Now includes batch-processed registrant data syncing!`);
   
   if (!webinars || webinars.length === 0) {
     console.log(`[zoom-api][enhancement-orchestrator] No webinars to enhance`);
@@ -38,13 +38,38 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       console.log(`[zoom-api][enhancement-orchestrator] Step 2/8: Enhancing batch with panelist data`);
       const webinarsWithPanelistInfo = await enhanceWebinarsWithPanelistData(webinarsWithHostInfo, token);
       
-      // Step 3: 🔥 NEW: Enhance with registrant data
-      console.log(`[zoom-api][enhancement-orchestrator] Step 3/8: 🚀 NEW - Enhancing batch with registrant data`);
+      // Step 3: 🔥 OPTIMIZED: Enhance with registrant data using batch processing
+      console.log(`[zoom-api][enhancement-orchestrator] Step 3/8: 🚀 OPTIMIZED - Enhancing batch with registrant data (batch processed)`);
       let webinarsWithRegistrantInfo = webinarsWithPanelistInfo;
       if (supabase && userId) {
-        webinarsWithRegistrantInfo = await enhanceWebinarsWithRegistrantData(webinarsWithPanelistInfo, token, supabase, userId);
+        try {
+          // Use timeout protection for registrant enhancement
+          webinarsWithRegistrantInfo = await Promise.race([
+            enhanceWebinarsWithRegistrantData(webinarsWithPanelistInfo, token, supabase, userId),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Registrant enhancement timeout')), 30000) // 30 second timeout
+            )
+          ]) as any[];
+          
+          console.log(`[zoom-api][enhancement-orchestrator] ✅ Registrant enhancement completed successfully`);
+        } catch (registrantError) {
+          console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ Registrant enhancement failed, continuing without registrant data:`, registrantError);
+          // Continue with original webinars if registrant enhancement fails
+          webinarsWithRegistrantInfo = webinarsWithPanelistInfo.map(w => ({
+            ...w,
+            registrants_count: 0,
+            _enhanced_with_registrants: false,
+            _registrants_error: registrantError.message || 'Enhancement timeout'
+          }));
+        }
       } else {
         console.warn(`[zoom-api][enhancement-orchestrator] ⚠️ Skipping registrant syncing - supabase or userId not provided`);
+        webinarsWithRegistrantInfo = webinarsWithPanelistInfo.map(w => ({
+          ...w,
+          registrants_count: 0,
+          _enhanced_with_registrants: false,
+          _registrants_skip_reason: 'Missing supabase client or userId'
+        }));
       }
       
       // Step 4: Skip participant data for initial sync (can be done separately)
@@ -119,11 +144,12 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       // Panelist enhancement  
       with_panelist_data: enhancedWebinars.filter(w => w.panelists && w.panelists.length > 0).length,
       
-      // 🔥 NEW: Registrant enhancement statistics
+      // 🔥 OPTIMIZED: Registrant enhancement statistics with batch processing
       with_registrant_data: enhancedWebinars.filter(w => w._enhanced_with_registrants === true).length,
       total_registrants: enhancedWebinars.reduce((sum, w) => sum + (w.registrants_count || 0), 0),
       registrants_stored: enhancedWebinars.reduce((sum, w) => sum + (w._registrants_stored_count || 0), 0),
       failed_registrant_enhancement: enhancedWebinars.filter(w => w._enhanced_with_registrants === false).length,
+      batch_failed_registrants: enhancedWebinars.filter(w => w._batch_failed === true).length,
       
       // Participant enhancement
       with_participant_data: enhancedWebinars.filter(w => w.registrants_count > 0 || w.participants_count > 0).length,
@@ -147,32 +173,33 @@ export async function enhanceWebinarsWithAllData(webinars: any[], token: string,
       with_passwords: enhancedWebinars.filter(w => w.password).length
     };
     
-    console.log(`[zoom-api][enhancement-orchestrator] 🎉 ENHANCED REGISTRANT SYNC COMPLETED SUCCESSFULLY!`);
+    console.log(`[zoom-api][enhancement-orchestrator] 🎉 OPTIMIZED REGISTRANT SYNC COMPLETED SUCCESSFULLY!`);
     console.log(`[zoom-api][enhancement-orchestrator] ═══════════════════════════════════════════════════════`);
-    console.log(`[zoom-api][enhancement-orchestrator] 📊 ENHANCED REGISTRANT STATISTICS:`);
+    console.log(`[zoom-api][enhancement-orchestrator] 📊 OPTIMIZED BATCH-PROCESSED REGISTRANT STATISTICS:`);
     console.log(`[zoom-api][enhancement-orchestrator] ═══════════════════════════════════════════════════════`);
     console.log(`[zoom-api][enhancement-orchestrator] 📈 Overview:`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Total webinars: ${enhancementStats.total_webinars}`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Completed webinars: ${enhancementStats.completed_webinars}`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Upcoming webinars: ${enhancementStats.upcoming_webinars}`);
     console.log(`[zoom-api][enhancement-orchestrator] `);
-    console.log(`[zoom-api][enhancement-orchestrator] 👥 REGISTRANT DATA (NEW FEATURE):`);
+    console.log(`[zoom-api][enhancement-orchestrator] 👥 REGISTRANT DATA (BATCH PROCESSED):`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Webinars with registrant data: ${enhancementStats.with_registrant_data}/${enhancementStats.total_webinars} webinars`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Total registrants found: ${enhancementStats.total_registrants}`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Registrants stored in DB: ${enhancementStats.registrants_stored}`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Failed registrant enhancements: ${enhancementStats.failed_registrant_enhancement}`);
+    console.log(`[zoom-api][enhancement-orchestrator]   • Batch failures: ${enhancementStats.batch_failed_registrants}`);
     console.log(`[zoom-api][enhancement-orchestrator] `);
     console.log(`[zoom-api][enhancement-orchestrator] 🕒 TIMING DATA:`);
     console.log(`[zoom-api][enhancement-orchestrator]   • With actual timing: ${enhancementStats.with_actual_timing}/${enhancementStats.total_webinars} webinars`);
     console.log(`[zoom-api][enhancement-orchestrator]   • Enhanced from instances: ${enhancementStats.enhanced_from_instances}`);
     console.log(`[zoom-api][enhancement-orchestrator] ═══════════════════════════════════════════════════════`);
     
-    console.log(`[zoom-api][enhancement-orchestrator] 🔧 REGISTRANT SYNC INTEGRATION COMPLETE: Now fetching registrant data automatically in main sync flow`);
+    console.log(`[zoom-api][enhancement-orchestrator] 🔧 OPTIMIZED REGISTRANT SYNC INTEGRATION COMPLETE: Now using batch processing with graceful degradation`);
     
     return enhancedWebinars;
     
   } catch (error) {
-    console.error(`[zoom-api][enhancement-orchestrator] ❌ Error during ENHANCED registrant sync process:`, error);
+    console.error(`[zoom-api][enhancement-orchestrator] ❌ Error during OPTIMIZED registrant sync process:`, error);
     throw error;
   }
 }
