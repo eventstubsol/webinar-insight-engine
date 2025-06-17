@@ -1,4 +1,3 @@
-
 /**
  * Calculate comprehensive sync statistics and data ranges
  */
@@ -60,17 +59,40 @@ export async function recordSyncHistory(
   supabase: any,
   userId: string,
   syncType: string,
-  status: 'success' | 'error',
+  status: string,
   itemsSynced: number,
   message: string
-): Promise<void> {
-  await supabase
-    .from('zoom_sync_history')
-    .insert({
-      user_id: userId,
-      sync_type: syncType,
-      status: status,
-      items_synced: itemsSynced,
-      message: message
-    });
+) {
+  try {
+    // Get registrant statistics from the database
+    const { data: registrantData, error: registrantError } = await supabase
+      .from('zoom_webinar_participants')
+      .select('webinar_id')
+      .eq('user_id', userId)
+      .eq('participant_type', 'registrant');
+    
+    const registrantStats = registrantError ? 0 : (registrantData?.length || 0);
+    
+    // Enhanced message with registrant information
+    const enhancedMessage = message + (registrantStats > 0 ? ` ${registrantStats} registrants synced.` : ' No registrants found.');
+    
+    await supabase
+      .from('zoom_sync_history')
+      .insert({
+        user_id: userId,
+        sync_type: syncType,
+        status: status,
+        items_synced: itemsSynced,
+        message: enhancedMessage,
+        sync_details: {
+          registrants_synced: registrantStats,
+          enhanced_with_registrants: true,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+    console.log(`[zoom-api][sync-stats] Enhanced sync history recorded with registrant statistics: ${registrantStats} registrants`);
+  } catch (error) {
+    console.error(`[zoom-api][sync-stats] Error recording enhanced sync history:`, error);
+  }
 }

@@ -1,4 +1,3 @@
-
 import { corsHeaders } from '../../cors.ts';
 
 export interface SyncResults {
@@ -23,21 +22,26 @@ export function formatListWebinarsResponse(
   syncResults: SyncResults,
   statsResult: StatsResult
 ) {
-  return new Response(JSON.stringify({ 
+  // Calculate registrant statistics from the enhanced webinars
+  const registrantStats = {
+    webinars_with_registrants: finalWebinarsList.filter(w => (w.registrants_count || 0) > 0).length,
+    total_registrants: finalWebinarsList.reduce((sum, w) => sum + (w.registrants_count || 0), 0),
+    avg_registrants_per_webinar: finalWebinarsList.length > 0 
+      ? Math.round(finalWebinarsList.reduce((sum, w) => sum + (w.registrants_count || 0), 0) / finalWebinarsList.length * 100) / 100
+      : 0
+  };
+
+  return new Response(JSON.stringify({
     webinars: finalWebinarsList,
-    source: 'api',
     syncResults: {
-      itemsFetched: allWebinars?.length || 0,
-      itemsUpdated: syncResults.newWebinars + syncResults.updatedWebinars,
-      newWebinars: syncResults.newWebinars,
-      updatedWebinars: syncResults.updatedWebinars,
-      preservedWebinars: syncResults.preservedWebinars,
+      ...syncResults,
       totalWebinars: statsResult.totalWebinarsInDB,
-      monthsSearched: 12,
-      searchPeriods: [],
       dataRange: statsResult.dataRange,
-      preservedHistoricalData: syncResults.preservedWebinars > 0
-    }
+      // Enhanced registrant statistics
+      registrantStats
+    },
+    message: 'Enhanced sync completed with registrant data integration',
+    timestamp: new Date().toISOString()
   }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
