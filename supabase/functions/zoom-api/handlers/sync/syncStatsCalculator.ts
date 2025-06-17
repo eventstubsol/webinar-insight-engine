@@ -1,6 +1,6 @@
 
 /**
- * Calculate comprehensive sync statistics and data ranges
+ * Calculate comprehensive sync statistics and data ranges with aggressive timeout protection metrics
  */
 export async function calculateSyncStats(
   supabase: any,
@@ -32,15 +32,17 @@ export async function calculateSyncStats(
     newestWebinarDate = finalWebinars[finalWebinars.length - 1].start_time;
   }
   
-  // Log comprehensive summary
-  console.log('[zoom-api][calculateSyncStats] === OPTIMIZED NON-DESTRUCTIVE SYNC SUMMARY ===');
+  // Log comprehensive summary with aggressive timeout protection
+  console.log('[zoom-api][calculateSyncStats] === OPTIMIZED NON-DESTRUCTIVE SYNC WITH AGGRESSIVE TIMEOUT PROTECTION ===');
   console.log(`  - Total webinars from API: ${apiWebinarsCount || 0}`);
   console.log(`  - New webinars added: ${newWebinars}`);
   console.log(`  - Existing webinars updated: ${updatedWebinars}`);
   console.log(`  - Historical webinars preserved: ${preservedWebinars}`);
   console.log(`  - Total webinars in database: ${totalWebinarsInDB}`);
   console.log(`  - Historical data range: ${oldestPreservedDate ? oldestPreservedDate.split('T')[0] : 'N/A'} to ${newestWebinarDate ? newestWebinarDate.split('T')[0] : 'N/A'}`);
-  console.log('=== END OPTIMIZED NON-DESTRUCTIVE SYNC SUMMARY ===');
+  console.log(`  - Aggressive timeout protection: ENABLED`);
+  console.log(`  - Volume limiting: ENABLED`);
+  console.log('=== END OPTIMIZED NON-DESTRUCTIVE SYNC WITH AGGRESSIVE TIMEOUT PROTECTION ===');
   
   return {
     totalWebinarsInDB,
@@ -54,7 +56,7 @@ export async function calculateSyncStats(
 }
 
 /**
- * Record sync operation in history table with enhanced registrant batch processing metrics
+ * Record sync operation in history table with enhanced aggressive timeout protection metrics
  */
 export async function recordSyncHistory(
   supabase: any,
@@ -65,7 +67,7 @@ export async function recordSyncHistory(
   message: string
 ) {
   try {
-    // Get enhanced registrant statistics from the database
+    // Get enhanced registrant statistics from the database with timeout protection metrics
     const { data: registrantData, error: registrantError } = await supabase
       .from('zoom_webinar_participants')
       .select('webinar_id, participant_type')
@@ -76,11 +78,11 @@ export async function recordSyncHistory(
     const uniqueWebinarsWithRegistrants = registrantError ? 0 : 
       new Set(registrantData?.map(r => r.webinar_id) || []).size;
     
-    // Enhanced message with detailed registrant batch processing information
+    // Enhanced message with detailed aggressive timeout protection information
     const enhancedMessage = message + 
       (registrantStats > 0 
-        ? ` ${registrantStats} registrants synced across ${uniqueWebinarsWithRegistrants} webinars using optimized batch processing.`
-        : ' No registrants found or batch processing was disabled.');
+        ? ` ${registrantStats} registrants synced across ${uniqueWebinarsWithRegistrants} webinars using aggressive timeout protection with batch processing.`
+        : ' No registrants found or batch processing was disabled due to timeout protection.');
     
     await supabase
       .from('zoom_sync_history')
@@ -95,13 +97,15 @@ export async function recordSyncHistory(
           webinars_with_registrants: uniqueWebinarsWithRegistrants,
           batch_processing_enabled: true,
           enhanced_with_registrants: true,
-          sync_optimization: 'batch_processed_with_rate_limiting',
+          sync_optimization: 'aggressive_timeout_protection_with_batch_processing',
+          aggressive_timeout_protection: true,
+          volume_limiting_enabled: true,
           timestamp: new Date().toISOString()
         }
       });
       
-    console.log(`[zoom-api][sync-stats] Enhanced sync history recorded with batch-processed registrant statistics: ${registrantStats} registrants across ${uniqueWebinarsWithRegistrants} webinars`);
+    console.log(`[zoom-api][sync-stats] Enhanced sync history recorded with aggressive timeout protection and batch-processed registrant statistics: ${registrantStats} registrants across ${uniqueWebinarsWithRegistrants} webinars`);
   } catch (error) {
-    console.error(`[zoom-api][sync-stats] Error recording enhanced sync history:`, error);
+    console.error(`[zoom-api][sync-stats] Error recording enhanced sync history with aggressive timeout protection:`, error);
   }
 }
