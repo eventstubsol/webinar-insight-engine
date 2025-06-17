@@ -2,7 +2,7 @@
 import { corsHeaders } from './cors.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { handleListWebinars } from './handlers/listWebinars.ts';
-import { handleGetWebinarDetails } from './handlers/getWebinarDetails.ts';
+import { handleGetWebinar } from './handlers/getWebinar.ts';
 import { handleGetParticipants } from './handlers/getParticipants.ts';
 import { handleUpdateWebinarParticipants } from './handlers/updateWebinarParticipants.ts';
 import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
         return await handleListWebinars(req, supabase, user, credentials, params.force_sync);
       
       case 'get-webinar-details':
-        return await handleGetWebinarDetails(req, supabase, user, credentials, params.id);
+        return await handleGetWebinar(req, supabase, user, credentials, params.id);
       
       case 'get-participants':
         return await handleGetParticipants(req, supabase, user, credentials, params.id);
