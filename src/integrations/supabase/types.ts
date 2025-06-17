@@ -181,6 +181,51 @@ export type Database = {
         }
         Relationships: []
       }
+      zoom_chat_messages: {
+        Row: {
+          created_at: string | null
+          id: string
+          instance_id: string | null
+          message: string
+          raw_data: Json | null
+          sender_email: string | null
+          sender_name: string | null
+          sent_at: string | null
+          updated_at: string | null
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          message: string
+          raw_data?: Json | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sent_at?: string | null
+          updated_at?: string | null
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          message?: string
+          raw_data?: Json | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sent_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       zoom_credentials: {
         Row: {
           access_token: string | null
@@ -230,6 +275,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      zoom_panelists: {
+        Row: {
+          created_at: string | null
+          id: string
+          join_url: string | null
+          name: string | null
+          panelist_email: string | null
+          panelist_id: string | null
+          raw_data: Json | null
+          updated_at: string | null
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          join_url?: string | null
+          name?: string | null
+          panelist_email?: string | null
+          panelist_id?: string | null
+          raw_data?: Json | null
+          updated_at?: string | null
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          join_url?: string | null
+          name?: string | null
+          panelist_email?: string | null
+          panelist_id?: string | null
+          raw_data?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
       }
       zoom_sync_history: {
         Row: {
@@ -500,10 +587,12 @@ export type Database = {
           actual_duration: number | null
           actual_start_time: string | null
           created_at: string
+          data_source: string | null
           duration: number | null
           end_time: string | null
           id: string
           instance_id: string
+          is_historical: boolean | null
           participants_count: number | null
           raw_data: Json
           registrants_count: number | null
@@ -520,10 +609,12 @@ export type Database = {
           actual_duration?: number | null
           actual_start_time?: string | null
           created_at?: string
+          data_source?: string | null
           duration?: number | null
           end_time?: string | null
           id?: string
           instance_id: string
+          is_historical?: boolean | null
           participants_count?: number | null
           raw_data: Json
           registrants_count?: number | null
@@ -540,10 +631,12 @@ export type Database = {
           actual_duration?: number | null
           actual_start_time?: string | null
           created_at?: string
+          data_source?: string | null
           duration?: number | null
           end_time?: string | null
           id?: string
           instance_id?: string
+          is_historical?: boolean | null
           participants_count?: number | null
           raw_data?: Json
           registrants_count?: number | null
@@ -610,48 +703,69 @@ export type Database = {
       }
       zoom_webinar_participants: {
         Row: {
+          connection_type: string | null
           created_at: string
+          data_center: string | null
+          domain: string | null
           duration: number | null
           email: string | null
+          harddisk_id: string | null
           id: string
           join_time: string | null
           leave_time: string | null
+          mac_addr: string | null
           name: string | null
           participant_id: string | null
           participant_type: string
+          pc_name: string | null
           raw_data: Json
+          recording_consent: boolean | null
           updated_at: string
           user_id: string
           webinar_id: string
           workspace_id: string | null
         }
         Insert: {
+          connection_type?: string | null
           created_at?: string
+          data_center?: string | null
+          domain?: string | null
           duration?: number | null
           email?: string | null
+          harddisk_id?: string | null
           id?: string
           join_time?: string | null
           leave_time?: string | null
+          mac_addr?: string | null
           name?: string | null
           participant_id?: string | null
           participant_type: string
+          pc_name?: string | null
           raw_data: Json
+          recording_consent?: boolean | null
           updated_at?: string
           user_id: string
           webinar_id: string
           workspace_id?: string | null
         }
         Update: {
+          connection_type?: string | null
           created_at?: string
+          data_center?: string | null
+          domain?: string | null
           duration?: number | null
           email?: string | null
+          harddisk_id?: string | null
           id?: string
           join_time?: string | null
           leave_time?: string | null
+          mac_addr?: string | null
           name?: string | null
           participant_id?: string | null
           participant_type?: string
+          pc_name?: string | null
           raw_data?: Json
+          recording_consent?: boolean | null
           updated_at?: string
           user_id?: string
           webinar_id?: string
@@ -789,74 +903,6 @@ export type Database = {
           },
         ]
       }
-      zoom_webinar_questions: {
-        Row: {
-          answer: string | null
-          answer_time: string | null
-          answered: boolean | null
-          answered_by: string | null
-          created_at: string
-          email: string | null
-          id: string
-          instance_id: string | null
-          name: string | null
-          question: string
-          question_id: string
-          question_time: string | null
-          raw_data: Json
-          updated_at: string
-          user_id: string
-          webinar_id: string
-          workspace_id: string | null
-        }
-        Insert: {
-          answer?: string | null
-          answer_time?: string | null
-          answered?: boolean | null
-          answered_by?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          instance_id?: string | null
-          name?: string | null
-          question: string
-          question_id: string
-          question_time?: string | null
-          raw_data: Json
-          updated_at?: string
-          user_id: string
-          webinar_id: string
-          workspace_id?: string | null
-        }
-        Update: {
-          answer?: string | null
-          answer_time?: string | null
-          answered?: boolean | null
-          answered_by?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          instance_id?: string | null
-          name?: string | null
-          question?: string
-          question_id?: string
-          question_time?: string | null
-          raw_data?: Json
-          updated_at?: string
-          user_id?: string
-          webinar_id?: string
-          workspace_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "zoom_webinar_questions_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       zoom_webinar_recordings: {
         Row: {
           created_at: string
@@ -985,6 +1031,221 @@ export type Database = {
         }
         Relationships: []
       }
+      zoom_webinar_registrants: {
+        Row: {
+          created_at: string | null
+          email: string
+          first_name: string | null
+          id: number
+          industry: string | null
+          job_title: string | null
+          join_url: string | null
+          language: string | null
+          last_name: string | null
+          no_of_employees: string | null
+          org: string | null
+          purchasing_time_frame: string | null
+          raw_data: Json | null
+          registrant_id: string | null
+          registration_time: string | null
+          role_in_purchase_process: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+          webinar_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          first_name?: string | null
+          id?: number
+          industry?: string | null
+          job_title?: string | null
+          join_url?: string | null
+          language?: string | null
+          last_name?: string | null
+          no_of_employees?: string | null
+          org?: string | null
+          purchasing_time_frame?: string | null
+          raw_data?: Json | null
+          registrant_id?: string | null
+          registration_time?: string | null
+          role_in_purchase_process?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+          webinar_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          first_name?: string | null
+          id?: number
+          industry?: string | null
+          job_title?: string | null
+          join_url?: string | null
+          language?: string | null
+          last_name?: string | null
+          no_of_employees?: string | null
+          org?: string | null
+          purchasing_time_frame?: string | null
+          raw_data?: Json | null
+          registrant_id?: string | null
+          registration_time?: string | null
+          role_in_purchase_process?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+          webinar_id?: string
+        }
+        Relationships: []
+      }
+      zoom_webinar_registration_questions: {
+        Row: {
+          answer: string | null
+          answer_time: string | null
+          answered: boolean | null
+          answered_by: string | null
+          created_at: string
+          email: string | null
+          id: string
+          instance_id: string | null
+          name: string | null
+          question: string
+          question_id: string
+          question_time: string | null
+          raw_data: Json
+          updated_at: string
+          user_id: string
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          answer?: string | null
+          answer_time?: string | null
+          answered?: boolean | null
+          answered_by?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          instance_id?: string | null
+          name?: string | null
+          question: string
+          question_id: string
+          question_time?: string | null
+          raw_data: Json
+          updated_at?: string
+          user_id: string
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          answer?: string | null
+          answer_time?: string | null
+          answered?: boolean | null
+          answered_by?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          instance_id?: string | null
+          name?: string | null
+          question?: string
+          question_id?: string
+          question_time?: string | null
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_webinar_questions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_webinar_settings: {
+        Row: {
+          breakout_room: Json | null
+          created_at: string | null
+          language_interpretation: Json | null
+          question_and_answer: Json | null
+          raw_settings: Json | null
+          sign_language_interpretation: Json | null
+          updated_at: string | null
+          user_id: string
+          webinar_id: string
+        }
+        Insert: {
+          breakout_room?: Json | null
+          created_at?: string | null
+          language_interpretation?: Json | null
+          question_and_answer?: Json | null
+          raw_settings?: Json | null
+          sign_language_interpretation?: Json | null
+          updated_at?: string | null
+          user_id: string
+          webinar_id: string
+        }
+        Update: {
+          breakout_room?: Json | null
+          created_at?: string | null
+          language_interpretation?: Json | null
+          question_and_answer?: Json | null
+          raw_settings?: Json | null
+          sign_language_interpretation?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          webinar_id?: string
+        }
+        Relationships: []
+      }
+      zoom_webinar_tracking: {
+        Row: {
+          created_at: string | null
+          id: string
+          raw_data: Json | null
+          registration_count: number | null
+          source_name: string | null
+          tracking_url: string | null
+          updated_at: string | null
+          user_id: string
+          visitor_count: number | null
+          webinar_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          raw_data?: Json | null
+          registration_count?: number | null
+          source_name?: string | null
+          tracking_url?: string | null
+          updated_at?: string | null
+          user_id: string
+          visitor_count?: number | null
+          webinar_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          raw_data?: Json | null
+          registration_count?: number | null
+          source_name?: string | null
+          tracking_url?: string | null
+          updated_at?: string | null
+          user_id?: string
+          visitor_count?: number | null
+          webinar_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       zoom_webinar_tracking_fields: {
         Row: {
           created_at: string
@@ -1027,16 +1288,22 @@ export type Database = {
       zoom_webinars: {
         Row: {
           actual_duration: number | null
+          actual_end_time: string | null
           actual_start_time: string | null
           agenda: string | null
           approval_type: number | null
           audio_type: string | null
           auto_recording_type: string | null
+          breakout_rooms_enabled: boolean | null
           contact_email: string | null
           contact_name: string | null
           created_at: string
+          data_source: string | null
           duration: number | null
+          encrypted_password: string | null
+          end_time: string | null
           enforce_login: boolean | null
+          h323_password: string | null
           hd_video: boolean | null
           host_email: string | null
           host_first_name: string | null
@@ -1045,25 +1312,46 @@ export type Database = {
           host_name: string | null
           host_video: boolean | null
           id: string
+          is_historical: boolean | null
+          is_recurring: boolean | null
           is_simulive: boolean | null
           join_url: string | null
           language: string | null
+          language_interpretation_enabled: boolean | null
           last_synced_at: string | null
+          max_concurrent_views: number | null
+          meeting_authentication: boolean | null
+          occurrences: Json | null
           on_demand: boolean | null
           panelists_video: boolean | null
+          participants_count: number | null
           password: string | null
+          polls_enabled: boolean | null
           practice_session: boolean | null
+          pstn_password: string | null
+          qa_enabled: boolean | null
           raw_data: Json
+          recording_authentication: boolean | null
+          recording_authenticator: string | null
+          recurrence: Json | null
+          recurrence_type: number | null
+          registrants_count: number | null
           registration_type: number | null
           registration_url: string | null
+          settings: Json | null
+          sign_language_enabled: boolean | null
           start_time: string | null
           start_url: string | null
           status: string | null
+          survey_enabled: boolean | null
+          template_id: string | null
           timezone: string | null
           topic: string
+          tracking_fields: Json | null
           type: number | null
           updated_at: string
           user_id: string
+          webinar_authenticator: string | null
           webinar_created_at: string | null
           webinar_id: string
           webinar_uuid: string
@@ -1071,16 +1359,22 @@ export type Database = {
         }
         Insert: {
           actual_duration?: number | null
+          actual_end_time?: string | null
           actual_start_time?: string | null
           agenda?: string | null
           approval_type?: number | null
           audio_type?: string | null
           auto_recording_type?: string | null
+          breakout_rooms_enabled?: boolean | null
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          data_source?: string | null
           duration?: number | null
+          encrypted_password?: string | null
+          end_time?: string | null
           enforce_login?: boolean | null
+          h323_password?: string | null
           hd_video?: boolean | null
           host_email?: string | null
           host_first_name?: string | null
@@ -1089,25 +1383,46 @@ export type Database = {
           host_name?: string | null
           host_video?: boolean | null
           id?: string
+          is_historical?: boolean | null
+          is_recurring?: boolean | null
           is_simulive?: boolean | null
           join_url?: string | null
           language?: string | null
+          language_interpretation_enabled?: boolean | null
           last_synced_at?: string | null
+          max_concurrent_views?: number | null
+          meeting_authentication?: boolean | null
+          occurrences?: Json | null
           on_demand?: boolean | null
           panelists_video?: boolean | null
+          participants_count?: number | null
           password?: string | null
+          polls_enabled?: boolean | null
           practice_session?: boolean | null
+          pstn_password?: string | null
+          qa_enabled?: boolean | null
           raw_data: Json
+          recording_authentication?: boolean | null
+          recording_authenticator?: string | null
+          recurrence?: Json | null
+          recurrence_type?: number | null
+          registrants_count?: number | null
           registration_type?: number | null
           registration_url?: string | null
+          settings?: Json | null
+          sign_language_enabled?: boolean | null
           start_time?: string | null
           start_url?: string | null
           status?: string | null
+          survey_enabled?: boolean | null
+          template_id?: string | null
           timezone?: string | null
           topic: string
+          tracking_fields?: Json | null
           type?: number | null
           updated_at?: string
           user_id: string
+          webinar_authenticator?: string | null
           webinar_created_at?: string | null
           webinar_id: string
           webinar_uuid: string
@@ -1115,16 +1430,22 @@ export type Database = {
         }
         Update: {
           actual_duration?: number | null
+          actual_end_time?: string | null
           actual_start_time?: string | null
           agenda?: string | null
           approval_type?: number | null
           audio_type?: string | null
           auto_recording_type?: string | null
+          breakout_rooms_enabled?: boolean | null
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          data_source?: string | null
           duration?: number | null
+          encrypted_password?: string | null
+          end_time?: string | null
           enforce_login?: boolean | null
+          h323_password?: string | null
           hd_video?: boolean | null
           host_email?: string | null
           host_first_name?: string | null
@@ -1133,25 +1454,46 @@ export type Database = {
           host_name?: string | null
           host_video?: boolean | null
           id?: string
+          is_historical?: boolean | null
+          is_recurring?: boolean | null
           is_simulive?: boolean | null
           join_url?: string | null
           language?: string | null
+          language_interpretation_enabled?: boolean | null
           last_synced_at?: string | null
+          max_concurrent_views?: number | null
+          meeting_authentication?: boolean | null
+          occurrences?: Json | null
           on_demand?: boolean | null
           panelists_video?: boolean | null
+          participants_count?: number | null
           password?: string | null
+          polls_enabled?: boolean | null
           practice_session?: boolean | null
+          pstn_password?: string | null
+          qa_enabled?: boolean | null
           raw_data?: Json
+          recording_authentication?: boolean | null
+          recording_authenticator?: string | null
+          recurrence?: Json | null
+          recurrence_type?: number | null
+          registrants_count?: number | null
           registration_type?: number | null
           registration_url?: string | null
+          settings?: Json | null
+          sign_language_enabled?: boolean | null
           start_time?: string | null
           start_url?: string | null
           status?: string | null
+          survey_enabled?: boolean | null
+          template_id?: string | null
           timezone?: string | null
           topic?: string
+          tracking_fields?: Json | null
           type?: number | null
           updated_at?: string
           user_id?: string
+          webinar_authenticator?: string | null
           webinar_created_at?: string | null
           webinar_id?: string
           webinar_uuid?: string

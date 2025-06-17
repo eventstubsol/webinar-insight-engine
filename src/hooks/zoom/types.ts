@@ -29,11 +29,22 @@ export interface ZoomWebinar {
   start_url?: string;
   password?: string;
   
+  // Password fields
+  h323_password?: string;
+  pstn_password?: string;
+  encrypted_password?: string;
+  
   // Configuration
   is_simulive?: boolean;
   webinar_created_at?: string;
   
-  // Settings
+  // Settings and configuration (new jsonb fields)
+  settings?: Record<string, any>;
+  tracking_fields?: Record<string, any>;
+  recurrence?: Record<string, any>;
+  occurrences?: Record<string, any>;
+  
+  // Settings (individual fields)
   approval_type?: number;
   registration_type?: number;
   auto_recording_type?: string;
@@ -61,6 +72,14 @@ export interface ZoomParticipants {
     create_time: string;
     join_url: string;
     status: string;
+    // New registrant fields
+    job_title?: string;
+    purchasing_time_frame?: string;
+    role_in_purchase_process?: string;
+    no_of_employees?: string;
+    industry?: string;
+    org?: string;
+    language?: string;
   }>;
   attendees: Array<{
     id: string;
@@ -69,7 +88,59 @@ export interface ZoomParticipants {
     join_time: string;
     leave_time: string;
     duration: number;
+    // New participant fields
+    connection_type?: string;
+    data_center?: string;
+    pc_name?: string;
+    domain?: string;
+    mac_addr?: string;
+    harddisk_id?: string;
+    recording_consent?: boolean;
   }>;
+}
+
+// New interfaces for the new tables
+export interface ZoomPanelist {
+  id: string;
+  user_id: string;
+  webinar_id: string;
+  panelist_id?: string;
+  panelist_email?: string;
+  name?: string;
+  join_url?: string;
+  raw_data?: Record<string, any>;
+  workspace_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ZoomChatMessage {
+  id: string;
+  user_id: string;
+  webinar_id: string;
+  instance_id?: string;
+  sender_name?: string;
+  sender_email?: string;
+  message: string;
+  sent_at?: string;
+  raw_data?: Record<string, any>;
+  workspace_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ZoomWebinarTracking {
+  id: string;
+  user_id: string;
+  webinar_id: string;
+  source_name?: string;
+  tracking_url?: string;
+  visitor_count?: number;
+  registration_count?: number;
+  raw_data?: Record<string, any>;
+  workspace_id?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ZoomCredentialsStatus {

@@ -114,9 +114,20 @@ function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
       start_url: item.start_url,
       password: item.password,
       
+      // New password fields
+      h323_password: item.h323_password,
+      pstn_password: item.pstn_password,
+      encrypted_password: item.encrypted_password,
+      
       // Configuration - Include these fields from database
       is_simulive: item.is_simulive,
       webinar_created_at: item.webinar_created_at,
+      
+      // New JSONB fields
+      settings: item.settings,
+      tracking_fields: item.tracking_fields,
+      recurrence: item.recurrence,
+      occurrences: item.occurrences,
       
       // Settings - Include these fields from database
       approval_type: item.approval_type,
