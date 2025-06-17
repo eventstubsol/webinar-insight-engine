@@ -8,7 +8,6 @@ import { handleUpdateWebinarParticipants } from './handlers/updateWebinarPartici
 import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
 import { handleGetInstanceParticipants } from './handlers/getInstanceParticipants.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
-import { handleCheckCredentialsStatus } from './handlers/checkCredentialsStatus.ts';
 import { handleSyncRegistrants } from './handlers/sync-registrants.ts';
 
 const supabase = createClient(
@@ -74,9 +73,6 @@ Deno.serve(async (req) => {
       
       case 'get-webinar-recordings':
         return await handleGetWebinarRecordings(req, supabase, user, credentials, params.webinar_id);
-      
-      case 'check-credentials-status':
-        return await handleCheckCredentialsStatus(req, supabase, user, credentials);
       
       case 'sync-registrants':
         return await handleSyncRegistrants(req, supabase, user, credentials);
