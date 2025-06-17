@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
+import { useZoomParticipantSync } from '@/hooks/zoom/useZoomParticipantSync';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -21,7 +22,8 @@ import {
   PaginationNext,
   PaginationPrevious
 } from '@/components/ui/pagination';
-import { Search, Download } from 'lucide-react';
+import { Search, Download, RefreshCw, Users } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface WebinarParticipantsTabProps {
   webinar: ZoomWebinar;
@@ -55,7 +57,6 @@ const PAGE_SIZE_OPTIONS = [
   { value: 'all', label: 'All' }
 ];
 
-// Helper function to generate page numbers for pagination
 const getPageNumbers = (currentPage: number, totalPages: number) => {
   const pages = [];
   const maxVisiblePages = 5;
@@ -92,12 +93,18 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState('10');
   
-  // Explicitly type cast to handle each type correctly
+  // NEW: Registrant sync functionality
+  const { syncRegistrantsForWebinar, isLoading: isSyncing } = useZoomParticipantSync();
+  
   const registrants = participants.registrants as Registrant[] || [];
   const attendees = participants.attendees as Attendee[] || [];
   
-  // Use the appropriate array based on the selected tab
   const displayParticipants = participantType === 'registrants' ? registrants : attendees;
+  
+  // Check if registrant data might be missing
+  const hasRegistrantData = registrants.length > 0;
+  const registrantCount = webinar.registrants_count || 0;
+  const showSyncButton = !hasRegistrantData && registrantCount === 0;
     
   const filteredParticipants = useMemo(() => {
     if (searchQuery === '') return displayParticipants;
@@ -120,32 +127,27 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
     });
   }, [displayParticipants, searchQuery, participantType]);
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [participantType, searchQuery, itemsPerPage]);
 
-  // Calculate pagination
   const totalParticipants = filteredParticipants.length;
   const isShowingAll = itemsPerPage === 'all';
   const itemsPerPageNum = isShowingAll ? totalParticipants : parseInt(itemsPerPage);
   const totalPages = isShowingAll ? 1 : Math.max(1, Math.ceil(totalParticipants / itemsPerPageNum));
   
-  // Ensure currentPage is within valid bounds
   const validCurrentPage = useMemo(() => {
     if (currentPage > totalPages) return Math.max(1, totalPages);
     if (currentPage < 1) return 1;
     return currentPage;
   }, [currentPage, totalPages]);
 
-  // Update currentPage if it's out of bounds
   useEffect(() => {
     if (validCurrentPage !== currentPage) {
       setCurrentPage(validCurrentPage);
     }
   }, [validCurrentPage, currentPage]);
 
-  // Calculate paginated participants
   const paginatedParticipants = useMemo(() => {
     if (isShowingAll) return filteredParticipants;
     
@@ -153,9 +155,19 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
     return filteredParticipants.slice(startIndex, startIndex + itemsPerPageNum);
   }, [filteredParticipants, validCurrentPage, itemsPerPageNum, isShowingAll]);
 
-  // Calculate display info
   const startIndex = isShowingAll ? 1 : (validCurrentPage - 1) * itemsPerPageNum + 1;
   const endIndex = isShowingAll ? totalParticipants : Math.min(validCurrentPage * itemsPerPageNum, totalParticipants);
+  
+  // NEW: Handle registrant sync
+  const handleSyncRegistrants = async () => {
+    try {
+      await syncRegistrantsForWebinar(webinar.id);
+      // Refresh the page to show new data
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to sync registrants:', error);
+    }
+  };
   
   return (
     <div>
@@ -163,12 +175,39 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
         <h2 className="text-xl font-semibold">Webinar Participants</h2>
         
         <div className="flex flex-col sm:flex-row gap-2">
+          {/* NEW: Sync registrants button */}
+          {showSyncButton && (
+            <Button 
+              variant="outline" 
+              className="gap-1"
+              onClick={handleSyncRegistrants}
+              disabled={isSyncing}
+            >
+              {isSyncing ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Users className="h-4 w-4" />
+              )}
+              <span>{isSyncing ? 'Syncing...' : 'Sync Registrants'}</span>
+            </Button>
+          )}
+          
           <Button variant="outline" className="gap-1">
             <Download className="h-4 w-4" />
             <span>Export</span>
           </Button>
         </div>
       </div>
+      
+      {/* NEW: Show sync alert if no registrant data */}
+      {showSyncButton && participantType === 'registrants' && (
+        <Alert className="mb-4">
+          <Users className="h-4 w-4" />
+          <AlertDescription>
+            No registrant data found for this webinar. Click "Sync Registrants" to fetch registrant information from Zoom.
+          </AlertDescription>
+        </Alert>
+      )}
       
       <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
         <Tabs 
@@ -283,7 +322,6 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
         </Table>
       </div>
       
-      {/* Pagination Info and Controls */}
       {totalParticipants > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4">
           <div className="text-sm text-muted-foreground">

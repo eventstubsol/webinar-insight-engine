@@ -11,6 +11,7 @@ export * from './useZoomWebinarParticipants';
 export * from './useZoomWebinarInstances';
 export * from './useZoomInstanceParticipants';
 export * from './useZoomWebinarRecordings';
+export * from './useZoomParticipantSync';
 
 // Export utilities for backward compatibility
 export * from './utils/webinarUtils';
@@ -22,5 +23,6 @@ export * from './services/webinarApiService';
 export * from './services/databaseQueries';
 export * from './services/apiOperations';
 export * from './services/syncHistoryService';
+export * from './services/participantSyncService';
 export * from './operations';
 export * from './webinarOperations';

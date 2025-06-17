@@ -41,7 +41,6 @@ export async function fetchWebinarInstancesFromDatabase(userId: string, webinarI
     .eq('user_id', userId)
     .order('start_time', { ascending: false });
     
-  // If a specific webinar ID is provided, filter for just that webinar
   if (webinarId) {
     query = query.eq('webinar_id', webinarId);
   }
@@ -64,12 +63,69 @@ export async function fetchWebinarInstancesFromDatabase(userId: string, webinarI
 }
 
 /**
+ * IMPROVED: Fetch participants from database with proper filtering and counting
+ */
+export async function fetchParticipantsFromDatabase(userId: string, webinarId?: string): Promise<{ registrants: any[], attendees: any[], totalCount: number } | null> {
+  console.log(`[fetchParticipantsFromDatabase] Fetching participants from database for user: ${userId}${webinarId ? `, webinar: ${webinarId}` : ''}`);
+  
+  let query = supabase
+    .from('zoom_webinar_participants')
+    .select('*')
+    .eq('user_id', userId);
+    
+  if (webinarId) {
+    query = query.eq('webinar_id', webinarId);
+  }
+  
+  const { data: dbParticipants, error: dbError, count } = await query;
+  
+  if (dbError) {
+    console.error('[fetchParticipantsFromDatabase] Error:', dbError);
+    return null;
+  }
+  
+  if (!dbParticipants || dbParticipants.length === 0) {
+    console.log('[fetchParticipantsFromDatabase] No participants found in database');
+    return { registrants: [], attendees: [], totalCount: 0 };
+  }
+  
+  console.log(`[fetchParticipantsFromDatabase] Found ${dbParticipants.length} participants in database (total count: ${count})`);
+  
+  // Separate registrants and attendees
+  const registrants = dbParticipants
+    .filter(p => p.participant_type === 'registrant')
+    .map(p => p.raw_data || {
+      id: p.participant_id,
+      email: p.email,
+      name: p.name,
+      join_time: p.join_time
+    });
+  
+  const attendees = dbParticipants
+    .filter(p => p.participant_type === 'attendee')
+    .map(p => p.raw_data || {
+      id: p.participant_id,
+      email: p.email,
+      name: p.name,
+      join_time: p.join_time,
+      leave_time: p.leave_time,
+      duration: p.duration
+    });
+  
+  console.log(`[fetchParticipantsFromDatabase] Separated: ${registrants.length} registrants, ${attendees.length} attendees`);
+  
+  return { 
+    registrants, 
+    attendees,
+    totalCount: count || dbParticipants.length
+  };
+}
+
+/**
  * Transform database webinars to ZoomWebinar format
  */
 function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
-  // Transform to ZoomWebinar format with proper type handling
   return dbWebinars.map(item => {
-    // Parse the raw_data if it's a string, use as-is if it's already an object
     let parsedRawData: Record<string, any> = {};
     
     if (item.raw_data) {
@@ -80,12 +136,10 @@ function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
           console.error('Failed to parse raw_data:', e);
         }
       } else {
-        // Assume it's already an object
         parsedRawData = item.raw_data as Record<string, any>;
       }
     }
     
-    // Create a properly typed ZoomWebinar object including ALL database fields
     const webinar: ZoomWebinar = {
       id: item.webinar_id,
       uuid: item.webinar_uuid,
@@ -98,38 +152,31 @@ function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
       status: item.status,
       type: item.type,
       
-      // Host information - Include these fields from database
       host_id: item.host_id,
       host_name: item.host_name,
       host_first_name: item.host_first_name,
       host_last_name: item.host_last_name,
       
-      // Actual timing data - Include these fields from database
       actual_start_time: item.actual_start_time,
       actual_duration: item.actual_duration,
       
-      // URLs - Include these fields from database
       join_url: item.join_url,
       registration_url: item.registration_url,
       start_url: item.start_url,
       password: item.password,
       
-      // New password fields
       h323_password: item.h323_password,
       pstn_password: item.pstn_password,
       encrypted_password: item.encrypted_password,
       
-      // Configuration - Include these fields from database
       is_simulive: item.is_simulive,
       webinar_created_at: item.webinar_created_at,
       
-      // New JSONB fields
       settings: item.settings,
       tracking_fields: item.tracking_fields,
       recurrence: item.recurrence,
       occurrences: item.occurrences,
       
-      // Settings - Include these fields from database
       approval_type: item.approval_type,
       registration_type: item.registration_type,
       auto_recording_type: item.auto_recording_type,
@@ -144,9 +191,9 @@ function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
       contact_name: item.contact_name,
       contact_email: item.contact_email,
       
-      // Counts from raw_data or database
-      registrants_count: item.registrants_count || parsedRawData?.registrants_count || 0,
-      participants_count: item.participants_count || parsedRawData?.participants_count || 0,
+      // FIXED: Use database counts, not raw_data counts
+      registrants_count: item.registrants_count || 0,
+      participants_count: item.participants_count || 0,
       
       raw_data: parsedRawData
     };

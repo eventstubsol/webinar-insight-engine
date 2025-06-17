@@ -1,18 +1,19 @@
-
 /**
- * Enhanced registrant data processor with aggressive timeout protection and fallback strategy
+ * DISABLED registrant data processor - moved to separate background process
+ * This prevents the main sync from timing out
  */
 
-// Aggressive timeout configuration
-const BATCH_SIZE = 3; // Reduced from 5 to 3 webinars at a time
-const BATCH_DELAY_MS = 1000; // Reduced from 2000ms to 1000ms
-const API_TIMEOUT_MS = 8000; // Reduced from 15s to 8s per API call
-const MAX_RETRIES = 1; // Reduced from 2 to 1
-const MAX_TOTAL_PROCESSING_TIME = 25000; // 25 seconds maximum for all registrant processing
-const MAX_WEBINARS_TO_PROCESS = 10; // Limit to recent webinars only
+// Aggressive timeout configuration - DISABLED FOR MAIN SYNC
+const BATCH_SIZE = 3;
+const BATCH_DELAY_MS = 1000;
+const API_TIMEOUT_MS = 8000;
+const MAX_RETRIES = 1;
+const MAX_TOTAL_PROCESSING_TIME = 25000;
+const MAX_WEBINARS_TO_PROCESS = 10;
 
 /**
- * Enhanced registrant data processor with circuit breaker and aggressive timeouts
+ * MAIN SYNC: Skip registrant processing to prevent timeouts
+ * Registrant data will be synced separately via background jobs
  */
 export async function enhanceWebinarsWithRegistrantData(
   webinars: any[], 
@@ -20,26 +21,35 @@ export async function enhanceWebinarsWithRegistrantData(
   supabase?: any,
   userId?: string
 ): Promise<any[]> {
-  console.log(`[zoom-api][enhanceWebinarsWithRegistrantData] Starting with aggressive timeout protection for ${webinars.length} webinars`);
+  console.log(`[zoom-api][enhanceWebinarsWithRegistrantData] MAIN SYNC: Skipping registrant processing to prevent timeouts`);
   
   if (!webinars || webinars.length === 0) {
     console.log(`[zoom-api][enhanceWebinarsWithRegistrantData] No webinars to process`);
     return [];
   }
   
-  // Check if registrant syncing is enabled
-  const enableRegistrantSync = Deno.env.get('ENABLE_REGISTRANT_SYNC') !== 'false';
-  const limitWebinarsForSync = Deno.env.get('LIMIT_REGISTRANT_WEBINARS') !== 'false';
+  // Check if registrant syncing is explicitly enabled for main sync (disabled by default)
+  const enableRegistrantSyncInMainFlow = Deno.env.get('ENABLE_REGISTRANT_SYNC_MAIN_FLOW') === 'true';
   
-  if (!enableRegistrantSync) {
-    console.log(`[zoom-api][enhanceWebinarsWithRegistrantData] Registrant sync disabled via environment variable`);
-    return webinars.map(w => ({ ...w, _registrant_sync_disabled: true }));
+  if (!enableRegistrantSyncInMainFlow) {
+    console.log(`[zoom-api][enhanceWebinarsWithRegistrantData] Registrant sync disabled in main flow - use separate background sync`);
+    return webinars.map(w => ({
+      ...w,
+      registrants_count: 0,
+      _enhanced_with_registrants: false,
+      _registrants_skip_reason: 'Disabled in main sync flow - use background sync',
+      _main_sync_skipped: true
+    }));
   }
+  
+  // If explicitly enabled, use the original aggressive timeout logic
+  console.log(`[zoom-api][enhanceWebinarsWithRegistrantData] Starting with aggressive timeout protection for ${webinars.length} webinars`);
+  
+  const limitWebinarsForSync = Deno.env.get('LIMIT_REGISTRANT_WEBINARS') !== 'false';
   
   // Aggressive filtering: Only process recent webinars to avoid timeout
   let webinarsToProcess = webinars;
   if (limitWebinarsForSync && webinars.length > MAX_WEBINARS_TO_PROCESS) {
-    // Sort by start_time and take the most recent webinars
     webinarsToProcess = [...webinars]
       .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
       .slice(0, MAX_WEBINARS_TO_PROCESS);
@@ -69,7 +79,6 @@ export async function enhanceWebinarsWithRegistrantData(
       if (elapsed > MAX_TOTAL_PROCESSING_TIME) {
         console.warn(`[zoom-api][enhanceWebinarsWithRegistrantData] Global timeout reached (${elapsed}ms), stopping processing`);
         
-        // Add remaining webinars without registrant data
         const startIndex = batchIndex * BATCH_SIZE;
         const remainingInBatch = webinarsToProcess.slice(startIndex);
         for (const webinar of remainingInBatch) {
@@ -92,8 +101,7 @@ export async function enhanceWebinarsWithRegistrantData(
       console.log(`[zoom-api][enhanceWebinarsWithRegistrantData] Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} webinars)`);
       
       try {
-        // Process batch with very aggressive timeout
-        const batchTimeout = Math.min(API_TIMEOUT_MS * batch.length + 2000, 15000); // Max 15s per batch
+        const batchTimeout = Math.min(API_TIMEOUT_MS * batch.length + 2000, 15000);
         const batchResults = await Promise.race([
           processBatchWithRegistrants(batch, token, supabase, userId),
           new Promise((_, reject) => 
@@ -101,7 +109,6 @@ export async function enhanceWebinarsWithRegistrantData(
           )
         ]) as any[];
         
-        // Collect results
         for (const result of batchResults) {
           results.push(result);
           if (result._enhanced_with_registrants === true) {
@@ -117,7 +124,6 @@ export async function enhanceWebinarsWithRegistrantData(
       } catch (error) {
         console.error(`[zoom-api][enhanceWebinarsWithRegistrantData] Batch ${batchIndex + 1} failed:`, error);
         
-        // Add failed webinars to results with error markers
         for (const webinar of batch) {
           results.push({
             ...webinar,
@@ -130,10 +136,9 @@ export async function enhanceWebinarsWithRegistrantData(
         }
       }
       
-      // Add minimal delay between batches (except for last batch)
       if (batchIndex < totalBatches - 1) {
         const remainingTime = MAX_TOTAL_PROCESSING_TIME - (Date.now() - startTime);
-        if (remainingTime > BATCH_DELAY_MS + 5000) { // Only delay if we have time
+        if (remainingTime > BATCH_DELAY_MS + 5000) {
           console.log(`[zoom-api][enhanceWebinarsWithRegistrantData] Waiting ${BATCH_DELAY_MS}ms before next batch...`);
           await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
         } else {
@@ -169,20 +174,111 @@ export async function enhanceWebinarsWithRegistrantData(
 }
 
 /**
- * Process a batch of webinars with registrant data
+ * NEW: Separate background registrant sync function
  */
+export async function syncRegistrantsForWebinar(
+  webinarId: string,
+  token: string,
+  supabase: any,
+  userId: string
+): Promise<{ success: boolean; registrantsCount: number; error?: string }> {
+  console.log(`[zoom-api][syncRegistrantsForWebinar] Starting registrant sync for webinar: ${webinarId}`);
+  
+  try {
+    const registrantsRes = await fetch(`https://api.zoom.us/v2/webinars/${webinarId}/registrants?page_size=300`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!registrantsRes.ok) {
+      throw new Error(`Zoom API error: ${registrantsRes.status}`);
+    }
+    
+    const registrantsResponse = await registrantsRes.json();
+    const registrantsData = registrantsResponse.registrants || [];
+    const registrantsCount = registrantsResponse.total_records || registrantsData.length;
+    
+    console.log(`[zoom-api][syncRegistrantsForWebinar] Found ${registrantsCount} registrants for webinar ${webinarId}`);
+    
+    if (registrantsData.length > 0) {
+      // Store in zoom_webinar_participants table
+      const participantsToUpsert = registrantsData.map((registrant: any) => ({
+        user_id: userId,
+        webinar_id: webinarId,
+        participant_type: 'registrant',
+        participant_id: registrant.id,
+        email: registrant.email,
+        name: `${registrant.first_name || ''} ${registrant.last_name || ''}`.trim(),
+        join_time: registrant.create_time,
+        raw_data: registrant
+      }));
+      
+      const { error: upsertError } = await supabase
+        .from('zoom_webinar_participants')
+        .upsert(participantsToUpsert, {
+          onConflict: 'user_id,webinar_id,participant_type,participant_id',
+          ignoreDuplicates: false
+        });
+      
+      if (upsertError) {
+        throw upsertError;
+      }
+      
+      // Also store in zoom_webinar_registrants table for backwards compatibility
+      const registrantsToUpsert = registrantsData.map((registrant: any) => ({
+        user_id: userId,
+        webinar_id: webinarId,
+        registrant_id: registrant.id,
+        email: registrant.email,
+        first_name: registrant.first_name,
+        last_name: registrant.last_name,
+        status: registrant.status,
+        join_url: registrant.join_url,
+        registration_time: registrant.create_time,
+        raw_data: registrant
+      }));
+      
+      const { error: registrantsError } = await supabase
+        .from('zoom_webinar_registrants')
+        .upsert(registrantsToUpsert, {
+          onConflict: 'user_id,webinar_id,registrant_id',
+          ignoreDuplicates: false
+        });
+      
+      if (registrantsError) {
+        console.error(`[zoom-api][syncRegistrantsForWebinar] Error storing in registrants table:`, registrantsError);
+        // Don't throw here as participants table is primary
+      }
+      
+      // Update webinar registrants count
+      await supabase
+        .from('zoom_webinars')
+        .update({ registrants_count: registrantsCount })
+        .eq('user_id', userId)
+        .eq('webinar_id', webinarId);
+    }
+    
+    return { success: true, registrantsCount };
+    
+  } catch (error) {
+    console.error(`[zoom-api][syncRegistrantsForWebinar] Error:`, error);
+    return { success: false, registrantsCount: 0, error: error.message };
+  }
+}
+
+// Keep existing helper functions for backwards compatibility
 async function processBatchWithRegistrants(
   batch: any[],
   token: string,
   supabase?: any,
   userId?: string
 ): Promise<any[]> {
-  // Process webinars in batch concurrently but with individual error handling
   const batchPromises = batch.map(webinar => 
     processWebinarRegistrants(webinar, token, supabase, userId)
   );
   
-  // Wait for all webinars in batch to complete
   const batchResults = await Promise.allSettled(batchPromises);
   
   return batchResults.map((result, index) => {
@@ -200,9 +296,6 @@ async function processBatchWithRegistrants(
   });
 }
 
-/**
- * Process registrant data for a single webinar with aggressive timeout
- */
 async function processWebinarRegistrants(
   webinar: any,
   token: string,
@@ -213,12 +306,10 @@ async function processWebinarRegistrants(
   try {
     console.log(`[zoom-api][processWebinarRegistrants] Fetching registrants for webinar: ${webinar.id}`);
     
-    // Create timeout promise with reduced timeout
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('API call timeout')), API_TIMEOUT_MS)
     );
     
-    // Make API call with aggressive timeout protection
     const registrantsRes = await Promise.race([
       fetch(`https://api.zoom.us/v2/webinars/${webinar.id}/registrants?page_size=300`, {
         headers: {
@@ -240,13 +331,11 @@ async function processWebinarRegistrants(
       
       console.log(`[zoom-api][processWebinarRegistrants] Found ${registrantsCount} registrants for webinar ${webinar.id}`);
       
-      // Store registrants in database efficiently if supabase client is provided
       if (supabase && userId && registrantsData.length > 0) {
         try {
           storedCount = await storeRegistrantsEfficiently(supabase, userId, webinar.id, registrantsData);
         } catch (dbError) {
           console.error(`[zoom-api][processWebinarRegistrants] Database error for webinar ${webinar.id}:`, dbError);
-          // Continue processing even if database storage fails
         }
       }
     } else {
@@ -254,27 +343,24 @@ async function processWebinarRegistrants(
       console.log(`[zoom-api][processWebinarRegistrants] No registrants found for webinar ${webinar.id}: ${errorText}`);
     }
     
-    // Return enhanced webinar object
     return {
       ...webinar,
       registrants_count: registrantsCount,
       registrants_data: registrantsData,
       _enhanced_with_registrants: true,
       _registrants_stored_count: storedCount,
-      _api_call_duration: Date.now() // Simple timing marker
+      _api_call_duration: Date.now()
     };
     
   } catch (error) {
     console.error(`[zoom-api][processWebinarRegistrants] Error processing webinar ${webinar.id}:`, error);
     
-    // Retry logic for transient failures (reduced retries)
     if (retryCount < MAX_RETRIES && (error.message.includes('timeout') || error.message.includes('network'))) {
       console.log(`[zoom-api][processWebinarRegistrants] Retrying webinar ${webinar.id} (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-      await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1))); // Reduced backoff
+      await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
       return processWebinarRegistrants(webinar, token, supabase, userId, retryCount + 1);
     }
     
-    // Return webinar with error marker after max retries
     return {
       ...webinar,
       registrants_count: 0,
@@ -285,9 +371,6 @@ async function processWebinarRegistrants(
   }
 }
 
-/**
- * Efficiently store registrants using upsert operations with timeout
- */
 async function storeRegistrantsEfficiently(
   supabase: any,
   userId: string,
@@ -299,7 +382,6 @@ async function storeRegistrantsEfficiently(
   }
   
   try {
-    // Timeout the database operation as well
     const dbTimeout = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Database operation timeout')), 5000)
     );
@@ -316,7 +398,6 @@ async function storeRegistrantsEfficiently(
         raw_data: registrant
       }));
       
-      // Use upsert to handle duplicates efficiently
       const { error: upsertError, count } = await supabase
         .from('zoom_webinar_participants')
         .upsert(registrantsToUpsert, {

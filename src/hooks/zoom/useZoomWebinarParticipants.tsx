@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ZoomParticipants } from './types';
+import { fetchParticipantsFromDatabase } from './services/databaseQueries';
 
 export function useZoomWebinarParticipants(webinarId: string | null) {
   const { user } = useAuth();
@@ -12,33 +13,33 @@ export function useZoomWebinarParticipants(webinarId: string | null) {
     queryFn: async () => {
       if (!user || !webinarId) return { registrants: [], attendees: [] };
       
-      // Try to get from database first
-      const { data: dbParticipants, error: dbError } = await supabase
-        .from('zoom_webinar_participants')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('webinar_id', webinarId);
+      console.log(`[useZoomWebinarParticipants] Fetching participants for webinar: ${webinarId}`);
       
-      if (!dbError && dbParticipants && dbParticipants.length > 0) {
-        // Transform to expected format
-        const registrants = dbParticipants
-          .filter(p => p.participant_type === 'registrant')
-          .map(p => p.raw_data);
-        
-        const attendees = dbParticipants
-          .filter(p => p.participant_type === 'attendee')
-          .map(p => p.raw_data);
-        
-        return { registrants, attendees };
+      // FIXED: Always try database first and get accurate counts
+      const dbResult = await fetchParticipantsFromDatabase(user.id, webinarId);
+      
+      if (dbResult && (dbResult.registrants.length > 0 || dbResult.attendees.length > 0)) {
+        console.log(`[useZoomWebinarParticipants] Found participants in database: ${dbResult.registrants.length} registrants, ${dbResult.attendees.length} attendees`);
+        return {
+          registrants: dbResult.registrants,
+          attendees: dbResult.attendees
+        };
       }
       
-      // If not in database, fetch from API
-      const { data, error } = await supabase.functions.invoke('zoom-api', {
+      // If not in database, fetch from API as fallback
+      console.log(`[useZoomWebinarParticipants] No participants in database, fetching from API for webinar: ${webinarId}`);
+      
+      const { data: apiData, error: apiError } = await supabase.functions.invoke('zoom-api', {
         body: { action: 'get-participants', id: webinarId }
       });
       
-      if (error) throw new Error(error.message);
-      return data as ZoomParticipants;
+      if (apiError) {
+        console.error(`[useZoomWebinarParticipants] API error:`, apiError);
+        throw new Error(apiError.message);
+      }
+      
+      console.log(`[useZoomWebinarParticipants] API returned:`, apiData);
+      return apiData as ZoomParticipants;
     },
     enabled: !!user && !!webinarId,
     refetchOnWindowFocus: false,
