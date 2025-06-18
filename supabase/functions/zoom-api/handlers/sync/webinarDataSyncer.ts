@@ -87,6 +87,7 @@ export async function syncWebinarMetadata(
   return { error: webinarError };
 }
 
+// UPDATED: Store registrants in correct table
 export async function syncRegistrants(supabase: any, user: any, token: string, webinarId: string) {
   console.log(`[zoom-api][data-syncer] Fetching registrants for: ${webinarId}`);
   
@@ -111,21 +112,22 @@ export async function syncRegistrants(supabase: any, user: any, token: string, w
 
   // Delete existing registrants for this webinar
   await supabase
-    .from('zoom_webinar_participants')
+    .from('zoom_webinar_registrants')
     .delete()
     .eq('user_id', user.id)
-    .eq('webinar_id', webinarId)
-    .eq('participant_type', 'registrant');
+    .eq('webinar_id', webinarId);
   
-  // Insert new registrants with enhanced fields
+  // Insert new registrants in the correct table
   const registrantsToInsert = registrantsData.registrants.map((registrant: any) => ({
     user_id: user.id,
     webinar_id: webinarId,
-    participant_type: 'registrant',
-    participant_id: registrant.id,
+    registrant_id: registrant.id,
     email: registrant.email,
-    name: `${registrant.first_name} ${registrant.last_name}`.trim(),
-    join_time: registrant.create_time,
+    first_name: registrant.first_name,
+    last_name: registrant.last_name,
+    registration_time: registrant.create_time,
+    status: registrant.status,
+    join_url: registrant.join_url,
     
     // New fields for registrants (if available in custom questions)
     job_title: registrant.job_title || null,
@@ -140,7 +142,7 @@ export async function syncRegistrants(supabase: any, user: any, token: string, w
   }));
   
   const { error: registrantsError } = await supabase
-    .from('zoom_webinar_participants')
+    .from('zoom_webinar_registrants')
     .insert(registrantsToInsert);
   
   if (registrantsError) {
@@ -155,6 +157,7 @@ export async function syncRegistrants(supabase: any, user: any, token: string, w
   };
 }
 
+// UPDATED: Store attendees in correct table (participants table now only for attendees)
 export async function syncAttendees(supabase: any, user: any, token: string, webinarId: string) {
   console.log(`[zoom-api][data-syncer] Fetching attendees for: ${webinarId}`);
   
@@ -182,14 +185,12 @@ export async function syncAttendees(supabase: any, user: any, token: string, web
     .from('zoom_webinar_participants')
     .delete()
     .eq('user_id', user.id)
-    .eq('webinar_id', webinarId)
-    .eq('participant_type', 'attendee');
+    .eq('webinar_id', webinarId);
   
   // Insert new attendees with enhanced fields
   const attendeesToInsert = attendeesData.participants.map((attendee: any) => ({
     user_id: user.id,
     webinar_id: webinarId,
-    participant_type: 'attendee',
     participant_id: attendee.id,
     email: attendee.user_email,
     name: attendee.name,

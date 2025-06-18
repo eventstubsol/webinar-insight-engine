@@ -2,7 +2,7 @@
 import { corsHeaders } from '../cors.ts';
 import { getZoomJwtToken } from '../auth.ts';
 
-// Handle getting participants for a webinar
+// Handle getting participants for a webinar - UPDATED to use separate tables
 export async function handleGetParticipants(req: Request, supabase: any, user: any, credentials: any, id: string) {
   if (!id) {
     throw new Error('Webinar ID is required');
@@ -30,53 +30,60 @@ export async function handleGetParticipants(req: Request, supabase: any, user: a
     attendeesRes.json()
   ]);
   
-  // Store participants in database
+  // Store registrants in zoom_webinar_registrants table
   if (registrantsRes.ok && registrantsData.registrants && registrantsData.registrants.length > 0) {
     // Delete existing registrants for this webinar
     await supabase
-      .from('zoom_webinar_participants')
+      .from('zoom_webinar_registrants')
       .delete()
       .eq('user_id', user.id)
-      .eq('webinar_id', id)
-      .eq('participant_type', 'registrant');
+      .eq('webinar_id', id);
     
     // Insert new registrants
     const registrantsToInsert = registrantsData.registrants.map((registrant: any) => ({
       user_id: user.id,
       webinar_id: id,
-      participant_type: 'registrant',
-      participant_id: registrant.id,
+      registrant_id: registrant.id,
       email: registrant.email,
-      name: `${registrant.first_name} ${registrant.last_name}`.trim(),
-      join_time: registrant.create_time,
+      first_name: registrant.first_name,
+      last_name: registrant.last_name,
+      registration_time: registrant.create_time,
+      status: registrant.status,
+      join_url: registrant.join_url,
       raw_data: registrant
     }));
     
     await supabase
-      .from('zoom_webinar_participants')
+      .from('zoom_webinar_registrants')
       .insert(registrantsToInsert);
   }
   
+  // Store attendees in zoom_webinar_participants table
   if (attendeesRes.ok && attendeesData.participants && attendeesData.participants.length > 0) {
     // Delete existing attendees for this webinar
     await supabase
       .from('zoom_webinar_participants')
       .delete()
       .eq('user_id', user.id)
-      .eq('webinar_id', id)
-      .eq('participant_type', 'attendee');
+      .eq('webinar_id', id);
     
     // Insert new attendees
     const attendeesToInsert = attendeesData.participants.map((attendee: any) => ({
       user_id: user.id,
       webinar_id: id,
-      participant_type: 'attendee',
       participant_id: attendee.id,
       email: attendee.user_email,
       name: attendee.name,
       join_time: attendee.join_time,
       leave_time: attendee.leave_time,
       duration: attendee.duration,
+      connection_type: attendee.connection_type,
+      data_center: attendee.data_center,
+      pc_name: attendee.pc_name,
+      domain: attendee.domain,
+      mac_addr: attendee.mac_addr,
+      harddisk_id: attendee.harddisk_id,
+      recording_consent: attendee.recording_consent || false,
       raw_data: attendee
     }));
     

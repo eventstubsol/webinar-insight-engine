@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { ZoomWebinar, ZoomParticipants } from '@/hooks/zoom';
 import { useZoomParticipantSync } from '@/hooks/zoom/useZoomParticipantSync';
@@ -93,7 +92,7 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState('10');
   
-  // NEW: Registrant sync functionality
+  // Registrant sync functionality
   const { syncRegistrantsForWebinar, isLoading: isSyncing } = useZoomParticipantSync();
   
   const registrants = participants.registrants as Registrant[] || [];
@@ -158,7 +157,7 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
   const startIndex = isShowingAll ? 1 : (validCurrentPage - 1) * itemsPerPageNum + 1;
   const endIndex = isShowingAll ? totalParticipants : Math.min(validCurrentPage * itemsPerPageNum, totalParticipants);
   
-  // NEW: Handle registrant sync
+  // Handle registrant sync
   const handleSyncRegistrants = async () => {
     try {
       await syncRegistrantsForWebinar(webinar.id);
@@ -175,7 +174,7 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
         <h2 className="text-xl font-semibold">Webinar Participants</h2>
         
         <div className="flex flex-col sm:flex-row gap-2">
-          {/* NEW: Sync registrants button */}
+          {/* Sync registrants button */}
           {showSyncButton && (
             <Button 
               variant="outline" 
@@ -199,7 +198,7 @@ export const WebinarParticipantsTab: React.FC<WebinarParticipantsTabProps> = ({
         </div>
       </div>
       
-      {/* NEW: Show sync alert if no registrant data */}
+      {/* Show sync alert if no registrant data */}
       {showSyncButton && participantType === 'registrants' && (
         <Alert className="mb-4">
           <Users className="h-4 w-4" />

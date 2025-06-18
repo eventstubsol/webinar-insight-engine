@@ -1,9 +1,8 @@
 /**
- * DISABLED registrant data processor - moved to separate background process
- * This prevents the main sync from timing out
+ * UPDATED registrant data processor - now uses correct table separation
  */
 
-// Aggressive timeout configuration - DISABLED FOR MAIN SYNC
+// Aggressive timeout configuration
 const BATCH_SIZE = 3;
 const BATCH_DELAY_MS = 1000;
 const API_TIMEOUT_MS = 8000;
@@ -174,7 +173,7 @@ export async function enhanceWebinarsWithRegistrantData(
 }
 
 /**
- * NEW: Separate background registrant sync function
+ * UPDATED: Separate background registrant sync function - now uses correct table
  */
 export async function syncRegistrantsForWebinar(
   webinarId: string,
@@ -203,30 +202,7 @@ export async function syncRegistrantsForWebinar(
     console.log(`[zoom-api][syncRegistrantsForWebinar] Found ${registrantsCount} registrants for webinar ${webinarId}`);
     
     if (registrantsData.length > 0) {
-      // Store in zoom_webinar_participants table
-      const participantsToUpsert = registrantsData.map((registrant: any) => ({
-        user_id: userId,
-        webinar_id: webinarId,
-        participant_type: 'registrant',
-        participant_id: registrant.id,
-        email: registrant.email,
-        name: `${registrant.first_name || ''} ${registrant.last_name || ''}`.trim(),
-        join_time: registrant.create_time,
-        raw_data: registrant
-      }));
-      
-      const { error: upsertError } = await supabase
-        .from('zoom_webinar_participants')
-        .upsert(participantsToUpsert, {
-          onConflict: 'user_id,webinar_id,participant_type,participant_id',
-          ignoreDuplicates: false
-        });
-      
-      if (upsertError) {
-        throw upsertError;
-      }
-      
-      // Also store in zoom_webinar_registrants table for backwards compatibility
+      // Store in zoom_webinar_registrants table (correct table)
       const registrantsToUpsert = registrantsData.map((registrant: any) => ({
         user_id: userId,
         webinar_id: webinarId,
@@ -234,22 +210,21 @@ export async function syncRegistrantsForWebinar(
         email: registrant.email,
         first_name: registrant.first_name,
         last_name: registrant.last_name,
+        registration_time: registrant.create_time,
         status: registrant.status,
         join_url: registrant.join_url,
-        registration_time: registrant.create_time,
         raw_data: registrant
       }));
       
-      const { error: registrantsError } = await supabase
+      const { error: upsertError } = await supabase
         .from('zoom_webinar_registrants')
         .upsert(registrantsToUpsert, {
           onConflict: 'user_id,webinar_id,registrant_id',
           ignoreDuplicates: false
         });
       
-      if (registrantsError) {
-        console.error(`[zoom-api][syncRegistrantsForWebinar] Error storing in registrants table:`, registrantsError);
-        // Don't throw here as participants table is primary
+      if (upsertError) {
+        throw upsertError;
       }
       
       // Update webinar registrants count
@@ -390,18 +365,20 @@ async function storeRegistrantsEfficiently(
       const registrantsToUpsert = registrantsData.map((registrant: any) => ({
         user_id: userId,
         webinar_id: webinarId,
-        participant_type: 'registrant',
-        participant_id: registrant.id,
+        registrant_id: registrant.id,
         email: registrant.email,
-        name: `${registrant.first_name || ''} ${registrant.last_name || ''}`.trim(),
-        join_time: registrant.create_time,
+        first_name: registrant.first_name,
+        last_name: registrant.last_name,
+        registration_time: registrant.create_time,
+        status: registrant.status,
+        join_url: registrant.join_url,
         raw_data: registrant
       }));
       
       const { error: upsertError, count } = await supabase
-        .from('zoom_webinar_participants')
+        .from('zoom_webinar_registrants')
         .upsert(registrantsToUpsert, {
-          onConflict: 'user_id,webinar_id,participant_type,participant_id',
+          onConflict: 'user_id,webinar_id,registrant_id',
           ignoreDuplicates: false
         })
         .select('id', { count: 'exact' });

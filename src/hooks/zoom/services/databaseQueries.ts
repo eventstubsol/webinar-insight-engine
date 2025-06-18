@@ -63,61 +63,83 @@ export async function fetchWebinarInstancesFromDatabase(userId: string, webinarI
 }
 
 /**
- * IMPROVED: Fetch participants from database with proper filtering and counting
+ * UPDATED: Fetch participants from separate tables
  */
 export async function fetchParticipantsFromDatabase(userId: string, webinarId?: string): Promise<{ registrants: any[], attendees: any[], totalCount: number } | null> {
-  console.log(`[fetchParticipantsFromDatabase] Fetching participants from database for user: ${userId}${webinarId ? `, webinar: ${webinarId}` : ''}`);
+  console.log(`[fetchParticipantsFromDatabase] Fetching participants from separate tables for user: ${userId}${webinarId ? `, webinar: ${webinarId}` : ''}`);
   
-  let query = supabase
+  // Fetch registrants from zoom_webinar_registrants table
+  let registrantsQuery = supabase
+    .from('zoom_webinar_registrants')
+    .select('*')
+    .eq('user_id', userId);
+    
+  if (webinarId) {
+    registrantsQuery = registrantsQuery.eq('webinar_id', webinarId);
+  }
+  
+  // Fetch attendees from zoom_webinar_participants table
+  let attendeesQuery = supabase
     .from('zoom_webinar_participants')
     .select('*')
     .eq('user_id', userId);
     
   if (webinarId) {
-    query = query.eq('webinar_id', webinarId);
+    attendeesQuery = attendeesQuery.eq('webinar_id', webinarId);
   }
   
-  const { data: dbParticipants, error: dbError, count } = await query;
+  const [registrantsResult, attendeesResult] = await Promise.all([
+    registrantsQuery,
+    attendeesQuery
+  ]);
   
-  if (dbError) {
-    console.error('[fetchParticipantsFromDatabase] Error:', dbError);
+  if (registrantsResult.error) {
+    console.error('[fetchParticipantsFromDatabase] Registrants error:', registrantsResult.error);
     return null;
   }
   
-  if (!dbParticipants || dbParticipants.length === 0) {
+  if (attendeesResult.error) {
+    console.error('[fetchParticipantsFromDatabase] Attendees error:', attendeesResult.error);
+    return null;
+  }
+  
+  const dbRegistrants = registrantsResult.data || [];
+  const dbAttendees = attendeesResult.data || [];
+  
+  if (dbRegistrants.length === 0 && dbAttendees.length === 0) {
     console.log('[fetchParticipantsFromDatabase] No participants found in database');
     return { registrants: [], attendees: [], totalCount: 0 };
   }
   
-  console.log(`[fetchParticipantsFromDatabase] Found ${dbParticipants.length} participants in database (total count: ${count})`);
+  console.log(`[fetchParticipantsFromDatabase] Found ${dbRegistrants.length} registrants and ${dbAttendees.length} attendees in database`);
   
-  // Separate registrants and attendees
-  const registrants = dbParticipants
-    .filter(p => p.participant_type === 'registrant')
-    .map(p => p.raw_data || {
-      id: p.participant_id,
-      email: p.email,
-      name: p.name,
-      join_time: p.join_time
-    });
+  // Transform registrants data
+  const registrants = dbRegistrants.map(r => r.raw_data || {
+    id: r.registrant_id,
+    email: r.email,
+    first_name: r.first_name,
+    last_name: r.last_name,
+    create_time: r.registration_time,
+    status: r.status,
+    join_url: r.join_url
+  });
   
-  const attendees = dbParticipants
-    .filter(p => p.participant_type === 'attendee')
-    .map(p => p.raw_data || {
-      id: p.participant_id,
-      email: p.email,
-      name: p.name,
-      join_time: p.join_time,
-      leave_time: p.leave_time,
-      duration: p.duration
-    });
+  // Transform attendees data
+  const attendees = dbAttendees.map(a => a.raw_data || {
+    id: a.participant_id,
+    email: a.email,
+    name: a.name,
+    join_time: a.join_time,
+    leave_time: a.leave_time,
+    duration: a.duration
+  });
   
-  console.log(`[fetchParticipantsFromDatabase] Separated: ${registrants.length} registrants, ${attendees.length} attendees`);
+  console.log(`[fetchParticipantsFromDatabase] Transformed: ${registrants.length} registrants, ${attendees.length} attendees`);
   
   return { 
     registrants, 
     attendees,
-    totalCount: count || dbParticipants.length
+    totalCount: dbRegistrants.length + dbAttendees.length
   };
 }
 
@@ -191,7 +213,7 @@ function transformDatabaseWebinars(dbWebinars: any[]): ZoomWebinar[] {
       contact_name: item.contact_name,
       contact_email: item.contact_email,
       
-      // FIXED: Use database counts, not raw_data counts
+      // Use database counts from the correct tables
       registrants_count: item.registrants_count || 0,
       participants_count: item.participants_count || 0,
       
