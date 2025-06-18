@@ -9,6 +9,7 @@ import { handleGetWebinarInstances } from './handlers/getWebinarInstances.ts';
 import { handleGetInstanceParticipants } from './handlers/getInstanceParticipants.ts';
 import { handleGetWebinarRecordings } from './handlers/getWebinarRecordings.ts';
 import { handleSyncRegistrants } from './handlers/sync-registrants.ts';
+import { handleCheckCredentialsStatus, handleSaveCredentials, handleVerifyCredentials } from './credentials.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -40,7 +41,30 @@ Deno.serve(async (req) => {
       throw new Error('Authentication failed');
     }
 
-    // Get user's Zoom credentials
+    // Handle actions that don't need credentials first
+    switch (action) {
+      case 'check-credentials-status':
+        return await handleCheckCredentialsStatus(req, supabase, user);
+      
+      case 'save-credentials':
+        return await handleSaveCredentials(req, supabase, user, params);
+      
+      case 'verify-credentials':
+        // Get user's Zoom credentials for verification
+        const { data: verifyCredentials, error: verifyCredError } = await supabase
+          .from('zoom_credentials')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (verifyCredError || !verifyCredentials) {
+          throw new Error('No Zoom credentials found');
+        }
+        
+        return await handleVerifyCredentials(req, supabase, user, verifyCredentials);
+    }
+
+    // Get user's Zoom credentials for other operations
     const { data: credentials, error: credError } = await supabase
       .from('zoom_credentials')
       .select('*')
